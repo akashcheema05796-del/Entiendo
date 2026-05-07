@@ -1,0 +1,6 @@
+{
+  "name": "Code Cosmos",
+  "description": "A hybrid, privacy-first agentic system for codebase visualization, RAG-powered querying, and atomic refactoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
