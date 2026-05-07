@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+@layer base {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+@layer utilities {
+  .prose-xs {
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  .prose-xs h1 { font-size: 1.25rem; margin-top: 1rem; margin-bottom: 0.5rem; font-weight: 800; color: white; }
+  .prose-xs h2 { font-size: 1rem; margin-top: 0.875rem; margin-bottom: 0.375rem; font-weight: 700; color: #cbd5e1; }
+  .prose-xs h3 { font-size: 0.875rem; margin-top: 0.75rem; margin-bottom: 0.25rem; font-weight: 600; color: #94a3b8; }
+  .prose-xs p { margin-bottom: 0.5rem; }
+  .prose-xs ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+  .prose-xs li { margin-bottom: 0.25rem; }
+  .prose-xs code { background: rgba(255, 255, 255, 0.1); padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-family: monospace; }
+}

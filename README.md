@@ -1,4 +1,4 @@
-# 🪐 Entiendo: Hybrid Codebase Visualizer & AI Agent
+# 🪐 Code Cosmos: Hybrid Codebase Visualizer & AI Agent
 
 A hybrid, privacy-first agentic system for codebase visualization, RAG-powered querying, and atomic refactoring. Deeply orchestrated using LangGraph and styled with a precision Bento Grid aesthetic.
 
