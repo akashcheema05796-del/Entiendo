@@ -1,20 +1,40 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 🪐 Code Cosmos: Hybrid Codebase Visualizer & AI Agent
 
-# Run and deploy your AI Studio app
+A hybrid, privacy-first agentic system for codebase visualization, RAG-powered querying, and atomic refactoring. Deeply orchestrated using LangGraph and styled with a precision Bento Grid aesthetic.
 
-This contains everything you need to run your app locally.
+## 🚀 Key Features
 
-View your app in AI Studio: https://ai.studio/apps/c503b1b0-cab7-4486-8412-97e6c6c6afbc
+- **Hybrid Inference**: Routes standard tasks to lightweight models and complex refactors to high-reasoning reasoning clusters.
+- **Bento Grid Interface**: A high-density, polished UI that visualizes codebase health, complexity heatmaps, and streaming AI traces.
+- **Pointer-Based State**: Uses a SQLite session store to manage large code context without bloating the orchestration graph.
+- **Deterministic Refactoring**: Replaces fragile diff generation with structural SEARCH/REPLACE blocks and GritQL for AST-level transformations.
 
-## Run Locally
+## 🏗️ Architecture
 
-**Prerequisites:**  Node.js
+- **Transport Layer**: TypeScript + Express + Socket.io (Real-time streaming).
+- **Orchestration**: LangGraph (Cyclic workflows and state management).
+- **Vision Layer**: React + Tailwind CSS + Motion (Bento Grid design).
+- **Tooling**:
+    - `GritQL`: Structural AST transformations.
+    - `Tree-sitter`: Metadata-rich codebase chunking.
+    - `Qdrant`: High-performance vector storage for RAG.
 
+## 🛠️ Setup & Requirements
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### Installation
+```bash
+npm install
+```
+
+### Environment Configuration
+Copy `.env.example` to `.env` and configure your keys:
+- `GEMINI_API_KEY`: Required for LLM orchestration.
+- `QDRANT_URL`: URL for the vector database.
+
+### Running Development
+```bash
+npm run dev
+```
+
+## 🛡️ Privacy Shield
+This system follows a "Local-First" data policy. Code content is processed locally or in secured reasoning clusters. Identifiers and metadata are cached in a private SQLite instance (`.session_cache.db`).

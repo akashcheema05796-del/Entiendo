@@ -1,0 +1,15 @@
+# Requirements for Code Cosmos Backend Tools
+# Note: Core app runs on Node.js. These are for the conceptual Python tool layer.
+
+gritql>=0.1.0
+tree-sitter>=0.20.0
+tree-sitter-typescript==0.20.0
+tree-sitter-javascript==0.20.0
+networkx>=3.0
+pydeps>=1.10.0
+fastapi>=0.100.0
+uvicorn>=0.23.0
+better-sqlite3-helper>=1.0.0
+qdrant-client>=1.6.0
+langchain-google-genai>=0.0.1
+langgraph>=0.0.1
