@@ -49,7 +49,7 @@ const TERMINAL_NODES = new Set(['micro_logic', 'macro_structure', 'deep_explanat
 export default function EntendoCanvas() {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [query, setQuery] = useState('');
-  const [repoUrl, setRepoUrl] = useState('anthropics/financial-services');
+  const [repoUrl, setRepoUrl] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
   const [analysisResult, setAnalysisResult] = useState<{ type: string; content: string } | null>(null);
   const [diffData, setDiffData] = useState<DiffData | null>(null);
@@ -172,7 +172,7 @@ export default function EntendoCanvas() {
   }, []);
 
   const handleSend = () => {
-    if (!query.trim() || !socketRef.current) return;
+    if (!query.trim() || !repoUrl.trim() || !socketRef.current) return;
     setIsProcessing(true);
     setAnalysisResult(null);
     setDiffData(null);
@@ -334,8 +334,8 @@ export default function EntendoCanvas() {
             <Code className="w-3.5 h-3.5 text-slate-500" />
             <input
               type="text"
-              placeholder="github-owner/repo"
-              className="bg-transparent border-none outline-none text-[11px] font-mono w-48 sm:w-64 text-slate-300 placeholder:text-slate-600"
+              placeholder="owner/repo, github URL, or /local/path"
+              className="bg-transparent border-none outline-none text-[11px] font-mono w-48 sm:w-72 text-slate-300 placeholder:text-slate-600"
               value={repoUrl}
               onChange={e => setRepoUrl(e.target.value)}
             />
@@ -443,7 +443,7 @@ export default function EntendoCanvas() {
             />
             <button
               onClick={handleSend}
-              disabled={isProcessing || isCloning || !query.trim()}
+              disabled={isProcessing || isCloning || !query.trim() || !repoUrl.trim()}
               className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 text-white p-3 rounded-2xl transition-all shadow-lg active:scale-95 group"
             >
               <Send className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />

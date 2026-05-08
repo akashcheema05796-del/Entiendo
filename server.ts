@@ -50,29 +50,42 @@ async function startServer() {
     const sessionId = socket.id;
 
     socket.on('agent_query', async (data: { query: string; repo_url: string }) => {
-      const workspacePath = path.join(
-        process.cwd(),
-        'workspace',
-        data.repo_url.replace(/\//g, '_')
-      );
+      const input = data.repo_url.trim();
+      const isLocalPath = /^(\/|\.\/|\.\.\/|~\/)/.test(input) || (process.platform === 'win32' && /^[a-zA-Z]:[\\\/]/.test(input));
+      const resolvedLocal = isLocalPath ? input.replace(/^~(?=\/|$)/, process.env.HOME ?? '') : null;
+
+      let workspacePath: string;
+      if (isLocalPath) {
+        if (!resolvedLocal || !fs.existsSync(resolvedLocal)) {
+          socket.emit('error', { message: `Local path not found: ${resolvedLocal}` });
+          return;
+        }
+        workspacePath = path.resolve(resolvedLocal);
+      } else {
+        workspacePath = path.join(process.cwd(), 'workspace', input.replace(/[^a-zA-Z0-9_-]/g, '_'));
+      }
       currentWorkspacePath = workspacePath;
 
       try {
-        const workspaceDir = path.join(process.cwd(), 'workspace');
-        if (!fs.existsSync(workspaceDir)) fs.mkdirSync(workspaceDir, { recursive: true });
+        if (!isLocalPath) {
+          const workspaceDir = path.join(process.cwd(), 'workspace');
+          if (!fs.existsSync(workspaceDir)) fs.mkdirSync(workspaceDir, { recursive: true });
 
-        // Clone repo if not cached
-        if (!fs.existsSync(workspacePath)) {
-          socket.emit('clone_start', { repo_url: data.repo_url });
-          console.log(`Cloning ${data.repo_url}...`);
-          const { execSync } = await import('child_process');
-          execSync(`npx -y degit ${data.repo_url} ${workspacePath} --force`, { timeout: 60_000 });
-          socket.emit('clone_done', { repo_url: data.repo_url });
+          // Clone repo if not cached
+          if (!fs.existsSync(workspacePath)) {
+            socket.emit('clone_start', { repo_url: input });
+            console.log(`Cloning ${input}...`);
+            const { execSync } = await import('child_process');
+            execSync(`npx -y degit ${input} ${workspacePath} --force`, { timeout: 60_000 });
+            socket.emit('clone_done', { repo_url: input });
+          }
+        } else {
+          socket.emit('log', { message: `[System] Using local path: ${workspacePath}` });
         }
 
         // Send file tree for visualization
         const fileTree = getFileTree(workspacePath);
-        socket.emit('repo_structure', { tree: fileTree, repo_url: data.repo_url });
+        socket.emit('repo_structure', { tree: fileTree, repo_url: input });
 
         // Kick off RAG indexing in the background (non-blocking)
         ragIndexer.indexRepo(workspacePath, sessionId, (msg) => {
