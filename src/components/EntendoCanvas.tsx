@@ -332,7 +332,7 @@ export default function EntendoCanvas() {
               <h1 className="text-sm font-black tracking-tighter text-white">
                 ENTIENDO <span className="text-indigo-400 font-medium">V4</span>
               </h1>
-              <p className="text-[9px] text-slate-500 font-mono tracking-widest uppercase">Neural_Architecture_Scanner</p>
+              <p className="text-[9px] text-slate-500 font-mono tracking-widest uppercase">Vibe_to_Visual_Coding</p>
             </div>
           </div>
 

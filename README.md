@@ -1,6 +1,6 @@
-# Entiendo: Hybrid Codebase Visualizer & AI Agent
+# Entiendo: Vibe to Visual Coding
 
-A hybrid, privacy-first agentic system for codebase visualization, RAG-powered querying, Mermaid diagram generation, and atomic refactoring — deeply orchestrated using LangGraph.
+Turn natural-language vibes into live Mermaid diagrams, streamed explanations, and atomic code refactors — powered by LangGraph and Gemini.
 
 ## Key Features
 
