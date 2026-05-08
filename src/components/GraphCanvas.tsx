@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { GraphNode as GNode, GraphEdge as GEdge, ProjectGraph } from '../types/project_graph.ts';
 import GraphNodeComp from './GraphNode.tsx';
 import GraphEdgeComp from './GraphEdge.tsx';
@@ -24,9 +24,14 @@ interface NodeState {
 const REPULSION = 3000;
 const SPRING_LENGTH = 120;
 const SPRING_K = 0.05;
+// Tighter orbit for contains edges (symbol children orbiting their parent file)
+const ORBIT_SPRING_LENGTH = 50;
+const ORBIT_SPRING_K = 0.18;
 const DAMPING = 0.85;
 const CENTER_GRAVITY = 0.008;
-const MAX_ITER = 300;
+const MAX_ITER = 350;
+
+const SYMBOL_KINDS = new Set(['function', 'class', 'interface', 'variable']);
 
 export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNodeDoubleClick, width, height }: GraphCanvasProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -36,11 +41,25 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
   const transformRef = useRef(transform);
   transformRef.current = transform;
 
-  // Node physics state (separate from React state for performance)
+  // Node physics state (mutable ref for perf — not React state)
   const physicsRef = useRef<Map<string, NodeState>>(new Map());
   const rafRef = useRef<number>(0);
   const iterRef = useRef(0);
   const [, forceRender] = useState(0);
+
+  // Derived: which nodes are expanded (have symbol children)
+  const expandedParentIds = useMemo(() => {
+    const childIds = new Set(
+      graph.edges.filter(e => e.kind === 'contains').map(e => e.target)
+    );
+    return new Set(
+      graph.edges
+        .filter(e => e.kind === 'contains' && SYMBOL_KINDS.has(
+          graph.nodes.find(n => n.id === e.target)?.kind ?? ''
+        ))
+        .map(e => e.source)
+    );
+  }, [graph.edges, graph.nodes]);
 
   // Initialize physics from graph nodes
   useEffect(() => {
@@ -66,7 +85,8 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
   // Force simulation loop
   useEffect(() => {
     const nodes = graph.nodes;
-    const edges = graph.edges.filter(e => e.kind !== 'contains');
+    const containsEdges = graph.edges.filter(e => e.kind === 'contains');
+    const semanticEdges = graph.edges.filter(e => e.kind !== 'contains');
 
     const tick = () => {
       if (iterRef.current >= MAX_ITER) return;
@@ -76,10 +96,10 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
       const cx = width / 2;
       const cy = height / 2;
 
-      // Repulsion between all node pairs (skip large graphs for perf)
       const nodeList = Array.from(physics.values());
-      const limit = Math.min(nodeList.length, 80);
+      const limit = Math.min(nodeList.length, 100);
 
+      // Repulsion — reduced between child nodes in the same orbit group
       for (let i = 0; i < limit; i++) {
         for (let j = i + 1; j < limit; j++) {
           const a = nodeList[i], b = nodeList[j];
@@ -87,7 +107,9 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
           const dy = a.y - b.y || 0.1;
           const dist2 = dx * dx + dy * dy;
           if (dist2 === 0) continue;
-          const force = REPULSION / dist2;
+          // Reduce repulsion between close sibling symbol nodes
+          const repulsion = dist2 < 1000 ? REPULSION * 0.3 : REPULSION;
+          const force = repulsion / dist2;
           const fx = force * dx / Math.sqrt(dist2);
           const fy = force * dy / Math.sqrt(dist2);
           if (!a.fixed) { a.vx += fx; a.vy += fy; }
@@ -95,8 +117,20 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
         }
       }
 
-      // Spring attraction along edges
-      for (const edge of edges) {
+      // Contains edges: tight orbit spring (symbol child stays near parent file)
+      for (const edge of containsEdges) {
+        const a = physics.get(edge.source), b = physics.get(edge.target);
+        if (!a || !b) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const force = (dist - ORBIT_SPRING_LENGTH) * ORBIT_SPRING_K;
+        const fx = force * dx / dist, fy = force * dy / dist;
+        if (!a.fixed) { a.vx += fx; a.vy += fy; }
+        if (!b.fixed) { b.vx -= fx; b.vy -= fy; }
+      }
+
+      // Semantic edges: regular spring
+      for (const edge of semanticEdges) {
         const a = physics.get(edge.source), b = physics.get(edge.target);
         if (!a || !b) continue;
         const dx = b.x - a.x, dy = b.y - a.y;
@@ -107,7 +141,7 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
         if (!b.fixed) { b.vx -= fx; b.vy -= fy; }
       }
 
-      // Apply damping + center gravity + integrate
+      // Damping + center gravity + integrate
       for (const n of nodeList) {
         if (n.fixed) continue;
         n.vx += (cx - n.x) * CENTER_GRAVITY;
@@ -126,7 +160,7 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
     return () => cancelAnimationFrame(rafRef.current);
   }, [graph.nodes.length, graph.edges.length, width, height]);
 
-  // Dragging a node
+  // Node drag
   const draggingNode = useRef<string | null>(null);
 
   const handleNodeMouseDown = useCallback((nodeId: string, e: React.MouseEvent) => {
@@ -168,12 +202,16 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
     setTransform(t => ({ ...t, scale: Math.min(Math.max(t.scale * factor, 0.2), 5) }));
   }, []);
 
-  // Get display positions from physics
   const getPos = (id: string) => physicsRef.current.get(id) ?? { x: 0, y: 0 };
 
-  // Only show edges that connect visible nodes
   const visibleIds = new Set(graph.nodes.map(n => n.id));
   const visibleEdges = graph.edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target));
+
+  // Separate render layers: structural edges → semantic edges → parent nodes → child nodes
+  const semanticEdges = visibleEdges.filter(e => e.kind !== 'contains');
+  const containsEdges = visibleEdges.filter(e => e.kind === 'contains');
+  const parentNodes = graph.nodes.filter(n => !SYMBOL_KINDS.has(n.kind));
+  const childNodes = graph.nodes.filter(n => SYMBOL_KINDS.has(n.kind));
 
   return (
     <svg
@@ -186,10 +224,51 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
       onMouseDown={handleCanvasMouseDown}
       onWheel={handleWheel}
     >
+      <defs>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+
       <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
-        {/* Edges */}
+        {/* Contains edges (subtle dashed, drawn first/below) */}
+        <g opacity={0.35}>
+          {containsEdges.map(edge => {
+            const sp = getPos(edge.source), tp = getPos(edge.target);
+            return (
+              <GraphEdgeComp
+                key={edge.id}
+                edge={edge}
+                sourceX={sp.x} sourceY={sp.y}
+                targetX={tp.x} targetY={tp.y}
+                isHighlighted={false}
+              />
+            );
+          })}
+        </g>
+
+        {/* Orbit halos for expanded parent nodes */}
+        {Array.from(expandedParentIds).map(parentId => {
+          const pos = getPos(parentId);
+          return (
+            <circle
+              key={`halo-${parentId}`}
+              cx={pos.x}
+              cy={pos.y}
+              r={ORBIT_SPRING_LENGTH + 15}
+              fill="none"
+              stroke="#6366f1"
+              strokeWidth={0.5}
+              strokeDasharray="4 4"
+              opacity={0.2}
+            />
+          );
+        })}
+
+        {/* Semantic edges (imports, calls, etc.) */}
         <g>
-          {visibleEdges.map(edge => {
+          {semanticEdges.map(edge => {
             const sp = getPos(edge.source), tp = getPos(edge.target);
             const isHighlighted = selectedNodeIds.has(edge.source) || selectedNodeIds.has(edge.target);
             return (
@@ -204,9 +283,9 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
           })}
         </g>
 
-        {/* Nodes */}
+        {/* Parent / file / directory nodes */}
         <g>
-          {graph.nodes.map(node => {
+          {parentNodes.map(node => {
             const pos = getPos(node.id);
             const displayNode = { ...node, x: pos.x, y: pos.y };
             return (
@@ -215,6 +294,7 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
                 node={displayNode}
                 isSelected={selectedNodeIds.has(node.id)}
                 isHovered={hoveredId === node.id}
+                isExpanded={expandedParentIds.has(node.id)}
                 onClick={e => {
                   e.stopPropagation();
                   onNodeClick(node.id, e.shiftKey || e.metaKey || e.ctrlKey);
@@ -222,15 +302,42 @@ export default function GraphCanvas({ graph, selectedNodeIds, onNodeClick, onNod
                 onDoubleClick={() => onNodeDoubleClick(node)}
                 onMouseEnter={() => setHoveredId(node.id)}
                 onMouseLeave={() => setHoveredId(null)}
+                onMouseDown={e => handleNodeMouseDown(node.id, e)}
+              />
+            );
+          })}
+        </g>
+
+        {/* Symbol child nodes (rendered on top of parents) */}
+        <g>
+          {childNodes.map(node => {
+            const pos = getPos(node.id);
+            const displayNode = { ...node, x: pos.x, y: pos.y };
+            return (
+              <GraphNodeComp
+                key={node.id}
+                node={displayNode}
+                isSelected={selectedNodeIds.has(node.id)}
+                isHovered={hoveredId === node.id}
+                isExpanded={false}
+                onClick={e => {
+                  e.stopPropagation();
+                  onNodeClick(node.id, e.shiftKey || e.metaKey || e.ctrlKey);
+                }}
+                onDoubleClick={() => onNodeDoubleClick(node)}
+                onMouseEnter={() => setHoveredId(node.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                onMouseDown={e => handleNodeMouseDown(node.id, e)}
               />
             );
           })}
         </g>
       </g>
 
-      {/* Mini zoom indicator */}
+      {/* Mini status bar */}
       <text x={12} y={height - 12} fill="#475569" fontSize={9} fontFamily="monospace">
         {Math.round(transform.scale * 100)}%  {graph.nodes.length} nodes  {graph.edges.length} edges
+        {childNodes.length > 0 ? `  (${childNodes.length} symbols)` : ''}
       </text>
     </svg>
   );
