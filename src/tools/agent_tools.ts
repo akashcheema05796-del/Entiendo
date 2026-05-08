@@ -3,6 +3,8 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import { ragIndexer } from './rag_indexer.ts';
+import { store } from '../infrastructure/session_store.ts';
+import { ProjectGraph } from '../types/project_graph.ts';
 
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.java', '.cpp', '.c', '.md', '.json', '.yaml', '.yml', '.toml', '.env.example']);
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '__pycache__', '.next', 'build']);
@@ -13,7 +15,7 @@ function safeResolvePath(repoPath: string, relativePath: string): string | null 
   return resolved;
 }
 
-export function makeAgentTools(repoPath: string, sessionId: string) {
+export function makeAgentTools(repoPath: string, sessionId: string, graphRef?: string | null) {
   const read_file = tool(
     async ({ file_path }) => {
       const full = safeResolvePath(repoPath, file_path);
@@ -109,7 +111,30 @@ export function makeAgentTools(repoPath: string, sessionId: string) {
     }
   );
 
-  return [read_file, list_files, search_codebase, grep_codebase] as const;
+  const get_graph_context = tool(
+    async ({ node_ids }) => {
+      if (!graphRef) return 'No graph available for this session.';
+      const graph = store.get(graphRef) as ProjectGraph | null;
+      if (!graph) return 'Graph not found in store.';
+      const ids = node_ids.length > 0 ? new Set(node_ids) : null;
+      const nodes = ids ? graph.nodes.filter(n => ids.has(n.id)) : graph.nodes.slice(0, 30);
+      const edges = ids
+        ? graph.edges.filter(e => ids.has(e.source) || ids.has(e.target))
+        : graph.edges.slice(0, 60);
+      const nodeLines = nodes.map(n => `  [${n.kind}] ${n.relativePath} (${n.language}, ${n.loc} lines)`);
+      const edgeLines = edges.map(e => `  ${e.source} --[${e.kind}]--> ${e.target}`);
+      return `Nodes:\n${nodeLines.join('\n')}\n\nRelationships:\n${edgeLines.join('\n')}`;
+    },
+    {
+      name: 'get_graph_context',
+      description: 'Get the project graph topology — nodes (files, classes, functions) and their relationships (imports, calls, contains). Pass node_ids to filter to specific nodes, or empty array for a broad overview.',
+      schema: z.object({
+        node_ids: z.array(z.string()).describe('Node IDs to focus on. Pass [] for a broad overview.'),
+      }),
+    }
+  );
+
+  return [read_file, list_files, search_codebase, grep_codebase, get_graph_context] as const;
 }
 
 export type AgentTools = ReturnType<typeof makeAgentTools>;

@@ -199,6 +199,7 @@ async function startServer() {
           sessionId,
           selectionRef,
           llmConfigRef,
+          graphRef: sessionGraphRef,
           task: data.task,
         });
 
@@ -243,6 +244,8 @@ async function startServer() {
           repoPath: currentWorkspacePath,
           sessionId,
           llmConfigRef,
+          graphRef: sessionGraphRef,
+          task: 'explain' as const,
         });
 
         for await (const chunk of stream) {
