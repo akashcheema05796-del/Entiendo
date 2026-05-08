@@ -10,8 +10,18 @@ import { SelectionContext } from '../types/selection_context.ts';
 import { SystemMessage, HumanMessage, ToolMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { StructuredToolInterface } from '@langchain/core/tools';
+import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
 
-// ReAct tool-calling loop — emits live tool_call/tool_result events to UI
+// Streams LLM tokens to the UI via emitRegistry
+class TokenEmitter extends BaseCallbackHandler {
+  name = 'token_emitter';
+  constructor(private sessionId: string) { super(); }
+  async handleLLMNewToken(token: string) {
+    if (token) emitRegistry.emit(this.sessionId, 'stream_token', { token });
+  }
+}
+
+// ReAct tool-calling loop — emits live tool_call/tool_result/stream_token events to UI
 async function runAgentLoop(
   llm: BaseChatModel,
   tools: readonly StructuredToolInterface[],
@@ -20,6 +30,8 @@ async function runAgentLoop(
   sessionId: string,
   maxIterations = 8
 ): Promise<string> {
+  const emitter = new TokenEmitter(sessionId);
+  const callbacks = [emitter];
   const llmWithTools = (llm as any).bindTools(tools);
   const toolMap = new Map(tools.map(t => [t.name, t]));
 
@@ -29,15 +41,19 @@ async function runAgentLoop(
   ];
 
   for (let i = 0; i < maxIterations; i++) {
-    const response = await llmWithTools.invoke(messages) as AIMessage;
+    const response = await llmWithTools.invoke(messages, { callbacks }) as AIMessage;
     messages.push(response);
 
     const toolCalls = response.tool_calls ?? [];
     if (toolCalls.length === 0) {
+      // Final text response — tokens already streamed, nothing to clear
       return typeof response.content === 'string'
         ? response.content
         : JSON.stringify(response.content);
     }
+
+    // Tool-call iteration: clear streamed tokens (tool decision text isn't useful output)
+    emitRegistry.emit(sessionId, 'stream_clear', {});
 
     for (const tc of toolCalls) {
       emitRegistry.emit(sessionId, 'tool_call', { tool: tc.name, args: tc.args, iteration: i + 1 });
@@ -58,10 +74,11 @@ async function runAgentLoop(
     messages.push(...results);
   }
 
+  // Max iterations hit — final forced response (streamed)
   const final = await llm.invoke([
     ...messages,
     new HumanMessage('Based on everything gathered, provide your final answer now.'),
-  ]);
+  ], { callbacks });
   return typeof final.content === 'string' ? final.content : JSON.stringify(final.content);
 }
 

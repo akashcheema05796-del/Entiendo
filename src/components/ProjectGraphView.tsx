@@ -47,6 +47,7 @@ export default function ProjectGraphView() {
   // Processing
   const [isProcessing, setIsProcessing] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [streamingText, setStreamingText] = useState('');
 
   // Canvas size
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -104,7 +105,16 @@ export default function ProjectGraphView() {
       });
     });
 
+    socket.on('stream_token', (d: { token: string }) => {
+      setStreamingText(prev => prev + d.token);
+    });
+
+    socket.on('stream_clear', () => {
+      setStreamingText('');
+    });
+
     socket.on('coding_result', (d: { outputType: string; outputRef: string; pendingDiffId?: string }) => {
+      setStreamingText('');
       setCodingResult({ outputType: d.outputType, content: d.outputRef, pendingDiffId: d.pendingDiffId });
       setPendingDiffId(d.pendingDiffId ?? null);
       setShowPanel(true);
@@ -188,6 +198,7 @@ export default function ProjectGraphView() {
     const q = query ?? `${task.replace('_', ' ')} the selected code`;
     setIsProcessing(true);
     setCodingResult(null);
+    setStreamingText('');
     addLog(`>>> ${task}: ${q}`);
     socketRef.current.emit('coding_query', {
       query: q,
@@ -320,6 +331,7 @@ export default function ProjectGraphView() {
               <NodePanel
                 selectedNodes={selectedNodes}
                 isProcessing={isProcessing}
+                streamingText={streamingText}
                 codingResult={codingResult}
                 fileView={fileView}
                 onAction={handleAction}

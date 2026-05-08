@@ -16,6 +16,7 @@ interface CodingResult {
 interface NodePanelProps {
   selectedNodes: GraphNode[];
   isProcessing: boolean;
+  streamingText: string;
   codingResult: CodingResult | null;
   fileView: { path: string; content: string } | null;
   onAction: (task: CodingTask, query?: string) => void;
@@ -27,7 +28,7 @@ interface NodePanelProps {
 }
 
 export default function NodePanel({
-  selectedNodes, isProcessing, codingResult, fileView,
+  selectedNodes, isProcessing, streamingText, codingResult, fileView,
   onAction, onClose, onAcceptDiff, onRejectDiff, onSymbolClick, onCloseFile,
 }: NodePanelProps) {
   const [activeTab, setActiveTab] = useState<'inspector' | 'result'>('inspector');
@@ -49,6 +50,20 @@ export default function NodePanel({
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
+
+      {/* Streaming preview — shown while agent is generating */}
+      {isProcessing && streamingText && (
+        <div className="flex-shrink-0 px-4 py-3 border-b border-white/5 bg-white/2 max-h-48 overflow-y-auto">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+            <span className="text-[8px] font-mono text-indigo-400 uppercase tracking-widest">Generating…</span>
+          </div>
+          <pre className="text-[10px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed break-words">
+            {streamingText}
+            <span className="inline-block w-1.5 h-3 bg-indigo-400 ml-0.5 animate-pulse align-text-bottom" />
+          </pre>
+        </div>
+      )}
 
       {/* Tabs */}
       {codingResult && (
