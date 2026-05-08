@@ -7,6 +7,7 @@ import { applySearchReplace } from '../tools/diff_engine.ts';
 import { ragIndexer } from '../tools/rag_indexer.ts';
 import { z } from 'zod';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
+import { tokenEmitter } from '../infrastructure/token_emitter.ts';
 
 /**
  * nodes.ts
@@ -98,7 +99,15 @@ export async function diagramNode(state: AgentState): Promise<Partial<AgentState
   try {
     const llm = getLLM('standard', 0);
 
-    // Gather repo file listing for context
+    // Read target file content if one was identified
+    const targetFileName = state.fileRef ? (store.get(state.fileRef) as string | null) : null;
+    const targetFilePath = targetFileName && state.repoPath ? path.join(state.repoPath, targetFileName) : null;
+    let fileContent = '';
+    if (targetFilePath) {
+      try { fileContent = fs.readFileSync(targetFilePath, 'utf-8'); } catch { /* not found */ }
+    }
+
+    // Gather repo file listing for broader context
     let fileListing = '';
     if (state.repoPath) {
       try {
@@ -118,7 +127,8 @@ export async function diagramNode(state: AgentState): Promise<Partial<AgentState
 
     const prompt = `Generate a Mermaid diagram that directly answers the user's request.
 Repository: ${state.repoPath}
-${fileListing ? `File tree (truncated):\n${fileListing}\n` : ''}
+${targetFilePath && fileContent ? `Target file: ${targetFilePath}\n\nContent:\n\`\`\`\n${fileContent.slice(0, 3000)}\n\`\`\`` : fileListing ? `File tree (truncated):\n${fileListing}` : ''}
+
 User request: ${state.userQuery}
 
 Choose the most appropriate diagram type (flowchart, graph, sequenceDiagram, classDiagram, erDiagram, etc.).
@@ -152,21 +162,25 @@ export async function macro_structure_node(state: AgentState): Promise<Partial<A
     Identify the main architectural components.
     User query: ${state.userQuery}`;
 
-    const response = await llm.invoke([
+    const stream = await llm.stream([
       new SystemMessage('You are a senior software architect.'),
-      new HumanMessage(prompt)
+      new HumanMessage(prompt),
     ]);
 
-    return {
-      outputType: 'markdown',
-      outputRef: response.content as string,
-    };
+    let full = '';
+    for await (const chunk of stream) {
+      const token = typeof chunk.content === 'string' ? chunk.content : '';
+      full += token;
+      tokenEmitter.emit(state.sessionId, token);
+    }
+
+    return { outputType: 'markdown', outputRef: full };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Macro Node Error:', message);
     return {
       outputType: 'markdown',
-      outputRef: 'Architectural analysis paused due to reasoning cluster availability. Visual representation derived from file system structure remains active.',
+      outputRef: 'Architectural analysis paused due to reasoning cluster availability.',
     };
   }
 }
@@ -176,7 +190,10 @@ export async function deepExplanation_node(state: AgentState): Promise<Partial<A
   try {
     const llm = getLLM('complex', 0.1);
 
-    // Retrieve relevant code chunks via RAG if available
+    // Wait for background indexing to finish before querying
+    await ragIndexer.waitForIndex(state.sessionId || 'default');
+
+    // Retrieve relevant code chunks via RAG
     const chunks = await ragIndexer.retrieve(
       state.userQuery,
       state.sessionId || 'default'
@@ -191,15 +208,19 @@ ${state.userQuery}
 ${ragContext}
 Focus on technical details and data flow.`;
 
-    const response = await llm.invoke([
+    const stream = await llm.stream([
       new SystemMessage('You are a technical lead explaining a codebase.'),
-      new HumanMessage(prompt)
+      new HumanMessage(prompt),
     ]);
 
-    return {
-      outputType: 'markdown',
-      outputRef: response.content as string,
-    };
+    let full = '';
+    for await (const chunk of stream) {
+      const token = typeof chunk.content === 'string' ? chunk.content : '';
+      full += token;
+      tokenEmitter.emit(state.sessionId, token);
+    }
+
+    return { outputType: 'markdown', outputRef: full };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     return {

@@ -8,6 +8,7 @@ import { createServer as createViteServer } from 'vite';
 import { graph } from './src/orchestration/graph.ts';
 import { store } from './src/infrastructure/session_store.ts';
 import { ragIndexer } from './src/tools/rag_indexer.ts';
+import { tokenEmitter } from './src/infrastructure/token_emitter.ts';
 
 /**
  * server.ts
@@ -49,6 +50,10 @@ async function startServer() {
     let currentWorkspacePath: string | null = null;
     const sessionId = socket.id;
 
+    // Forward streamed LLM tokens to this socket
+    const onToken = (token: string) => socket.emit('token', { token });
+    tokenEmitter.on(sessionId, onToken);
+
     socket.on('agent_query', async (data: { query: string; repo_url: string }) => {
       const workspacePath = path.join(
         process.cwd(),
@@ -65,8 +70,18 @@ async function startServer() {
         if (!fs.existsSync(workspacePath)) {
           socket.emit('clone_start', { repo_url: data.repo_url });
           console.log(`Cloning ${data.repo_url}...`);
-          const { execSync } = await import('child_process');
-          execSync(`npx -y degit ${data.repo_url} ${workspacePath} --force`, { timeout: 60_000 });
+          await new Promise<void>((resolve, reject) => {
+            const { spawn } = require('child_process');
+            const proc = spawn('npx', ['-y', 'degit', data.repo_url, workspacePath, '--force'], {
+              timeout: 60_000,
+              stdio: 'pipe',
+            });
+            proc.on('close', (code: number) => {
+              if (code === 0) resolve();
+              else reject(new Error(`degit exited with code ${code}`));
+            });
+            proc.on('error', reject);
+          });
           socket.emit('clone_done', { repo_url: data.repo_url });
         }
 
@@ -149,6 +164,7 @@ async function startServer() {
     });
 
     socket.on('disconnect', () => {
+      tokenEmitter.off(sessionId, onToken);
       console.log('Client disconnected:', sessionId);
     });
   });

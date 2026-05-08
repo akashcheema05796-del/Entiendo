@@ -52,6 +52,7 @@ export default function EntendoCanvas() {
   const [repoUrl, setRepoUrl] = useState('anthropics/financial-services');
   const [logs, setLogs] = useState<string[]>([]);
   const [analysisResult, setAnalysisResult] = useState<{ type: string; content: string } | null>(null);
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [diffData, setDiffData] = useState<DiffData | null>(null);
   const [pendingDiffId, setPendingDiffId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -93,6 +94,11 @@ export default function EntendoCanvas() {
       setLogs(prev => [...prev, data.message]);
     });
 
+    socket.on('token', (data: { token: string }) => {
+      setStreamingContent(prev => (prev ?? '') + data.token);
+      setShowPanel(true);
+    });
+
     socket.on('repo_structure', (data: { tree: { name: string; path: string; size: number }[]; repo_url: string }) => {
       setLogs(prev => [...prev, `[System] Visualizing ${data.tree.length} artifacts...`]);
       const newBubbles = data.tree.slice(0, 60).map((file, i) => {
@@ -128,6 +134,7 @@ export default function EntendoCanvas() {
         }
       } else if (data.state.outputType && data.state.outputRef) {
         setAnalysisResult({ type: data.state.outputType, content: data.state.outputRef });
+        setStreamingContent(null);
         setDiffData(null);
         setShowPanel(true);
       }
@@ -175,6 +182,7 @@ export default function EntendoCanvas() {
     if (!query.trim() || !socketRef.current) return;
     setIsProcessing(true);
     setAnalysisResult(null);
+    setStreamingContent(null);
     setDiffData(null);
     setFileView(null);
     setLogs(prev => [...prev, `>>> ${query}`]);
@@ -248,23 +256,23 @@ export default function EntendoCanvas() {
         onReject={handleRejectDiff}
       />
     </div>
-  ) : analysisResult ? (
+  ) : (analysisResult || streamingContent) ? (
     <div className="flex flex-col h-full">
       <div className="px-6 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
         <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
           <Layout className="w-3.5 h-3.5 text-indigo-400" />
-          Inferred_Architecture
+          {streamingContent && !analysisResult ? 'Streaming...' : 'Inferred_Architecture'}
         </div>
         <div className="text-[9px] font-mono text-slate-500 px-2 py-0.5 bg-white/5 rounded uppercase">
-          {analysisResult.type}
+          {analysisResult?.type ?? 'markdown'}
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-6 text-xs leading-relaxed text-slate-300">
-        {analysisResult.type === 'mermaid' ? (
+        {analysisResult?.type === 'mermaid' ? (
           <Mermaid chart={analysisResult.content} />
         ) : (
           <div className="prose prose-invert prose-xs max-w-none">
-            <ReactMarkdown>{analysisResult.content}</ReactMarkdown>
+            <ReactMarkdown>{analysisResult?.content ?? streamingContent ?? ''}</ReactMarkdown>
           </div>
         )}
       </div>
@@ -385,7 +393,7 @@ export default function EntendoCanvas() {
             <AnimatePresence mode="wait">
               {panelContent && (
                 <motion.div
-                  key={fileView ? 'file' : diffData ? 'diff' : 'analysis'}
+                  key={fileView ? 'file' : diffData ? 'diff' : analysisResult ? `analysis-${analysisResult.type}` : 'streaming'}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
