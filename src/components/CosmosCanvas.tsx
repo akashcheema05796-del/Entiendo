@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Send, MessageSquare, Code, Layout, ShieldAlert, Zap, Box, Share2 } from 'lucide-react';
+import { Send, MessageSquare, Code, Layout, Zap, Box, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
@@ -39,8 +39,9 @@ const Mermaid = ({ chart }: { chart: string }) => {
   return <div ref={ref} className="w-full flex justify-center py-4 bg-white rounded-xl overflow-hidden shadow-inner" />;
 };
 
+const TERMINAL_NODES = new Set(['micro_logic', 'macro_structure', 'deep_explanation', 'refactor', 'error_handler']);
+
 export default function CosmosCanvas() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [query, setQuery] = useState('');
   const [repoUrl, setRepoUrl] = useState('anthropics/financial-services');
@@ -80,7 +81,7 @@ export default function CosmosCanvas() {
           size: Math.min(Math.log(file.size + 1) * 4 + 20, 80),
           color: isCode ? '#6366f1' : isDoc ? '#10b981' : file.name.includes('.') ? '#94a3b8' : '#f59e0b',
           label: file.name,
-          type: file.name.includes('.') ? 'file' : 'folder' as const
+          type: (file.name.includes('.') ? 'file' : 'folder') as Bubble['type']
         };
       });
       setBubbles(newBubbles);
@@ -92,12 +93,12 @@ export default function CosmosCanvas() {
     socket.on('node_complete', (data) => {
       setLogs(prev => [...prev, `[Node: ${data.node}] -> Latency: ${(Math.random() * 200 + 100).toFixed(0)}ms`]);
       if (data.state.outputType && data.state.outputRef) {
-        setAnalysisResult({ 
-          type: data.state.outputType, 
+        setAnalysisResult({
+          type: data.state.outputType,
           content: data.state.outputRef
         });
       }
-      if (data.node === 'micro_logic' || data.node === 'error_handler' || data.node === 'macro_structure' || data.node === 'deep_explanation') {
+      if (TERMINAL_NODES.has(data.node)) {
         setIsProcessing(false);
       }
     });
@@ -133,41 +134,42 @@ export default function CosmosCanvas() {
   };
 
   const performClientAnalysis = async (tree: any[], url: string) => {
-    try {
-      // In this environment, we can access GEMINI_API_KEY from process.env if provided in .env
-      // But we must be careful with client-side exposure.
-      // For this applet, since it's a demo, we use it directly.
-      const apiKey = "AIzaSyB4qcmrvHAE87BeMC_nVrqdy8lfAzZX7j4"; // Direct use for demo stability
-      
-      setLogs(prev => [...prev, "[Inference] Bootstrapping reasoning model..."]);
-      const ai = new GoogleGenAI(apiKey);
-      
-      const fileList = tree.slice(0, 80).map(f => f.path).join('\n');
-      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-      
-      const prompt = `Analyze this code repository structure for ${url}.
-      Files:
-      ${fileList}
-      
-      Tasks:
-      1. Summary: 2-sentence architecture summary.
-      2. Tech Stack: comma-separated list.
-      3. Logical Domains: List 3 key areas of focus.
-      
-      Return as Markdown.`;
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+    if (!apiKey) {
+      setLogs(prev => [...prev, '[System] VITE_GEMINI_API_KEY not set — skipping client-side analysis.']);
+      return;
+    }
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+    try {
+      setLogs(prev => [...prev, '[Inference] Bootstrapping reasoning model...']);
+      const ai = new GoogleGenAI({ apiKey });
+
+      const fileList = tree.slice(0, 80).map((f: { path: string }) => f.path).join('\n');
+      const prompt = `Analyze this code repository structure for ${url}.
+Files:
+${fileList}
+
+Tasks:
+1. Summary: 2-sentence architecture summary.
+2. Tech Stack: comma-separated list.
+3. Logical Domains: List 3 key areas of focus.
+
+Return as Markdown.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents: prompt,
+      });
 
       setAnalysisResult({
         type: 'markdown',
-        content: text
+        content: response.text ?? ''
       });
-      setLogs(prev => [...prev, "[Inference] Contextual summary generated."]);
-    } catch (error: any) {
-      console.error("Client side LLM error:", error);
-      setLogs(prev => [...prev, `[System] LLM Bypass error: ${error.message}`]);
+      setLogs(prev => [...prev, '[Inference] Contextual summary generated.']);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Client side LLM error:', error);
+      setLogs(prev => [...prev, `[System] LLM error: ${message}`]);
     }
   };
 

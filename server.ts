@@ -34,7 +34,7 @@ function getFileTree(dir: string, baseDir: string = dir): any[] {
         });
       }
     });
-  } catch (e) {
+  } catch (e: unknown) {
     console.error('Error reading tree:', e);
   }
   return results;
@@ -92,8 +92,9 @@ async function startServer() {
             session_id: sessionId
           });
         }
-      } catch (error: any) {
-        socket.emit('error', { message: error.message });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        socket.emit('error', { message });
       }
     });
 

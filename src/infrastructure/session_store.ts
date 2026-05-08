@@ -18,9 +18,11 @@ export class SessionStore {
         ttl INTEGER
       )
     `);
+    // Enforce TTL every 5 minutes to prevent unbounded growth
+    setInterval(() => this.evictExpired(), 5 * 60 * 1000).unref();
   }
 
-  put(value: any, ttlSeconds: number = 3600): string {
+  put(value: unknown, ttlSeconds: number = 3600): string {
     const key = uuidv4();
     const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
     const stmt = this.db.prepare('INSERT OR REPLACE INTO cache (key, value, ttl) VALUES (?, ?, ?)');
@@ -28,7 +30,7 @@ export class SessionStore {
     return key;
   }
 
-  get(key: string): any | null {
+  get(key: string): unknown | null {
     const now = Math.floor(Date.now() / 1000);
     const stmt = this.db.prepare('SELECT value FROM cache WHERE key = ? AND ttl > ?');
     const row = stmt.get(key, now) as { value: string } | undefined;

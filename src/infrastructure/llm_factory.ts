@@ -9,7 +9,7 @@ export function getLLM(taskType: 'standard' | 'complex' = 'standard', temperatur
   // In our environment, we primarily use Gemini. 
   // We can route via temperature or specific model versions.
   
-  const modelName = taskType === 'complex' ? 'gemini-3.1-pro-preview' : 'gemini-3-flash-preview';
+  const modelName = taskType === 'complex' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
 
   if (!process.env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY is not defined');
