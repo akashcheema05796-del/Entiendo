@@ -210,7 +210,7 @@ export default function EntendoCanvas() {
       const ai = new GoogleGenAI({ apiKey });
       const fileList = tree.slice(0, 80).map(f => f.path).join('\n');
       const prompt = `Analyze this repo structure for ${url}.\nFiles:\n${fileList}\n\nReturn Markdown with:\n1. 2-sentence architecture summary.\n2. Tech stack (comma-separated).\n3. 3 key logical domains.`;
-      const response = await ai.models.generateContent({ model: 'gemini-1.5-flash', contents: prompt });
+      const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
       setAnalysisResult({ type: 'markdown', content: response.text ?? '' });
       setShowPanel(true);
       setLogs(prev => [...prev, '[Inference] Contextual summary generated.']);
