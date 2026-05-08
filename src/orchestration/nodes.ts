@@ -1,17 +1,13 @@
-import fs from 'fs';
 import path from 'path';
 import { AgentState } from './state.ts';
 import { getLLM } from '../infrastructure/llm_factory.ts';
 import { store } from '../infrastructure/session_store.ts';
 import { applySearchReplace } from '../tools/diff_engine.ts';
-import { ragIndexer } from '../tools/rag_indexer.ts';
+import { makeAgentTools } from '../tools/agent_tools.ts';
 import { z } from 'zod';
-import { SystemMessage, HumanMessage } from '@langchain/core/messages';
-
-/**
- * nodes.ts
- * Implementation of the LangGraph nodes.
- */
+import { SystemMessage, HumanMessage, ToolMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
+import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { StructuredToolInterface } from '@langchain/core/tools';
 
 const RouterSchema = z.object({
   intent: z.enum(['macro_structure', 'micro_logic', 'deep_explanation', 'refactor', 'error']),
@@ -19,11 +15,57 @@ const RouterSchema = z.object({
   confidence: z.number(),
 });
 
+// Runs a ReAct-style tool-calling loop until the LLM stops calling tools or hits maxIterations.
+async function runAgentLoop(
+  llm: BaseChatModel,
+  tools: readonly StructuredToolInterface[],
+  systemPrompt: string,
+  userQuery: string,
+  maxIterations = 8
+): Promise<string> {
+  const llmWithTools = (llm as any).bindTools(tools);
+  const toolMap = new Map(tools.map(t => [t.name, t]));
+
+  const messages: BaseMessage[] = [
+    new SystemMessage(systemPrompt),
+    new HumanMessage(userQuery),
+  ];
+
+  for (let i = 0; i < maxIterations; i++) {
+    const response = await llmWithTools.invoke(messages) as AIMessage;
+    messages.push(response);
+
+    const toolCalls = response.tool_calls ?? [];
+    if (toolCalls.length === 0) {
+      return typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content);
+    }
+
+    // Execute all tool calls in parallel
+    const results = await Promise.all(
+      toolCalls.map(async tc => {
+        const t = toolMap.get(tc.name);
+        const result = t ? await t.invoke(tc.args) : `Unknown tool: ${tc.name}`;
+        return new ToolMessage({ content: String(result), tool_call_id: tc.id ?? '' });
+      })
+    );
+    messages.push(...results);
+  }
+
+  // Max iterations reached — ask for a final answer based on gathered context
+  const final = await llm.invoke([
+    ...messages,
+    new HumanMessage('Based on everything you have gathered, provide your final answer now.'),
+  ]);
+  return typeof final.content === 'string' ? final.content : JSON.stringify(final.content);
+}
+
 export async function entryNode(state: AgentState): Promise<Partial<AgentState>> {
   console.log('--- ENTRY NODE ---');
   try {
     const llm = getLLM('standard', 0);
-    const structuredLlm = llm.withStructuredOutput(RouterSchema);
+    const structuredLlm = (llm as any).withStructuredOutput(RouterSchema);
 
     const prompt = `Classify user intent for codebase analysis.
     - macro_structure: Visualization, dependency graphs, architectural overview.
@@ -35,7 +77,7 @@ export async function entryNode(state: AgentState): Promise<Partial<AgentState>>
 
     const result = await structuredLlm.invoke([
       new SystemMessage('You are a senior codebase architect router.'),
-      new HumanMessage(prompt)
+      new HumanMessage(prompt),
     ]) as z.infer<typeof RouterSchema>;
 
     let fileRef: string | null = null;
@@ -43,54 +85,65 @@ export async function entryNode(state: AgentState): Promise<Partial<AgentState>>
       fileRef = store.put(result.target_files[0]);
     }
 
-    return {
-      intent: result.intent,
-      targetFiles: result.target_files,
-      fileRef,
-    };
+    return { intent: result.intent, targetFiles: result.target_files, fileRef };
   } catch (error: unknown) {
     console.error('Entry Node Error:', error);
-    return {
-      intent: 'macro_structure',
-      targetFiles: [],
-      fileRef: null,
-    };
+    return { intent: 'macro_structure', targetFiles: [], fileRef: null };
   }
-}
-
-export async function microLogicNode(_state: AgentState): Promise<Partial<AgentState>> {
-  console.log('--- MICRO LOGIC NODE ---');
-  const mermaid = `graph TD\n  A[Start] --> B[Processing] --> C[End]`;
-  return {
-    outputType: 'mermaid',
-    outputRef: mermaid,
-  };
 }
 
 export async function macro_structure_node(state: AgentState): Promise<Partial<AgentState>> {
   console.log('--- MACRO STRUCTURE NODE ---');
   try {
     const llm = getLLM('standard', 0);
-    const prompt = `Analyze the project structure of ${state.repoPath}.
-    Identify the main architectural components.
-    User query: ${state.userQuery}`;
+    const tools = makeAgentTools(state.repoPath, state.sessionId || 'default');
 
-    const response = await llm.invoke([
-      new SystemMessage('You are a senior software architect.'),
-      new HumanMessage(prompt)
-    ]);
+    const output = await runAgentLoop(
+      llm,
+      tools,
+      `You are a senior software architect analyzing a codebase.
+Use list_files to explore the repo structure, then read_file on key files
+(package.json, main entry points, config files) to understand the architecture.
+Produce a clear Markdown report covering: tech stack, main modules, data flow,
+and architectural patterns. Be specific — reference actual file names.`,
+      `Repository: ${state.repoPath}\nUser query: ${state.userQuery}`
+    );
 
-    return {
-      outputType: 'markdown',
-      outputRef: response.content as string,
-    };
+    return { outputType: 'markdown', outputRef: output };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Macro Node Error:', message);
-    return {
-      outputType: 'markdown',
-      outputRef: 'Architectural analysis paused due to reasoning cluster availability. Visual representation derived from file system structure remains active.',
-    };
+    return { outputType: 'markdown', outputRef: `Architecture analysis failed: ${message}` };
+  }
+}
+
+export async function microLogicNode(state: AgentState): Promise<Partial<AgentState>> {
+  console.log('--- MICRO LOGIC NODE ---');
+  try {
+    const llm = getLLM('standard', 0.1);
+    const tools = makeAgentTools(state.repoPath, state.sessionId || 'default');
+
+    const targetFile = state.targetFiles?.[0] ?? '';
+
+    const output = await runAgentLoop(
+      llm,
+      tools,
+      `You are a software engineer creating a Mermaid diagram.
+Use read_file to read the target file, then grep_codebase to trace function calls
+or class relationships if needed.
+Return ONLY a valid Mermaid diagram (starting with "graph TD" or "sequenceDiagram" etc.)
+with no surrounding prose or code fences.`,
+      `Repository: ${state.repoPath}
+Target file: ${targetFile || '(not specified — pick the most relevant file for the query)'}
+User query: ${state.userQuery}`
+    );
+
+    // Strip accidental code fences the LLM might add
+    const mermaid = output.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+    return { outputType: 'mermaid', outputRef: mermaid };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { outputType: 'mermaid', outputRef: `graph TD\n  A[Error] --> B["${message}"]` };
   }
 }
 
@@ -98,37 +151,23 @@ export async function deepExplanation_node(state: AgentState): Promise<Partial<A
   console.log('--- DEEP EXPLANATION NODE ---');
   try {
     const llm = getLLM('complex', 0.1);
+    const tools = makeAgentTools(state.repoPath, state.sessionId || 'default');
 
-    // Retrieve relevant code chunks via RAG if available
-    const chunks = await ragIndexer.retrieve(
-      state.userQuery,
-      state.sessionId || 'default'
+    const output = await runAgentLoop(
+      llm,
+      tools,
+      `You are a technical lead explaining a codebase to a senior engineer.
+Use search_codebase to find semantically relevant code, then read_file to read
+the actual implementations, and grep_codebase to trace how things connect.
+Gather enough evidence before answering. Be precise: quote file paths and
+line-level details. Format your answer in Markdown.`,
+      `Repository: ${state.repoPath}\nQuestion: ${state.userQuery}`
     );
 
-    const ragContext = chunks.length > 0
-      ? `\nRelevant code from the repository:\n\`\`\`\n${chunks.join('\n\n---\n')}\n\`\`\`\n`
-      : '';
-
-    const prompt = `Explain how the following works in ${state.repoPath}:
-${state.userQuery}
-${ragContext}
-Focus on technical details and data flow.`;
-
-    const response = await llm.invoke([
-      new SystemMessage('You are a technical lead explaining a codebase.'),
-      new HumanMessage(prompt)
-    ]);
-
-    return {
-      outputType: 'markdown',
-      outputRef: response.content as string,
-    };
+    return { outputType: 'markdown', outputRef: output };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    return {
-      outputType: 'markdown',
-      outputRef: `Deep analysis encountered a temporary limitation: ${message}. Please verify repository accessibility or try a macro-level query.`,
-    };
+    return { outputType: 'markdown', outputRef: `Deep analysis failed: ${message}` };
   }
 }
 
@@ -136,27 +175,44 @@ export async function refactorNode(state: AgentState): Promise<Partial<AgentStat
   console.log('--- REFACTOR NODE ---');
   try {
     const llm = getLLM('complex', 0.1);
+    const tools = makeAgentTools(state.repoPath, state.sessionId || 'default');
 
-    // Resolve the actual file path on disk
-    const targetFileName = state.fileRef
-      ? (store.get(state.fileRef) as string | null)
-      : null;
-    const targetFilePath =
-      targetFileName && state.repoPath
-        ? path.join(state.repoPath, targetFileName)
-        : null;
+    // First: let the agent explore and identify the exact file + content to change
+    const exploration = await runAgentLoop(
+      llm,
+      tools,
+      `You are a senior engineer preparing a code refactor.
+Use list_files, read_file, and grep_codebase to locate and read the exact file(s)
+that need to be changed. Once you have read the relevant file content, output a JSON
+object with two fields:
+  "file": the relative file path
+  "content": the full current file content (copy it exactly as read)
+Output ONLY that JSON object, no other text.`,
+      `Repository: ${state.repoPath}\nRefactor request: ${state.userQuery}`
+    );
 
-    // Read the real file content if it exists
     let fileContent = '';
-    if (targetFilePath) {
-      try { fileContent = fs.readFileSync(targetFilePath, 'utf-8'); } catch { /* not found */ }
+    let targetFilePath: string | null = null;
+
+    try {
+      const parsed = JSON.parse(exploration.replace(/^```json\n?/i, '').replace(/\n?```$/i, '').trim());
+      fileContent = parsed.content ?? '';
+      if (parsed.file && state.repoPath) {
+        targetFilePath = path.join(state.repoPath, parsed.file);
+      }
+    } catch {
+      // Fallback: use exploration text as context
+      fileContent = exploration;
     }
 
-    const prompt = `You are performing a structural code refactor.
-Repository: ${state.repoPath}
-${targetFilePath ? `Target file: ${targetFilePath}\n\nCurrent content:\n\`\`\`\n${fileContent.slice(0, 3000)}\n\`\`\`` : ''}
+    // Second: produce the SEARCH/REPLACE diff
+    const diffPrompt = `You are performing a precise code refactor.
+${targetFilePath ? `Target file: ${targetFilePath}` : ''}
 
-User request: ${state.userQuery}
+Current file content:
+\`\`\`
+${fileContent.slice(0, 4000)}
+\`\`\`
 
 Produce SEARCH/REPLACE blocks in this exact format for every change:
 <<<<
@@ -165,11 +221,11 @@ Produce SEARCH/REPLACE blocks in this exact format for every change:
 <replacement lines>
 >>>>
 
-Only emit the blocks — no other prose.`;
+Only emit the blocks — no prose.`;
 
     const response = await llm.invoke([
       new SystemMessage('You are a senior engineer performing precise code refactors.'),
-      new HumanMessage(prompt)
+      new HumanMessage(`${diffPrompt}\n\nRequest: ${state.userQuery}`),
     ]);
 
     const llmOutput = response.content as string;
@@ -182,24 +238,14 @@ Only emit the blocks — no other prose.`;
       };
     }
 
-    // Store the full diff in session store for server-side file write on accept
     const diffRef = store.put({ original: fileContent, modified, appliedBlocks, filePath: targetFilePath });
-
-    // Send inline JSON so the client can render the diff immediately
     const diffPayload = JSON.stringify({ original: fileContent, modified, appliedBlocks, filePath: targetFilePath });
 
-    return {
-      outputType: 'diff_proposal',
-      outputRef: diffPayload,
-      pendingDiffId: diffRef,
-    };
+    return { outputType: 'diff_proposal', outputRef: diffPayload, pendingDiffId: diffRef };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Refactor Node Error:', message);
-    return {
-      outputType: 'markdown',
-      outputRef: `Refactor failed: ${message}`,
-    };
+    return { outputType: 'markdown', outputRef: `Refactor failed: ${message}` };
   }
 }
 
