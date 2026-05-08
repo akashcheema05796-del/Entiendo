@@ -7,6 +7,7 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { graph } from './src/orchestration/graph.ts';
 import { store } from './src/infrastructure/session_store.ts';
+import { emitRegistry } from './src/infrastructure/emit_registry.ts';
 import { ragIndexer } from './src/tools/rag_indexer.ts';
 
 /**
@@ -92,17 +93,24 @@ async function startServer() {
           socket.emit('log', { message: msg });
         }).catch(() => {});
 
-        // Run LangGraph
-        const stream = await graph.stream({
-          userQuery: data.query,
-          repoPath: workspacePath,
-          sessionId,
-        });
+        // Register this socket's emit so nodes can stream tool-call events
+        emitRegistry.register(sessionId, (event, data) => socket.emit(event as string, data));
 
-        for await (const chunk of stream) {
-          const nodeName = Object.keys(chunk)[0];
-          const nodeState = chunk[nodeName];
-          socket.emit('node_complete', { node: nodeName, state: nodeState, session_id: sessionId });
+        try {
+          // Run LangGraph
+          const stream = await graph.stream({
+            userQuery: data.query,
+            repoPath: workspacePath,
+            sessionId,
+          });
+
+          for await (const chunk of stream) {
+            const nodeName = Object.keys(chunk)[0];
+            const nodeState = chunk[nodeName];
+            socket.emit('node_complete', { node: nodeName, state: nodeState, session_id: sessionId });
+          }
+        } finally {
+          emitRegistry.unregister(sessionId);
         }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
@@ -131,29 +139,36 @@ async function startServer() {
       }
     });
 
-    // Apply an accepted diff to disk
+    // Apply accepted multi-file diff to disk
     socket.on('apply_diff', (data: { diffId: string }) => {
       try {
-        const diff = store.get(data.diffId) as {
-          original: string;
-          modified: string;
-          appliedBlocks: number;
-          filePath: string | null;
+        const stored = store.get(data.diffId) as {
+          files: { original: string; modified: string; appliedBlocks: number; filePath: string | null }[];
         } | null;
 
-        if (!diff) {
+        if (!stored) {
           socket.emit('diff_applied', { success: false, message: 'Diff expired or not found.' });
           return;
         }
-        if (!diff.filePath) {
-          socket.emit('diff_applied', { success: false, message: 'No target file in this diff.' });
+
+        let totalBlocks = 0;
+        const written: string[] = [];
+
+        for (const f of stored.files) {
+          if (!f.filePath) continue;
+          fs.writeFileSync(f.filePath, f.modified, 'utf-8');
+          totalBlocks += f.appliedBlocks;
+          written.push(path.basename(f.filePath));
+        }
+
+        if (written.length === 0) {
+          socket.emit('diff_applied', { success: false, message: 'No files had a valid path to write.' });
           return;
         }
 
-        fs.writeFileSync(diff.filePath, diff.modified, 'utf-8');
         socket.emit('diff_applied', {
           success: true,
-          message: `Applied ${diff.appliedBlocks} change(s) to ${path.basename(diff.filePath)}`,
+          message: `Applied ${totalBlocks} change(s) across ${written.join(', ')}`,
         });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
@@ -162,6 +177,7 @@ async function startServer() {
     });
 
     socket.on('disconnect', () => {
+      emitRegistry.unregister(sessionId);
       console.log('Client disconnected:', sessionId);
     });
   });

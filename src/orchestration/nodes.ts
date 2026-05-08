@@ -2,6 +2,7 @@ import path from 'path';
 import { AgentState } from './state.ts';
 import { getLLM } from '../infrastructure/llm_factory.ts';
 import { store } from '../infrastructure/session_store.ts';
+import { emitRegistry } from '../infrastructure/emit_registry.ts';
 import { applySearchReplace } from '../tools/diff_engine.ts';
 import { makeAgentTools } from '../tools/agent_tools.ts';
 import { z } from 'zod';
@@ -15,12 +16,13 @@ const RouterSchema = z.object({
   confidence: z.number(),
 });
 
-// Runs a ReAct-style tool-calling loop until the LLM stops calling tools or hits maxIterations.
+// ReAct-style tool-calling loop. Emits live tool_call events to the UI via emitRegistry.
 async function runAgentLoop(
   llm: BaseChatModel,
   tools: readonly StructuredToolInterface[],
   systemPrompt: string,
   userQuery: string,
+  sessionId: string,
   maxIterations = 8
 ): Promise<string> {
   const llmWithTools = (llm as any).bindTools(tools);
@@ -42,18 +44,33 @@ async function runAgentLoop(
         : JSON.stringify(response.content);
     }
 
+    // Emit each tool call to the UI before executing
+    for (const tc of toolCalls) {
+      emitRegistry.emit(sessionId, 'tool_call', {
+        tool: tc.name,
+        args: tc.args,
+        iteration: i + 1,
+      });
+    }
+
     // Execute all tool calls in parallel
     const results = await Promise.all(
       toolCalls.map(async tc => {
         const t = toolMap.get(tc.name);
         const result = t ? await t.invoke(tc.args) : `Unknown tool: ${tc.name}`;
-        return new ToolMessage({ content: String(result), tool_call_id: tc.id ?? '' });
+        const resultStr = String(result);
+
+        emitRegistry.emit(sessionId, 'tool_result', {
+          tool: tc.name,
+          preview: resultStr.slice(0, 120) + (resultStr.length > 120 ? '…' : ''),
+        });
+
+        return new ToolMessage({ content: resultStr, tool_call_id: tc.id ?? '' });
       })
     );
     messages.push(...results);
   }
 
-  // Max iterations reached — ask for a final answer based on gathered context
   const final = await llm.invoke([
     ...messages,
     new HumanMessage('Based on everything you have gathered, provide your final answer now.'),
@@ -69,9 +86,9 @@ export async function entryNode(state: AgentState): Promise<Partial<AgentState>>
 
     const prompt = `Classify user intent for codebase analysis.
     - macro_structure: Visualization, dependency graphs, architectural overview.
-    - micro_logic: UML, flowcharts, logic within a single file.
+    - micro_logic: UML, flowcharts, logic within a single file or feature.
     - deep_explanation: RAG-based search, "how does X work?".
-    - refactor: Editing code, fixing bugs, optimization.
+    - refactor: Editing code, fixing bugs, optimization, renaming.
 
     User query: ${state.userQuery}`;
 
@@ -106,13 +123,13 @@ Use list_files to explore the repo structure, then read_file on key files
 (package.json, main entry points, config files) to understand the architecture.
 Produce a clear Markdown report covering: tech stack, main modules, data flow,
 and architectural patterns. Be specific — reference actual file names.`,
-      `Repository: ${state.repoPath}\nUser query: ${state.userQuery}`
+      `Repository: ${state.repoPath}\nUser query: ${state.userQuery}`,
+      state.sessionId || 'default'
     );
 
     return { outputType: 'markdown', outputRef: output };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('Macro Node Error:', message);
     return { outputType: 'markdown', outputRef: `Architecture analysis failed: ${message}` };
   }
 }
@@ -122,23 +139,28 @@ export async function microLogicNode(state: AgentState): Promise<Partial<AgentSt
   try {
     const llm = getLLM('standard', 0.1);
     const tools = makeAgentTools(state.repoPath, state.sessionId || 'default');
-
     const targetFile = state.targetFiles?.[0] ?? '';
 
     const output = await runAgentLoop(
       llm,
       tools,
-      `You are a software engineer creating a Mermaid diagram.
-Use read_file to read the target file, then grep_codebase to trace function calls
-or class relationships if needed.
-Return ONLY a valid Mermaid diagram (starting with "graph TD" or "sequenceDiagram" etc.)
-with no surrounding prose or code fences.`,
+      `You are a software engineer creating Mermaid diagrams.
+Use read_file to read the target file, then grep_codebase to trace calls or relationships.
+
+Choose the most appropriate Mermaid diagram type for the query:
+- "graph TD" or "flowchart TD"  → control flow, data flow, decision logic
+- "sequenceDiagram"             → request/response cycles, API calls, async flows
+- "classDiagram"                → class/interface structure, inheritance, composition
+- "stateDiagram-v2"             → state machines, lifecycle management
+- "erDiagram"                   → data models, database schemas
+
+Return ONLY the Mermaid diagram. No prose, no code fences, no explanation.`,
       `Repository: ${state.repoPath}
 Target file: ${targetFile || '(not specified — pick the most relevant file for the query)'}
-User query: ${state.userQuery}`
+User query: ${state.userQuery}`,
+      state.sessionId || 'default'
     );
 
-    // Strip accidental code fences the LLM might add
     const mermaid = output.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
     return { outputType: 'mermaid', outputRef: mermaid };
   } catch (error: unknown) {
@@ -161,7 +183,8 @@ Use search_codebase to find semantically relevant code, then read_file to read
 the actual implementations, and grep_codebase to trace how things connect.
 Gather enough evidence before answering. Be precise: quote file paths and
 line-level details. Format your answer in Markdown.`,
-      `Repository: ${state.repoPath}\nQuestion: ${state.userQuery}`
+      `Repository: ${state.repoPath}\nQuestion: ${state.userQuery}`,
+      state.sessionId || 'default'
     );
 
     return { outputType: 'markdown', outputRef: output };
@@ -171,75 +194,100 @@ line-level details. Format your answer in Markdown.`,
   }
 }
 
+interface FilePlan {
+  file: string;
+  content: string;
+}
+
 export async function refactorNode(state: AgentState): Promise<Partial<AgentState>> {
   console.log('--- REFACTOR NODE ---');
   try {
     const llm = getLLM('complex', 0.1);
     const tools = makeAgentTools(state.repoPath, state.sessionId || 'default');
+    const sid = state.sessionId || 'default';
 
-    // First: let the agent explore and identify the exact file + content to change
+    // Phase 1: agent explores the repo and identifies ALL files that need to change
     const exploration = await runAgentLoop(
       llm,
       tools,
-      `You are a senior engineer preparing a code refactor.
-Use list_files, read_file, and grep_codebase to locate and read the exact file(s)
-that need to be changed. Once you have read the relevant file content, output a JSON
-object with two fields:
-  "file": the relative file path
-  "content": the full current file content (copy it exactly as read)
-Output ONLY that JSON object, no other text.`,
-      `Repository: ${state.repoPath}\nRefactor request: ${state.userQuery}`
+      `You are a senior engineer preparing a multi-file code refactor.
+Use list_files, read_file, and grep_codebase to locate every file that must change.
+Read each file's content in full.
+
+When done, output ONLY a JSON array — no prose, no fences:
+[
+  { "file": "relative/path/to/file.ts", "content": "<exact current file content>" },
+  { "file": "another/file.ts", "content": "<exact current file content>" }
+]`,
+      `Repository: ${state.repoPath}\nRefactor request: ${state.userQuery}`,
+      sid
     );
 
-    let fileContent = '';
-    let targetFilePath: string | null = null;
-
+    // Parse the file plan — handle single object or array
+    let filePlan: FilePlan[] = [];
     try {
-      const parsed = JSON.parse(exploration.replace(/^```json\n?/i, '').replace(/\n?```$/i, '').trim());
-      fileContent = parsed.content ?? '';
-      if (parsed.file && state.repoPath) {
-        targetFilePath = path.join(state.repoPath, parsed.file);
-      }
+      const raw = exploration.replace(/^```json\n?/i, '').replace(/\n?```$/i, '').trim();
+      const parsed = JSON.parse(raw);
+      filePlan = Array.isArray(parsed) ? parsed : [parsed];
     } catch {
-      // Fallback: use exploration text as context
-      fileContent = exploration;
+      return {
+        outputType: 'markdown',
+        outputRef: `Refactor exploration failed to return valid JSON.\n\nAgent output:\n\`\`\`\n${exploration}\n\`\`\``,
+      };
     }
 
-    // Second: produce the SEARCH/REPLACE diff
-    const diffPrompt = `You are performing a precise code refactor.
-${targetFilePath ? `Target file: ${targetFilePath}` : ''}
+    if (filePlan.length === 0) {
+      return { outputType: 'markdown', outputRef: 'No files identified for this refactor.' };
+    }
 
-Current file content:
+    emitRegistry.emit(sid, 'log', { message: `[Refactor] Planning changes across ${filePlan.length} file(s)...` });
+
+    // Phase 2: for each file, generate SEARCH/REPLACE diff
+    const fileDiffs: { original: string; modified: string; appliedBlocks: number; filePath: string | null }[] = [];
+
+    for (const plan of filePlan) {
+      const targetFilePath = plan.file && state.repoPath
+        ? path.join(state.repoPath, plan.file)
+        : null;
+
+      const diffResponse = await llm.invoke([
+        new SystemMessage('You are a senior engineer performing precise code refactors.'),
+        new HumanMessage(`You are refactoring: ${targetFilePath ?? 'unknown file'}
+
+Current content:
 \`\`\`
-${fileContent.slice(0, 4000)}
+${plan.content.slice(0, 4000)}
 \`\`\`
 
-Produce SEARCH/REPLACE blocks in this exact format for every change:
+Produce SEARCH/REPLACE blocks in this exact format for every change needed:
 <<<<
 <exact lines to find>
 ====
 <replacement lines>
 >>>>
 
-Only emit the blocks — no prose.`;
+Only emit the blocks — no other text.
 
-    const response = await llm.invoke([
-      new SystemMessage('You are a senior engineer performing precise code refactors.'),
-      new HumanMessage(`${diffPrompt}\n\nRequest: ${state.userQuery}`),
-    ]);
+Refactor request: ${state.userQuery}`),
+      ]);
 
-    const llmOutput = response.content as string;
-    const { modified, appliedBlocks, error } = applySearchReplace(fileContent, llmOutput);
+      const llmOutput = diffResponse.content as string;
+      const { modified, appliedBlocks, error } = applySearchReplace(plan.content, llmOutput);
 
-    if (error) {
-      return {
-        outputType: 'markdown',
-        outputRef: `Refactor could not be applied: ${error}\n\nRaw suggestion:\n\`\`\`\n${llmOutput}\n\`\`\``,
-      };
+      if (error) {
+        emitRegistry.emit(sid, 'log', { message: `[Refactor] Could not apply diff for ${plan.file}: ${error}` });
+        continue;
+      }
+
+      fileDiffs.push({ original: plan.content, modified, appliedBlocks, filePath: targetFilePath });
     }
 
-    const diffRef = store.put({ original: fileContent, modified, appliedBlocks, filePath: targetFilePath });
-    const diffPayload = JSON.stringify({ original: fileContent, modified, appliedBlocks, filePath: targetFilePath });
+    if (fileDiffs.length === 0) {
+      return { outputType: 'markdown', outputRef: 'No diffs could be generated for this refactor request.' };
+    }
+
+    const diffRef = store.put({ files: fileDiffs });
+    const diffPayload = JSON.stringify({ files: fileDiffs });
 
     return { outputType: 'diff_proposal', outputRef: diffPayload, pendingDiffId: diffRef };
   } catch (error: unknown) {

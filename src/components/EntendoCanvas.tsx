@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import mermaid from 'mermaid';
-import DiffViewer from './DiffViewer.tsx';
+import DiffViewer, { FileDiff } from './DiffViewer.tsx';
 
 /**
  * EntendoCanvas.tsx
@@ -24,10 +24,7 @@ interface Bubble {
 }
 
 interface DiffData {
-  original: string;
-  modified: string;
-  appliedBlocks: number;
-  filePath: string | null;
+  files: FileDiff[];
 }
 
 const Mermaid = ({ chart }: { chart: string }) => {
@@ -91,6 +88,15 @@ export default function EntendoCanvas() {
 
     socket.on('log', (data: { message: string }) => {
       setLogs(prev => [...prev, data.message]);
+    });
+
+    socket.on('tool_call', (data: { tool: string; args: Record<string, unknown>; iteration: number }) => {
+      const argStr = Object.values(data.args).map(v => `"${String(v).slice(0, 40)}"`).join(', ');
+      setLogs(prev => [...prev, `[Agent:${data.iteration}] → ${data.tool}(${argStr})`]);
+    });
+
+    socket.on('tool_result', (data: { tool: string; preview: string }) => {
+      setLogs(prev => [...prev, `[Agent] ← ${data.tool}: ${data.preview}`]);
     });
 
     socket.on('repo_structure', (data: { tree: { name: string; path: string; size: number }[]; repo_url: string }) => {
@@ -240,10 +246,7 @@ export default function EntendoCanvas() {
   ) : diffData ? (
     <div className="p-6">
       <DiffViewer
-        filePath={diffData.filePath}
-        original={diffData.original}
-        modified={diffData.modified}
-        appliedBlocks={diffData.appliedBlocks}
+        files={diffData.files}
         onAccept={handleAcceptDiff}
         onReject={handleRejectDiff}
       />
