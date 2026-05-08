@@ -1,4 +1,4 @@
-# This project runs entirely on Node.js — there is no Python backend.
+# Entiendo runs entirely on Node.js — there is no Python backend.
 # See package.json for all runtime dependencies.
 #
 # If you integrate a Python analysis sidecar in the future, list its
