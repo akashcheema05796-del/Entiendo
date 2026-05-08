@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+.session_cache.db
+workspace/
