@@ -305,6 +305,7 @@ Test request: ${state.userQuery}`,
 export function routeByTask(state: CodingAgentState): string {
   switch (state.task) {
     case 'explain': return 'explain';
+    case 'diagram': return 'diagram';
     case 'refactor':
     case 'fix_bug':
     case 'add_feature': return 'code_modify';

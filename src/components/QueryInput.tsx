@@ -10,6 +10,7 @@ interface QueryInputProps {
 
 const TASKS: { value: CodingTask; label: string }[] = [
   { value: 'explain',        label: 'Explain' },
+  { value: 'diagram',        label: 'Diagram' },
   { value: 'refactor',       label: 'Refactor' },
   { value: 'fix_bug',        label: 'Fix Bug' },
   { value: 'add_feature',    label: 'Add Feature' },
