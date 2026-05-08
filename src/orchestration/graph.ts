@@ -1,6 +1,6 @@
 import { StateGraph, END, START } from '@langchain/langgraph';
 import { AgentStateAnnotation } from './state.ts';
-import { entryNode, microLogicNode, macro_structure_node, deepExplanation_node, refactorNode, errorNode, routeByIntent } from './nodes.ts';
+import { entryNode, microLogicNode, diagramNode, macro_structure_node, deepExplanation_node, refactorNode, errorNode, routeByIntent } from './nodes.ts';
 
 /**
  * graph.ts
@@ -12,6 +12,7 @@ export function buildGraph() {
     .addNode('entry', entryNode)
     .addNode('macro_structure', macro_structure_node)
     .addNode('micro_logic', microLogicNode)
+    .addNode('diagram', diagramNode)
     .addNode('deep_explanation', deepExplanation_node)
     .addNode('refactor', refactorNode)
     .addNode('error_handler', errorNode);
@@ -21,6 +22,7 @@ export function buildGraph() {
   workflow.addConditionalEdges('entry', routeByIntent, {
     macro_structure: 'macro_structure',
     micro_logic: 'micro_logic',
+    diagram: 'diagram',
     deep_explanation: 'deep_explanation',
     refactor: 'refactor',
     error: 'error_handler',
@@ -28,6 +30,7 @@ export function buildGraph() {
 
   workflow.addEdge('macro_structure', END);
   workflow.addEdge('micro_logic', END);
+  workflow.addEdge('diagram', END);
   workflow.addEdge('deep_explanation', END);
   workflow.addEdge('refactor', END);
   workflow.addEdge('error_handler', END);

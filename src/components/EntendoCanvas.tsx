@@ -44,7 +44,7 @@ const Mermaid = ({ chart }: { chart: string }) => {
   return <div ref={ref} className="w-full flex justify-center py-4 bg-white rounded-xl overflow-hidden shadow-inner" />;
 };
 
-const TERMINAL_NODES = new Set(['micro_logic', 'macro_structure', 'deep_explanation', 'refactor', 'error_handler']);
+const TERMINAL_NODES = new Set(['micro_logic', 'macro_structure', 'diagram', 'deep_explanation', 'refactor', 'error_handler']);
 
 export default function EntendoCanvas() {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);

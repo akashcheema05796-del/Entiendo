@@ -14,7 +14,7 @@ import { SystemMessage, HumanMessage } from '@langchain/core/messages';
  */
 
 const RouterSchema = z.object({
-  intent: z.enum(['macro_structure', 'micro_logic', 'deep_explanation', 'refactor', 'error']),
+  intent: z.enum(['macro_structure', 'micro_logic', 'diagram', 'deep_explanation', 'refactor', 'error']),
   target_files: z.array(z.string()),
   confidence: z.number(),
 });
@@ -26,8 +26,9 @@ export async function entryNode(state: AgentState): Promise<Partial<AgentState>>
     const structuredLlm = llm.withStructuredOutput(RouterSchema);
 
     const prompt = `Classify user intent for codebase analysis.
-    - macro_structure: Visualization, dependency graphs, architectural overview.
-    - micro_logic: UML, flowcharts, logic within a single file.
+    - macro_structure: High-level architectural overview, project structure summary.
+    - micro_logic: UML, sequence diagrams, logic within a single file.
+    - diagram: Explicit request for a Mermaid diagram — flowcharts, dependency graphs, class/entity diagrams, system maps.
     - deep_explanation: RAG-based search, "how does X work?".
     - refactor: Editing code, fixing bugs, optimization.
 
@@ -58,13 +59,89 @@ export async function entryNode(state: AgentState): Promise<Partial<AgentState>>
   }
 }
 
-export async function microLogicNode(_state: AgentState): Promise<Partial<AgentState>> {
+export async function microLogicNode(state: AgentState): Promise<Partial<AgentState>> {
   console.log('--- MICRO LOGIC NODE ---');
-  const mermaid = `graph TD\n  A[Start] --> B[Processing] --> C[End]`;
-  return {
-    outputType: 'mermaid',
-    outputRef: mermaid,
-  };
+  try {
+    const llm = getLLM('standard', 0);
+
+    const targetFileName = state.fileRef ? (store.get(state.fileRef) as string | null) : null;
+    const targetFilePath = targetFileName && state.repoPath ? path.join(state.repoPath, targetFileName) : null;
+
+    let fileContent = '';
+    if (targetFilePath) {
+      try { fileContent = fs.readFileSync(targetFilePath, 'utf-8'); } catch { /* not found */ }
+    }
+
+    const prompt = `Generate a Mermaid diagram for the logic or flow described below.
+Repository: ${state.repoPath}
+${targetFilePath ? `File: ${targetFilePath}\n\nContent:\n\`\`\`\n${fileContent.slice(0, 3000)}\n\`\`\`` : ''}
+
+User request: ${state.userQuery}
+
+Output ONLY valid Mermaid syntax — no code fences, no prose, no explanation.`;
+
+    const response = await llm.invoke([
+      new SystemMessage('You are a diagramming expert. Output only valid Mermaid diagram syntax.'),
+      new HumanMessage(prompt),
+    ]);
+
+    return { outputType: 'mermaid', outputRef: (response.content as string).trim() };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Micro Logic Node Error:', message);
+    return { outputType: 'mermaid', outputRef: 'graph TD\n  A[Start] --> B[Processing] --> C[End]' };
+  }
+}
+
+export async function diagramNode(state: AgentState): Promise<Partial<AgentState>> {
+  console.log('--- DIAGRAM NODE ---');
+  try {
+    const llm = getLLM('standard', 0);
+
+    // Gather repo file listing for context
+    let fileListing = '';
+    if (state.repoPath) {
+      try {
+        const walk = (dir: string, depth = 0): string[] => {
+          if (depth > 3) return [];
+          return fs.readdirSync(dir).flatMap(name => {
+            const full = path.join(dir, name);
+            if (name.startsWith('.') || name === 'node_modules') return [];
+            try {
+              return fs.statSync(full).isDirectory() ? walk(full, depth + 1) : [path.relative(state.repoPath, full)];
+            } catch { return []; }
+          });
+        };
+        fileListing = walk(state.repoPath).slice(0, 100).join('\n');
+      } catch { /* ignore */ }
+    }
+
+    const prompt = `Generate a Mermaid diagram that directly answers the user's request.
+Repository: ${state.repoPath}
+${fileListing ? `File tree (truncated):\n${fileListing}\n` : ''}
+User request: ${state.userQuery}
+
+Choose the most appropriate diagram type (flowchart, graph, sequenceDiagram, classDiagram, erDiagram, etc.).
+Output ONLY valid Mermaid syntax — no code fences, no prose, no explanation.`;
+
+    const response = await llm.invoke([
+      new SystemMessage('You are a diagramming expert. Output only valid Mermaid diagram syntax with no markdown fences.'),
+      new HumanMessage(prompt),
+    ]);
+
+    const raw = (response.content as string).trim();
+    // Strip accidental code fences the LLM may include despite instructions
+    const cleaned = raw.replace(/^```(?:mermaid)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+    return { outputType: 'mermaid', outputRef: cleaned };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Diagram Node Error:', message);
+    return {
+      outputType: 'markdown',
+      outputRef: `Diagram generation failed: ${message}`,
+    };
+  }
 }
 
 export async function macro_structure_node(state: AgentState): Promise<Partial<AgentState>> {

@@ -13,7 +13,7 @@ export const AgentStateAnnotation = Annotation.Root({
   repoPath: Annotation<string>(),
   
   // Router output
-  intent: Annotation<'macro_structure' | 'micro_logic' | 'deep_explanation' | 'refactor' | 'error'>(),
+  intent: Annotation<'macro_structure' | 'micro_logic' | 'diagram' | 'deep_explanation' | 'refactor' | 'error'>(),
   targetFiles: Annotation<string[]>(),
   
   // Pointers to SessionStore — never raw code in state
