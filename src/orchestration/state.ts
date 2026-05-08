@@ -13,7 +13,7 @@ export const AgentStateAnnotation = Annotation.Root({
   repoPath: Annotation<string>(),
   
   // Router output
-  intent: Annotation<'macro_structure' | 'micro_logic' | 'diagram' | 'deep_explanation' | 'refactor' | 'error'>(),
+  intent: Annotation<'macro_structure' | 'micro_logic' | 'diagram' | 'deep_explanation' | 'refactor' | 'test' | 'error'>(),
   targetFiles: Annotation<string[]>(),
   
   // Pointers to SessionStore — never raw code in state
@@ -21,6 +21,12 @@ export const AgentStateAnnotation = Annotation.Root({
   retrievedChunkIds: Annotation<string[]>(),
   pendingDiffId: Annotation<string | null>(),
   
+  // Conversation memory — serialized [{role, content}] for this session
+  conversationHistory: Annotation<string>(),
+
+  // Git context — recent diff passed in from server
+  gitDiff: Annotation<string | null>(),
+
   // Output metadata
   outputType: Annotation<'svg_path' | 'mermaid' | 'markdown' | 'diff_proposal' | null>(),
   outputRef: Annotation<string | null>(),

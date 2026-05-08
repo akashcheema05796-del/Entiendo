@@ -9,6 +9,10 @@ import { graph } from './src/orchestration/graph.ts';
 import { store } from './src/infrastructure/session_store.ts';
 import { ragIndexer } from './src/tools/rag_indexer.ts';
 import { tokenEmitter } from './src/infrastructure/token_emitter.ts';
+import { execSync } from 'child_process';
+
+// Per-session conversation history
+const conversationHistory = new Map<string, { role: string; content: string }[]>();
 
 /**
  * server.ts
@@ -94,17 +98,42 @@ async function startServer() {
           socket.emit('log', { message: msg });
         }).catch(() => {});
 
+        // Read recent git diff for context
+        let gitDiff: string | null = null;
+        try {
+          gitDiff = execSync('git log --oneline -5 && git diff HEAD~1 HEAD --stat', {
+            cwd: workspacePath,
+            timeout: 5000,
+          }).toString().trim();
+        } catch { /* repo may have only one commit */ }
+
+        // Load and update conversation history
+        const history = conversationHistory.get(sessionId) ?? [];
+        history.push({ role: 'user', content: data.query });
+        conversationHistory.set(sessionId, history.slice(-20));
+
         // Run LangGraph
         const stream = await graph.stream({
           userQuery: data.query,
           repoPath: workspacePath,
           sessionId,
+          conversationHistory: JSON.stringify(history),
+          gitDiff,
         });
 
+        let lastOutput = '';
         for await (const chunk of stream) {
           const nodeName = Object.keys(chunk)[0];
           const nodeState = chunk[nodeName];
+          if (nodeState.outputRef) lastOutput = nodeState.outputRef;
           socket.emit('node_complete', { node: nodeName, state: nodeState, session_id: sessionId });
+        }
+
+        // Append assistant response to conversation history
+        if (lastOutput) {
+          const updated = conversationHistory.get(sessionId) ?? [];
+          updated.push({ role: 'assistant', content: lastOutput.slice(0, 500) });
+          conversationHistory.set(sessionId, updated.slice(-20));
         }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
@@ -136,26 +165,36 @@ async function startServer() {
     // Apply an accepted diff to disk
     socket.on('apply_diff', (data: { diffId: string }) => {
       try {
-        const diff = store.get(data.diffId) as {
-          original: string;
-          modified: string;
-          appliedBlocks: number;
-          filePath: string | null;
-        } | null;
+        const payload = store.get(data.diffId) as
+          | { filePath: string; modified: string; appliedBlocks: number }[]
+          | { filePath: string | null; modified: string; appliedBlocks: number }
+          | null;
 
-        if (!diff) {
+        if (!payload) {
           socket.emit('diff_applied', { success: false, message: 'Diff expired or not found.' });
           return;
         }
-        if (!diff.filePath) {
-          socket.emit('diff_applied', { success: false, message: 'No target file in this diff.' });
+
+        // Normalise to array (backwards-compat with old single-file shape)
+        const diffs = Array.isArray(payload) ? payload : [payload];
+        let totalBlocks = 0;
+        const written: string[] = [];
+
+        for (const diff of diffs) {
+          if (!diff.filePath) continue;
+          fs.writeFileSync(diff.filePath, diff.modified, 'utf-8');
+          totalBlocks += diff.appliedBlocks;
+          written.push(path.basename(diff.filePath));
+        }
+
+        if (written.length === 0) {
+          socket.emit('diff_applied', { success: false, message: 'No target files in diff.' });
           return;
         }
 
-        fs.writeFileSync(diff.filePath, diff.modified, 'utf-8');
         socket.emit('diff_applied', {
           success: true,
-          message: `Applied ${diff.appliedBlocks} change(s) to ${path.basename(diff.filePath)}`,
+          message: `Applied ${totalBlocks} change(s) across ${written.join(', ')}`,
         });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
@@ -165,6 +204,7 @@ async function startServer() {
 
     socket.on('disconnect', () => {
       tokenEmitter.off(sessionId, onToken);
+      conversationHistory.delete(sessionId);
       console.log('Client disconnected:', sessionId);
     });
   });

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Send, MessageSquare, Code, Layout, Zap, Box, Share2, PanelRight, X, FileCode } from 'lucide-react';
+import { Send, MessageSquare, Code, Layout, Zap, Box, Share2, PanelRight, X, FileCode, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
@@ -23,12 +23,14 @@ interface Bubble {
   type: 'file' | 'folder' | 'agent';
 }
 
-interface DiffData {
+interface FileDiff {
+  filePath: string | null;
   original: string;
   modified: string;
   appliedBlocks: number;
-  filePath: string | null;
 }
+
+type DiffData = FileDiff[];
 
 const Mermaid = ({ chart }: { chart: string }) => {
   const ref = useRef<HTMLDivElement>(null);
@@ -41,10 +43,33 @@ const Mermaid = ({ chart }: { chart: string }) => {
         .catch(err => console.error('Mermaid render error:', err));
     }
   }, [chart]);
-  return <div ref={ref} className="w-full flex justify-center py-4 bg-white rounded-xl overflow-hidden shadow-inner" />;
+
+  const handleExport = () => {
+    const svg = ref.current?.innerHTML;
+    if (!svg) return;
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'diagram.svg';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div ref={ref} className="w-full flex justify-center py-4 bg-white rounded-xl overflow-hidden shadow-inner" />
+      <button
+        onClick={handleExport}
+        className="self-end flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 text-[10px] font-bold rounded-xl transition-all"
+      >
+        <Download className="w-3 h-3" /> Export SVG
+      </button>
+    </div>
+  );
 };
 
-const TERMINAL_NODES = new Set(['micro_logic', 'macro_structure', 'diagram', 'deep_explanation', 'refactor', 'error_handler']);
+const TERMINAL_NODES = new Set(['micro_logic', 'macro_structure', 'diagram', 'deep_explanation', 'refactor', 'test', 'error_handler']);
 
 export default function EntendoCanvas() {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
@@ -124,10 +149,13 @@ export default function EntendoCanvas() {
 
       if (data.state.outputType === 'diff_proposal' && data.state.outputRef) {
         try {
-          const parsed: DiffData = JSON.parse(data.state.outputRef);
-          setDiffData(parsed);
+          const parsed = JSON.parse(data.state.outputRef);
+          // Normalise: server now returns array; handle legacy single-object too
+          const diffs: DiffData = Array.isArray(parsed) ? parsed : [parsed];
+          setDiffData(diffs);
           setPendingDiffId(data.state.pendingDiffId ?? null);
           setAnalysisResult(null);
+          setStreamingContent(null);
           setShowPanel(true);
         } catch {
           setAnalysisResult({ type: 'markdown', content: data.state.outputRef });
@@ -248,10 +276,7 @@ export default function EntendoCanvas() {
   ) : diffData ? (
     <div className="p-6">
       <DiffViewer
-        filePath={diffData.filePath}
-        original={diffData.original}
-        modified={diffData.modified}
-        appliedBlocks={diffData.appliedBlocks}
+        diffs={diffData}
         onAccept={handleAcceptDiff}
         onReject={handleRejectDiff}
       />

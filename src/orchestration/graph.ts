@@ -1,6 +1,6 @@
 import { StateGraph, END, START } from '@langchain/langgraph';
 import { AgentStateAnnotation } from './state.ts';
-import { entryNode, microLogicNode, diagramNode, macro_structure_node, deepExplanation_node, refactorNode, errorNode, routeByIntent } from './nodes.ts';
+import { entryNode, microLogicNode, diagramNode, macro_structure_node, deepExplanation_node, refactorNode, testNode, errorNode, routeByIntent } from './nodes.ts';
 
 /**
  * graph.ts
@@ -15,6 +15,7 @@ export function buildGraph() {
     .addNode('diagram', diagramNode)
     .addNode('deep_explanation', deepExplanation_node)
     .addNode('refactor', refactorNode)
+    .addNode('test', testNode)
     .addNode('error_handler', errorNode);
 
   workflow.addEdge(START, 'entry');
@@ -25,6 +26,7 @@ export function buildGraph() {
     diagram: 'diagram',
     deep_explanation: 'deep_explanation',
     refactor: 'refactor',
+    test: 'test',
     error: 'error_handler',
   });
 
@@ -33,6 +35,7 @@ export function buildGraph() {
   workflow.addEdge('diagram', END);
   workflow.addEdge('deep_explanation', END);
   workflow.addEdge('refactor', END);
+  workflow.addEdge('test', END);
   workflow.addEdge('error_handler', END);
 
   return workflow.compile();

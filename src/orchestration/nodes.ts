@@ -15,10 +15,25 @@ import { tokenEmitter } from '../infrastructure/token_emitter.ts';
  */
 
 const RouterSchema = z.object({
-  intent: z.enum(['macro_structure', 'micro_logic', 'diagram', 'deep_explanation', 'refactor', 'error']),
+  intent: z.enum(['macro_structure', 'micro_logic', 'diagram', 'deep_explanation', 'refactor', 'test', 'error']),
   target_files: z.array(z.string()),
   confidence: z.number(),
 });
+
+function historyContext(state: AgentState): string {
+  if (!state.conversationHistory) return '';
+  try {
+    const turns = JSON.parse(state.conversationHistory) as { role: string; content: string }[];
+    if (turns.length === 0) return '';
+    const lines = turns.slice(-6).map(t => `${t.role === 'user' ? 'User' : 'Assistant'}: ${t.content.slice(0, 300)}`);
+    return `\nPrevious conversation:\n${lines.join('\n')}\n`;
+  } catch { return ''; }
+}
+
+function gitContext(state: AgentState): string {
+  if (!state.gitDiff) return '';
+  return `\nRecent git changes:\n\`\`\`diff\n${state.gitDiff.slice(0, 2000)}\n\`\`\`\n`;
+}
 
 export async function entryNode(state: AgentState): Promise<Partial<AgentState>> {
   console.log('--- ENTRY NODE ---');
@@ -32,7 +47,8 @@ export async function entryNode(state: AgentState): Promise<Partial<AgentState>>
     - diagram: Explicit request for a Mermaid diagram — flowcharts, dependency graphs, class/entity diagrams, system maps.
     - deep_explanation: RAG-based search, "how does X work?".
     - refactor: Editing code, fixing bugs, optimization.
-
+    - test: Generate unit or integration tests for a file or function.
+    ${historyContext(state)}
     User query: ${state.userQuery}`;
 
     const result = await structuredLlm.invoke([
@@ -160,6 +176,7 @@ export async function macro_structure_node(state: AgentState): Promise<Partial<A
     const llm = getLLM('standard', 0);
     const prompt = `Analyze the project structure of ${state.repoPath}.
     Identify the main architectural components.
+    ${historyContext(state)}${gitContext(state)}
     User query: ${state.userQuery}`;
 
     const stream = await llm.stream([
@@ -205,7 +222,7 @@ export async function deepExplanation_node(state: AgentState): Promise<Partial<A
 
     const prompt = `Explain how the following works in ${state.repoPath}:
 ${state.userQuery}
-${ragContext}
+${ragContext}${historyContext(state)}${gitContext(state)}
 Focus on technical details and data flow.`;
 
     const stream = await llm.stream([
@@ -235,25 +252,24 @@ export async function refactorNode(state: AgentState): Promise<Partial<AgentStat
   try {
     const llm = getLLM('complex', 0.1);
 
-    // Resolve the actual file path on disk
-    const targetFileName = state.fileRef
-      ? (store.get(state.fileRef) as string | null)
-      : null;
-    const targetFilePath =
-      targetFileName && state.repoPath
-        ? path.join(state.repoPath, targetFileName)
-        : null;
+    // Resolve all target files (multi-file support)
+    const targetFileNames: string[] = state.targetFiles?.length
+      ? state.targetFiles
+      : state.fileRef ? [store.get(state.fileRef) as string].filter(Boolean) : [];
 
-    // Read the real file content if it exists
-    let fileContent = '';
-    if (targetFilePath) {
-      try { fileContent = fs.readFileSync(targetFilePath, 'utf-8'); } catch { /* not found */ }
-    }
+    const fileDiffs: { filePath: string; original: string; modified: string; appliedBlocks: number }[] = [];
 
-    const prompt = `You are performing a structural code refactor.
+    for (const fileName of targetFileNames.slice(0, 5)) {
+      const targetFilePath = state.repoPath ? path.join(state.repoPath, fileName) : null;
+      let fileContent = '';
+      if (targetFilePath) {
+        try { fileContent = fs.readFileSync(targetFilePath, 'utf-8'); } catch { continue; }
+      }
+
+      const prompt = `You are performing a structural code refactor.
 Repository: ${state.repoPath}
 ${targetFilePath ? `Target file: ${targetFilePath}\n\nCurrent content:\n\`\`\`\n${fileContent.slice(0, 3000)}\n\`\`\`` : ''}
-
+${gitContext(state)}${historyContext(state)}
 User request: ${state.userQuery}
 
 Produce SEARCH/REPLACE blocks in this exact format for every change:
@@ -265,26 +281,28 @@ Produce SEARCH/REPLACE blocks in this exact format for every change:
 
 Only emit the blocks — no other prose.`;
 
-    const response = await llm.invoke([
-      new SystemMessage('You are a senior engineer performing precise code refactors.'),
-      new HumanMessage(prompt)
-    ]);
+      const response = await llm.invoke([
+        new SystemMessage('You are a senior engineer performing precise code refactors.'),
+        new HumanMessage(prompt),
+      ]);
 
-    const llmOutput = response.content as string;
-    const { modified, appliedBlocks, error } = applySearchReplace(fileContent, llmOutput);
+      const llmOutput = response.content as string;
+      const { modified, appliedBlocks, error } = applySearchReplace(fileContent, llmOutput);
 
-    if (error) {
+      if (!error && appliedBlocks > 0) {
+        fileDiffs.push({ filePath: targetFilePath!, original: fileContent, modified, appliedBlocks });
+      }
+    }
+
+    if (fileDiffs.length === 0) {
       return {
         outputType: 'markdown',
-        outputRef: `Refactor could not be applied: ${error}\n\nRaw suggestion:\n\`\`\`\n${llmOutput}\n\`\`\``,
+        outputRef: 'No applicable changes found. Try being more specific about what to change and which file.',
       };
     }
 
-    // Store the full diff in session store for server-side file write on accept
-    const diffRef = store.put({ original: fileContent, modified, appliedBlocks, filePath: targetFilePath });
-
-    // Send inline JSON so the client can render the diff immediately
-    const diffPayload = JSON.stringify({ original: fileContent, modified, appliedBlocks, filePath: targetFilePath });
+    const diffRef = store.put(fileDiffs);
+    const diffPayload = JSON.stringify(fileDiffs);
 
     return {
       outputType: 'diff_proposal',
@@ -297,6 +315,66 @@ Only emit the blocks — no other prose.`;
     return {
       outputType: 'markdown',
       outputRef: `Refactor failed: ${message}`,
+    };
+  }
+}
+
+export async function testNode(state: AgentState): Promise<Partial<AgentState>> {
+  console.log('--- TEST NODE ---');
+  try {
+    const llm = getLLM('complex', 0.1);
+
+    const targetFileName = state.fileRef ? (store.get(state.fileRef) as string | null) : null;
+    const targetFilePath = targetFileName && state.repoPath ? path.join(state.repoPath, targetFileName) : null;
+
+    let fileContent = '';
+    if (targetFilePath) {
+      try { fileContent = fs.readFileSync(targetFilePath, 'utf-8'); } catch { /* not found */ }
+    }
+
+    // Detect test framework from package.json
+    let testFramework = 'the appropriate test framework';
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(state.repoPath, 'package.json'), 'utf-8'));
+      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+      if (deps['vitest']) testFramework = 'Vitest';
+      else if (deps['jest']) testFramework = 'Jest';
+      else if (deps['mocha']) testFramework = 'Mocha';
+      else if (deps['pytest']) testFramework = 'pytest';
+    } catch { /* ignore */ }
+
+    const prompt = `Generate comprehensive tests using ${testFramework}.
+Repository: ${state.repoPath}
+${targetFilePath && fileContent ? `File to test: ${targetFilePath}\n\nSource:\n\`\`\`\n${fileContent.slice(0, 4000)}\n\`\`\`` : ''}
+${historyContext(state)}
+User request: ${state.userQuery}
+
+Include:
+- Unit tests for each exported function/class
+- Edge cases and error conditions
+- Clear describe/it block names
+
+Output only the test file content — no explanation.`;
+
+    const stream = await llm.stream([
+      new SystemMessage('You are a senior engineer writing thorough, idiomatic tests.'),
+      new HumanMessage(prompt),
+    ]);
+
+    let full = '';
+    for await (const chunk of stream) {
+      const token = typeof chunk.content === 'string' ? chunk.content : '';
+      full += token;
+      tokenEmitter.emit(state.sessionId, token);
+    }
+
+    return { outputType: 'markdown', outputRef: full };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Test Node Error:', message);
+    return {
+      outputType: 'markdown',
+      outputRef: `Test generation failed: ${message}`,
     };
   }
 }
