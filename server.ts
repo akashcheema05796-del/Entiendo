@@ -8,6 +8,7 @@ import { createServer as createViteServer } from 'vite';
 import { graph } from './src/orchestration/graph.ts';
 import { store } from './src/infrastructure/session_store.ts';
 import { ragIndexer } from './src/tools/rag_indexer.ts';
+import { graphIndexer } from './src/tools/graph_indexer.ts';
 import { tokenEmitter } from './src/infrastructure/token_emitter.ts';
 import { execSync } from 'child_process';
 
@@ -93,8 +94,12 @@ async function startServer() {
         const fileTree = getFileTree(workspacePath);
         socket.emit('repo_structure', { tree: fileTree, repo_url: data.repo_url });
 
-        // Kick off RAG indexing in the background (non-blocking)
+        // Kick off RAG + knowledge graph indexing in parallel (non-blocking)
         ragIndexer.indexRepo(workspacePath, sessionId, (msg) => {
+          socket.emit('log', { message: msg });
+        }).catch(() => {});
+
+        graphIndexer.indexRepo(workspacePath, sessionId, (msg) => {
           socket.emit('log', { message: msg });
         }).catch(() => {});
 

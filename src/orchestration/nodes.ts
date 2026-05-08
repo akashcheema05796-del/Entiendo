@@ -5,6 +5,7 @@ import { getLLM } from '../infrastructure/llm_factory.ts';
 import { store } from '../infrastructure/session_store.ts';
 import { applySearchReplace } from '../tools/diff_engine.ts';
 import { ragIndexer } from '../tools/rag_indexer.ts';
+import { graphIndexer } from '../tools/graph_indexer.ts';
 import { z } from 'zod';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { tokenEmitter } from '../infrastructure/token_emitter.ts';
@@ -113,9 +114,31 @@ Output ONLY valid Mermaid syntax — no code fences, no prose, no explanation.`;
 export async function diagramNode(state: AgentState): Promise<Partial<AgentState>> {
   console.log('--- DIAGRAM NODE ---');
   try {
+    await graphIndexer.waitForGraph(state.sessionId);
+    const query = state.userQuery.toLowerCase();
+
+    // ── Path 1: dependency / import / architecture diagram → use real graph ──
+    const isDependencyQuery = /depend|import|architecture|module|structure|graph|map|tree|topology/.test(query);
+    if (isDependencyQuery) {
+      const rootFiles = state.targetFiles?.length ? state.targetFiles : undefined;
+      const mermaidFromGraph = graphIndexer.toMermaid(state.sessionId, rootFiles);
+      if (mermaidFromGraph) {
+        return { outputType: 'mermaid', outputRef: mermaidFromGraph };
+      }
+    }
+
+    // ── Path 2: class / inheritance diagram → use real graph ─────────────────
+    const isClassQuery = /class|inherit|hierarch|extend|interface|uml/.test(query);
+    if (isClassQuery) {
+      const classDiagram = graphIndexer.toClassDiagram(state.sessionId, state.targetFiles);
+      if (classDiagram) {
+        return { outputType: 'mermaid', outputRef: classDiagram };
+      }
+    }
+
+    // ── Path 3: LLM-generated diagram enriched with graph context ────────────
     const llm = getLLM('standard', 0);
 
-    // Read target file content if one was identified
     const targetFileName = state.fileRef ? (store.get(state.fileRef) as string | null) : null;
     const targetFilePath = targetFileName && state.repoPath ? path.join(state.repoPath, targetFileName) : null;
     let fileContent = '';
@@ -123,27 +146,15 @@ export async function diagramNode(state: AgentState): Promise<Partial<AgentState
       try { fileContent = fs.readFileSync(targetFilePath, 'utf-8'); } catch { /* not found */ }
     }
 
-    // Gather repo file listing for broader context
-    let fileListing = '';
-    if (state.repoPath) {
-      try {
-        const walk = (dir: string, depth = 0): string[] => {
-          if (depth > 3) return [];
-          return fs.readdirSync(dir).flatMap(name => {
-            const full = path.join(dir, name);
-            if (name.startsWith('.') || name === 'node_modules') return [];
-            try {
-              return fs.statSync(full).isDirectory() ? walk(full, depth + 1) : [path.relative(state.repoPath, full)];
-            } catch { return []; }
-          });
-        };
-        fileListing = walk(state.repoPath).slice(0, 100).join('\n');
-      } catch { /* ignore */ }
-    }
+    // Enrich prompt with graph context for identified files
+    const graphContext = state.targetFiles?.length
+      ? state.targetFiles.map(f => graphIndexer.getFileContext(f, state.sessionId)).filter(Boolean).join('\n')
+      : graphIndexer.getSummary(state.sessionId);
 
     const prompt = `Generate a Mermaid diagram that directly answers the user's request.
 Repository: ${state.repoPath}
-${targetFilePath && fileContent ? `Target file: ${targetFilePath}\n\nContent:\n\`\`\`\n${fileContent.slice(0, 3000)}\n\`\`\`` : fileListing ? `File tree (truncated):\n${fileListing}` : ''}
+${targetFilePath && fileContent ? `Target file: ${targetFilePath}\n\nContent:\n\`\`\`\n${fileContent.slice(0, 3000)}\n\`\`\`` : ''}
+${graphContext ? `\nKnowledge graph context:\n${graphContext}` : ''}
 
 User request: ${state.userQuery}
 
@@ -156,17 +167,12 @@ Output ONLY valid Mermaid syntax — no code fences, no prose, no explanation.`;
     ]);
 
     const raw = (response.content as string).trim();
-    // Strip accidental code fences the LLM may include despite instructions
     const cleaned = raw.replace(/^```(?:mermaid)?\s*/i, '').replace(/\s*```$/, '').trim();
-
     return { outputType: 'mermaid', outputRef: cleaned };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Diagram Node Error:', message);
-    return {
-      outputType: 'markdown',
-      outputRef: `Diagram generation failed: ${message}`,
-    };
+    return { outputType: 'markdown', outputRef: `Diagram generation failed: ${message}` };
   }
 }
 
@@ -207,22 +213,29 @@ export async function deepExplanation_node(state: AgentState): Promise<Partial<A
   try {
     const llm = getLLM('complex', 0.1);
 
-    // Wait for background indexing to finish before querying
-    await ragIndexer.waitForIndex(state.sessionId || 'default');
+    // Wait for both RAG and knowledge graph to finish
+    await Promise.all([
+      ragIndexer.waitForIndex(state.sessionId || 'default'),
+      graphIndexer.waitForGraph(state.sessionId || 'default'),
+    ]);
 
-    // Retrieve relevant code chunks via RAG
-    const chunks = await ragIndexer.retrieve(
-      state.userQuery,
-      state.sessionId || 'default'
-    );
-
+    // RAG: semantically similar code chunks
+    const chunks = await ragIndexer.retrieve(state.userQuery, state.sessionId || 'default');
     const ragContext = chunks.length > 0
-      ? `\nRelevant code from the repository:\n\`\`\`\n${chunks.join('\n\n---\n')}\n\`\`\`\n`
+      ? `\nRelevant code chunks (RAG):\n\`\`\`\n${chunks.join('\n\n---\n')}\n\`\`\`\n`
       : '';
+
+    // Graph: structurally related files and symbols
+    const { symbols, relatedFiles } = graphIndexer.getContextForQuery(state.userQuery, state.sessionId || 'default');
+    const graphCtx = symbols.length > 0
+      ? `\nKnowledge graph — related symbols: ${symbols.map(s => `${s.type} ${s.name} in ${s.file}`).join(', ')}\nRelated files: ${relatedFiles.join(', ')}\n`
+      : graphIndexer.getSummary(state.sessionId || 'default')
+        ? `\n${graphIndexer.getSummary(state.sessionId || 'default')}\n`
+        : '';
 
     const prompt = `Explain how the following works in ${state.repoPath}:
 ${state.userQuery}
-${ragContext}${historyContext(state)}${gitContext(state)}
+${ragContext}${graphCtx}${historyContext(state)}${gitContext(state)}
 Focus on technical details and data flow.`;
 
     const stream = await llm.stream([
@@ -266,10 +279,13 @@ export async function refactorNode(state: AgentState): Promise<Partial<AgentStat
         try { fileContent = fs.readFileSync(targetFilePath, 'utf-8'); } catch { continue; }
       }
 
+      // Graph context: what imports this file (impact awareness)
+      const graphFileCtx = graphIndexer.getFileContext(fileName, state.sessionId);
+
       const prompt = `You are performing a structural code refactor.
 Repository: ${state.repoPath}
 ${targetFilePath ? `Target file: ${targetFilePath}\n\nCurrent content:\n\`\`\`\n${fileContent.slice(0, 3000)}\n\`\`\`` : ''}
-${gitContext(state)}${historyContext(state)}
+${graphFileCtx ? `\nKnowledge graph context:\n${graphFileCtx}\n` : ''}${gitContext(state)}${historyContext(state)}
 User request: ${state.userQuery}
 
 Produce SEARCH/REPLACE blocks in this exact format for every change:
@@ -343,15 +359,24 @@ export async function testNode(state: AgentState): Promise<Partial<AgentState>> 
       else if (deps['pytest']) testFramework = 'pytest';
     } catch { /* ignore */ }
 
+    // Graph: find what this file imports so we know what to mock
+    const targetRelPath = targetFileName ?? '';
+    const graphFileCtx = graphIndexer.getFileContext(targetRelPath, state.sessionId);
+    const deps = targetRelPath ? graphIndexer.getDependencies(targetRelPath, state.sessionId) : [];
+    const mockHints = deps.length
+      ? `Dependencies to consider mocking: ${deps.slice(0, 8).join(', ')}`
+      : '';
+
     const prompt = `Generate comprehensive tests using ${testFramework}.
 Repository: ${state.repoPath}
 ${targetFilePath && fileContent ? `File to test: ${targetFilePath}\n\nSource:\n\`\`\`\n${fileContent.slice(0, 4000)}\n\`\`\`` : ''}
-${historyContext(state)}
+${graphFileCtx ? `\nKnowledge graph context:\n${graphFileCtx}\n` : ''}${mockHints ? `${mockHints}\n` : ''}${historyContext(state)}
 User request: ${state.userQuery}
 
 Include:
 - Unit tests for each exported function/class
 - Edge cases and error conditions
+- Mock all external dependencies identified above
 - Clear describe/it block names
 
 Output only the test file content — no explanation.`;
