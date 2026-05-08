@@ -1,7 +1,10 @@
+import fs from 'fs';
+import path from 'path';
 import { AgentState } from './state.ts';
 import { getLLM } from '../infrastructure/llm_factory.ts';
 import { store } from '../infrastructure/session_store.ts';
 import { applySearchReplace } from '../tools/diff_engine.ts';
+import { ragIndexer } from '../tools/rag_indexer.ts';
 import { z } from 'zod';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 
@@ -55,11 +58,9 @@ export async function entryNode(state: AgentState): Promise<Partial<AgentState>>
   }
 }
 
-export async function microLogicNode(state: AgentState): Promise<Partial<AgentState>> {
+export async function microLogicNode(_state: AgentState): Promise<Partial<AgentState>> {
   console.log('--- MICRO LOGIC NODE ---');
-
   const mermaid = `graph TD\n  A[Start] --> B[Processing] --> C[End]`;
-
   return {
     outputType: 'mermaid',
     outputRef: mermaid,
@@ -70,10 +71,8 @@ export async function macro_structure_node(state: AgentState): Promise<Partial<A
   console.log('--- MACRO STRUCTURE NODE ---');
   try {
     const llm = getLLM('standard', 0);
-
     const prompt = `Analyze the project structure of ${state.repoPath}.
     Identify the main architectural components.
-
     User query: ${state.userQuery}`;
 
     const response = await llm.invoke([
@@ -100,10 +99,20 @@ export async function deepExplanation_node(state: AgentState): Promise<Partial<A
   try {
     const llm = getLLM('complex', 0.1);
 
-    const prompt = `Explain how the following logic works in ${state.repoPath}:
-    ${state.userQuery}
+    // Retrieve relevant code chunks via RAG if available
+    const chunks = await ragIndexer.retrieve(
+      state.userQuery,
+      state.sessionId || 'default'
+    );
 
-    Focus on technical details and data flow.`;
+    const ragContext = chunks.length > 0
+      ? `\nRelevant code from the repository:\n\`\`\`\n${chunks.join('\n\n---\n')}\n\`\`\`\n`
+      : '';
+
+    const prompt = `Explain how the following works in ${state.repoPath}:
+${state.userQuery}
+${ragContext}
+Focus on technical details and data flow.`;
 
     const response = await llm.invoke([
       new SystemMessage('You are a technical lead explaining a codebase.'),
@@ -128,11 +137,24 @@ export async function refactorNode(state: AgentState): Promise<Partial<AgentStat
   try {
     const llm = getLLM('complex', 0.1);
 
-    const targetFile = state.fileRef ? store.get(state.fileRef) as string | null : null;
+    // Resolve the actual file path on disk
+    const targetFileName = state.fileRef
+      ? (store.get(state.fileRef) as string | null)
+      : null;
+    const targetFilePath =
+      targetFileName && state.repoPath
+        ? path.join(state.repoPath, targetFileName)
+        : null;
+
+    // Read the real file content if it exists
+    let fileContent = '';
+    if (targetFilePath) {
+      try { fileContent = fs.readFileSync(targetFilePath, 'utf-8'); } catch { /* not found */ }
+    }
 
     const prompt = `You are performing a structural code refactor.
 Repository: ${state.repoPath}
-${targetFile ? `Target file: ${targetFile}` : ''}
+${targetFilePath ? `Target file: ${targetFilePath}\n\nCurrent content:\n\`\`\`\n${fileContent.slice(0, 3000)}\n\`\`\`` : ''}
 
 User request: ${state.userQuery}
 
@@ -151,7 +173,7 @@ Only emit the blocks — no other prose.`;
     ]);
 
     const llmOutput = response.content as string;
-    const { modified, appliedBlocks, error } = applySearchReplace('', llmOutput);
+    const { modified, appliedBlocks, error } = applySearchReplace(fileContent, llmOutput);
 
     if (error) {
       return {
@@ -160,11 +182,15 @@ Only emit the blocks — no other prose.`;
       };
     }
 
-    const diffRef = store.put({ original: '', modified, appliedBlocks });
+    // Store the full diff in session store for server-side file write on accept
+    const diffRef = store.put({ original: fileContent, modified, appliedBlocks, filePath: targetFilePath });
+
+    // Send inline JSON so the client can render the diff immediately
+    const diffPayload = JSON.stringify({ original: fileContent, modified, appliedBlocks, filePath: targetFilePath });
 
     return {
       outputType: 'diff_proposal',
-      outputRef: diffRef,
+      outputRef: diffPayload,
       pendingDiffId: diffRef,
     };
   } catch (error: unknown) {
@@ -177,7 +203,7 @@ Only emit the blocks — no other prose.`;
   }
 }
 
-export async function errorNode(state: AgentState): Promise<Partial<AgentState>> {
+export async function errorNode(_state: AgentState): Promise<Partial<AgentState>> {
   return {
     error: "I'm not sure how to help with that yet. Try asking about architecture, code flow, or refactoring.",
   };
