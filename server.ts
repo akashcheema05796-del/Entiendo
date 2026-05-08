@@ -119,7 +119,7 @@ async function startServer() {
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Code Cosmos running at http://localhost:${PORT}`);
+    console.log(`🚀 Entiendo running at http://localhost:${PORT}`);
   });
 }
 

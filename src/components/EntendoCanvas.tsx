@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import mermaid from 'mermaid';
 
 /**
- * CosmosCanvas.tsx
+ * EntendoCanvas.tsx
  * The Interactive Visualization Layer.
  * Renders floating bubbles representing the codebase and Mermaid diagrams.
  */
@@ -41,7 +41,7 @@ const Mermaid = ({ chart }: { chart: string }) => {
 
 const TERMINAL_NODES = new Set(['micro_logic', 'macro_structure', 'deep_explanation', 'refactor', 'error_handler']);
 
-export default function CosmosCanvas() {
+export default function EntendoCanvas() {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [query, setQuery] = useState('');
   const [repoUrl, setRepoUrl] = useState('anthropics/financial-services');
@@ -247,7 +247,7 @@ Return as Markdown.`;
             </div>
             <div>
               <h1 className="text-sm font-black tracking-tighter text-white">
-                CODE_COSMOS <span className="text-indigo-400 font-medium">V4</span>
+                ENTIENDO <span className="text-indigo-400 font-medium">V4</span>
               </h1>
               <p className="text-[9px] text-slate-500 font-mono tracking-widest uppercase">Neural_Architecture_Scanner</p>
             </div>
