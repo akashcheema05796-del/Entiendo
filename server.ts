@@ -46,7 +46,7 @@ async function startServer() {
   const httpServer = createServer(app);
   const io = new Server(httpServer, { cors: { origin: '*' } });
 
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
@@ -213,6 +213,9 @@ async function startServer() {
       console.log('Client disconnected:', sessionId);
     });
   });
+
+  // Health check for Railway / load balancers
+  app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
   // Vite / static serving
   if (process.env.NODE_ENV !== 'production') {
