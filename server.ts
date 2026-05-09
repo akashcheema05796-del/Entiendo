@@ -10,7 +10,7 @@ import { store } from './src/infrastructure/session_store.ts';
 import { ragIndexer } from './src/tools/rag_indexer.ts';
 import { graphIndexer } from './src/tools/graph_indexer.ts';
 import { tokenEmitter } from './src/infrastructure/token_emitter.ts';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 
 // Per-session conversation history
 const conversationHistory = new Map<string, { role: string; content: string }[]>();
@@ -76,7 +76,6 @@ async function startServer() {
           socket.emit('clone_start', { repo_url: data.repo_url });
           console.log(`Cloning ${data.repo_url}...`);
           await new Promise<void>((resolve, reject) => {
-            const { spawn } = require('child_process');
             const proc = spawn('npx', ['-y', 'degit', data.repo_url, workspacePath, '--force'], {
               timeout: 60_000,
               stdio: 'pipe',
