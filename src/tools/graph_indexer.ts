@@ -6,15 +6,22 @@ const CODE_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.py']);
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export type NodeType = 'file' | 'function' | 'class' | 'interface' | 'const';
-export type EdgeType = 'imports' | 'calls' | 'extends' | 'defines';
+export type NodeType = 'file' | 'function' | 'method' | 'class' | 'interface' | 'type' | 'enum' | 'const';
+export type EdgeType = 'imports' | 'defines' | 'contains' | 'extends' | 'implements';
 
 export interface GNode {
   id: string;
   type: NodeType;
-  file: string;   // relative path
+  file: string;          // relative path from repo root
   name: string;
+  line: number;          // 1-based line number
   exported: boolean;
+  parent?: string;       // id of the containing class node (for method nodes)
+  signature?: string;    // parameter list, e.g. "(name: string, age: number)"
+  visibility?: 'public' | 'private' | 'protected';
+  abstract?: boolean;
+  static?: boolean;
+  async?: boolean;
 }
 
 export interface GEdge {
@@ -46,18 +53,26 @@ function resolveImport(fromFile: string, importPath: string, repoPath: string): 
       if (fs.statSync(path.join(repoPath, candidate)).isFile()) return candidate;
     } catch { /* not found */ }
   }
-  return rel; // best-effort even if file doesn't exist
+  return null; // don't create phantom graph nodes for unresolvable paths
 }
 
 // ── TS/JS parser ───────────────────────────────────────────────────────────────
 
 function parseJSTS(content: string, relPath: string, repoPath: string): { nodes: GNode[]; edges: GEdge[] } {
   const fileId = relPath;
-  const nodes: GNode[] = [{ id: fileId, type: 'file', file: relPath, name: path.basename(relPath), exported: true }];
+  const nodes: GNode[] = [{ id: fileId, type: 'file', file: relPath, name: path.basename(relPath), line: 1, exported: true }];
   const edges: GEdge[] = [];
-  const knownSymbols = new Set<string>();
 
-  for (const raw of content.split('\n')) {
+  const lines = content.split('\n');
+
+  // Brace-depth tracking for class scope
+  let braceDepth = 0;
+  interface PendingClass { id: string; depth: number }
+  const classStack: PendingClass[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const lineNum = i + 1;
+    const raw = lines[i];
     const line = raw.trim();
 
     // ── Imports ──────────────────────────────────────────────────────────────
@@ -72,65 +87,180 @@ function parseJSTS(content: string, relPath: string, repoPath: string): { nodes:
       if (resolved) edges.push({ from: fileId, to: resolved, type: 'imports' });
     }
 
-    // ── Function definitions ──────────────────────────────────────────────────
-    const fnMatch =
-      line.match(/^(export\s+(?:default\s+)?)?(async\s+)?function\s+(\w+)/) ||
-      line.match(/^(export\s+)?const\s+(\w+)\s*=\s*(?:async\s+)?\(/) ||
-      line.match(/^(export\s+)?const\s+(\w+)\s*=\s*(?:async\s+)?function/);
+    // ── Class definitions ─────────────────────────────────────────────────────
+    const classMatch = line.match(/^(export\s+(?:default\s+)?)?(?:(abstract)\s+)?class\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([\w,\s]+))?/);
+    if (classMatch) {
+      const isExported = !!(classMatch[1]);
+      const isAbstract = !!(classMatch[2]);
+      const name = classMatch[3];
+      const parentName = classMatch[4];
+      const implementsList = classMatch[5];
+      const symId = `${fileId}::${name}`;
 
-    if (fnMatch) {
-      const isExported = !!(fnMatch[1]);
-      const name = fnMatch[3] ?? fnMatch[2];
-      if (name && /^[A-Za-z_$]/.test(name)) {
-        const symId = `${fileId}::${name}`;
-        if (!nodes.find(n => n.id === symId)) {
-          nodes.push({ id: symId, type: 'function', file: relPath, name, exported: isExported });
-          edges.push({ from: fileId, to: symId, type: 'defines' });
-          knownSymbols.add(name);
+      if (!nodes.find(n => n.id === symId)) {
+        nodes.push({
+          id: symId, type: 'class', file: relPath, name,
+          line: lineNum, exported: isExported, abstract: isAbstract,
+        });
+        edges.push({ from: fileId, to: symId, type: 'defines' });
+
+        if (parentName) {
+          edges.push({ from: symId, to: `__unresolved__::${parentName}`, type: 'extends' });
+        }
+        if (implementsList) {
+          for (const iface of implementsList.split(',').map(s => s.trim()).filter(Boolean)) {
+            edges.push({ from: symId, to: `__unresolved__::${iface}`, type: 'implements' });
+          }
+        }
+      }
+
+      // Track the brace depth when this class opens so we can scope its methods
+      const openBraces = (raw.match(/\{/g) ?? []).length;
+      const closeBraces = (raw.match(/\}/g) ?? []).length;
+      const netOpen = openBraces - closeBraces;
+      // Push class onto stack; its methods live at depth braceDepth+1 after this line
+      classStack.push({ id: symId, depth: braceDepth + (netOpen > 0 ? 1 : 0) });
+      braceDepth += netOpen;
+      continue;
+    }
+
+    // ── Interface definitions ─────────────────────────────────────────────────
+    const ifaceMatch = line.match(/^(export\s+)?interface\s+(\w+)(?:\s+extends\s+([\w,\s]+))?/);
+    if (ifaceMatch) {
+      const isExported = !!(ifaceMatch[1]);
+      const name = ifaceMatch[2];
+      const extendsList = ifaceMatch[3];
+      const symId = `${fileId}::${name}`;
+
+      if (!nodes.find(n => n.id === symId)) {
+        nodes.push({ id: symId, type: 'interface', file: relPath, name, line: lineNum, exported: isExported });
+        edges.push({ from: fileId, to: symId, type: 'defines' });
+
+        if (extendsList) {
+          for (const base of extendsList.split(',').map(s => s.trim()).filter(Boolean)) {
+            edges.push({ from: symId, to: `__unresolved__::${base}`, type: 'extends' });
+          }
         }
       }
     }
 
-    // ── Class definitions ─────────────────────────────────────────────────────
-    const classMatch = line.match(/^(export\s+(?:default\s+)?)?(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+(\w+))?/);
-    if (classMatch) {
-      const isExported = !!(classMatch[1]);
-      const name = classMatch[2];
-      const parent = classMatch[3];
+    // ── Type alias definitions ────────────────────────────────────────────────
+    const typeMatch = line.match(/^(export\s+)?type\s+(\w+)\s*(?:<[^>]*>)?\s*=/);
+    if (typeMatch) {
+      const isExported = !!(typeMatch[1]);
+      const name = typeMatch[2];
       const symId = `${fileId}::${name}`;
       if (!nodes.find(n => n.id === symId)) {
-        nodes.push({ id: symId, type: 'class', file: relPath, name, exported: isExported });
+        nodes.push({ id: symId, type: 'type', file: relPath, name, line: lineNum, exported: isExported });
         edges.push({ from: fileId, to: symId, type: 'defines' });
-        knownSymbols.add(name);
-        if (parent) edges.push({ from: symId, to: `__unresolved__::${parent}`, type: 'extends' });
       }
     }
 
-    // ── Interface definitions ─────────────────────────────────────────────────
-    const ifaceMatch = line.match(/^(export\s+)?interface\s+(\w+)(?:\s+extends\s+(\w+))?/);
-    if (ifaceMatch) {
-      const isExported = !!(ifaceMatch[1]);
-      const name = ifaceMatch[2];
+    // ── Enum definitions ──────────────────────────────────────────────────────
+    const enumMatch = line.match(/^(export\s+)?(?:const\s+)?enum\s+(\w+)/);
+    if (enumMatch) {
+      const isExported = !!(enumMatch[1]);
+      const name = enumMatch[2];
       const symId = `${fileId}::${name}`;
       if (!nodes.find(n => n.id === symId)) {
-        nodes.push({ id: symId, type: 'interface', file: relPath, name, exported: isExported });
+        nodes.push({ id: symId, type: 'enum', file: relPath, name, line: lineNum, exported: isExported });
         edges.push({ from: fileId, to: symId, type: 'defines' });
-        knownSymbols.add(name);
       }
     }
-  }
 
-  // ── Call detection (second pass over known symbols) ───────────────────────
-  for (const raw of content.split('\n')) {
-    const line = raw.trim();
-    // Skip definition lines
-    if (/^(?:export\s+)?(?:async\s+)?function|^(?:export\s+)?class|^(?:export\s+)?interface|^(?:export\s+)?const\s+\w+\s*=/.test(line)) continue;
+    // ── Function / method definitions ─────────────────────────────────────────
+    // Determine active class scope from brace depth
+    const currentClass = classStack.length > 0 ? classStack[classStack.length - 1] : null;
+    const insideClass = currentClass !== null && braceDepth > currentClass.depth;
 
-    for (const sym of knownSymbols) {
-      const callRe = new RegExp(`\\b${sym}\\s*[(<]`);
-      if (callRe.test(line)) {
-        edges.push({ from: fileId, to: `${fileId}::${sym}`, type: 'calls' });
+    if (insideClass) {
+      // Inside a class body: detect methods
+      const visibilityPrefix = /^(public|private|protected)\s+/.exec(line);
+      const vis = visibilityPrefix ? (visibilityPrefix[1] as 'public' | 'private' | 'protected') : 'public';
+      const strippedLine = visibilityPrefix ? line.slice(visibilityPrefix[0].length) : line;
+
+      const isStatic = /^static\s+/.test(strippedLine);
+      const afterStatic = isStatic ? strippedLine.replace(/^static\s+/, '') : strippedLine;
+      const isAsync = /^async\s+/.test(afterStatic);
+      const afterAsync = isAsync ? afterStatic.replace(/^async\s+/, '') : afterStatic;
+      const isAbstractMethod = /^abstract\s+/.test(afterAsync);
+      const afterAbstract = isAbstractMethod ? afterAsync.replace(/^abstract\s+/, '') : afterAsync;
+
+      // Method: name(...) or name = (...) =>
+      const methodMatch =
+        afterAbstract.match(/^(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)/) ||
+        afterAbstract.match(/^(\w+)\s*=\s*(?:async\s+)?\(/);
+
+      if (methodMatch) {
+        const name = methodMatch[1];
+        const sig = methodMatch[2] !== undefined ? `(${methodMatch[2]})` : '(...)';
+        // Skip keywords that look like method calls
+        if (name && /^[a-zA-Z_$]/.test(name) && !['if', 'for', 'while', 'switch', 'catch'].includes(name)) {
+          const classNode = currentClass.id;
+          const symId = `${classNode}::${name}`;
+          if (!nodes.find(n => n.id === symId)) {
+            nodes.push({
+              id: symId, type: 'method', file: relPath, name,
+              line: lineNum, exported: vis === 'public',
+              parent: classNode, signature: sig,
+              visibility: vis, static: isStatic, async: isAsync, abstract: isAbstractMethod,
+            });
+            edges.push({ from: classNode, to: symId, type: 'contains' });
+          }
+        }
       }
+    } else {
+      // Top-level or outside class body: detect functions and const arrow fns
+      const fnMatch =
+        line.match(/^(export\s+(?:default\s+)?)?(async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)/) ||
+        line.match(/^(export\s+)?const\s+(\w+)\s*=\s*(async\s+)?\(([^)]*)/) ||
+        line.match(/^(export\s+)?const\s+(\w+)\s*=\s*(async\s+)?function\s*\(([^)]*)/);
+
+      if (fnMatch) {
+        const isExported = !!(fnMatch[1]);
+        const isAsync = !!(fnMatch[2] || fnMatch[3]);
+        const name = fnMatch[3] ?? fnMatch[2];
+        const sigParams = fnMatch[4] ?? '';
+
+        if (name && /^[A-Za-z_$]/.test(name)) {
+          const symId = `${fileId}::${name}`;
+          if (!nodes.find(n => n.id === symId)) {
+            nodes.push({
+              id: symId, type: 'function', file: relPath, name,
+              line: lineNum, exported: isExported, async: isAsync,
+              signature: `(${sigParams.split('\n')[0].trim()})`,
+            });
+            edges.push({ from: fileId, to: symId, type: 'defines' });
+          }
+        }
+      }
+
+      // Top-level const (non-function)
+      const constMatch = line.match(/^(export\s+)?const\s+(\w+)\s*(?::\s*[\w<>[\]|&]+)?\s*=(?!\s*(?:async\s+)?\(|(?:async\s+)?function)/);
+      if (constMatch) {
+        const isExported = !!(constMatch[1]);
+        const name = constMatch[2];
+        if (name && /^[A-Z]/.test(name[0])) { // only capitalised consts (likely important exports)
+          const symId = `${fileId}::${name}`;
+          if (!nodes.find(n => n.id === symId)) {
+            nodes.push({ id: symId, type: 'const', file: relPath, name, line: lineNum, exported: isExported });
+            edges.push({ from: fileId, to: symId, type: 'defines' });
+          }
+        }
+      }
+    }
+
+    // ── Update brace depth (must be last in loop) ─────────────────────────────
+    // Skip lines that were class declarations (already processed above)
+    if (!classMatch) {
+      const openBraces = (raw.match(/\{/g) ?? []).length;
+      const closeBraces = (raw.match(/\}/g) ?? []).length;
+      braceDepth += openBraces - closeBraces;
+    }
+
+    // Pop finished classes off the stack
+    while (classStack.length > 0 && braceDepth <= classStack[classStack.length - 1].depth) {
+      classStack.pop();
     }
   }
 
@@ -141,35 +271,92 @@ function parseJSTS(content: string, relPath: string, repoPath: string): { nodes:
 
 function parsePython(content: string, relPath: string, repoPath: string): { nodes: GNode[]; edges: GEdge[] } {
   const fileId = relPath;
-  const nodes: GNode[] = [{ id: fileId, type: 'file', file: relPath, name: path.basename(relPath), exported: true }];
+  const nodes: GNode[] = [{ id: fileId, type: 'file', file: relPath, name: path.basename(relPath), line: 1, exported: true }];
   const edges: GEdge[] = [];
 
-  for (const raw of content.split('\n')) {
+  const lines = content.split('\n');
+
+  // Track the current class by indent level
+  interface PyClass { id: string; indent: number }
+  const classStack: PyClass[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const lineNum = i + 1;
+    const raw = lines[i];
+    const indent = raw.match(/^(\s*)/)?.[1].length ?? 0;
     const line = raw.trim();
+
+    // Pop classes whose indent is no longer deeper than current line
+    while (classStack.length > 0 && indent <= classStack[classStack.length - 1].indent) {
+      classStack.pop();
+    }
 
     const fromImport = line.match(/^from\s+(\S+)\s+import/);
     if (fromImport) {
       const mod = fromImport[1].replace(/\./g, '/');
       const resolved = resolveImport(relPath, `./${mod}`, repoPath);
       if (resolved) edges.push({ from: fileId, to: resolved, type: 'imports' });
+      continue;
     }
 
-    const fnMatch = line.match(/^def\s+(\w+)\s*\(/);
-    if (fnMatch) {
-      const name = fnMatch[1];
-      const symId = `${fileId}::${name}`;
-      nodes.push({ id: symId, type: 'function', file: relPath, name, exported: !name.startsWith('_') });
-      edges.push({ from: fileId, to: symId, type: 'defines' });
-    }
+    const plainImport = line.match(/^import\s+([\w.]+)/);
+    if (plainImport) continue; // external or stdlib, skip
 
-    const classMatch = line.match(/^class\s+(\w+)(?:\((\w+)\))?/);
+    // Class definition
+    const classMatch = line.match(/^class\s+(\w+)(?:\(([^)]*)\))?/);
     if (classMatch) {
       const name = classMatch[1];
-      const parent = classMatch[2];
+      const bases = classMatch[2];
       const symId = `${fileId}::${name}`;
-      nodes.push({ id: symId, type: 'class', file: relPath, name, exported: !name.startsWith('_') });
-      edges.push({ from: fileId, to: symId, type: 'defines' });
-      if (parent) edges.push({ from: symId, to: `__unresolved__::${parent}`, type: 'extends' });
+      if (!nodes.find(n => n.id === symId)) {
+        nodes.push({ id: symId, type: 'class', file: relPath, name, line: lineNum, exported: !name.startsWith('_') });
+        edges.push({ from: fileId, to: symId, type: 'defines' });
+        if (bases) {
+          for (const base of bases.split(',').map(s => s.trim()).filter(Boolean)) {
+            if (base !== 'object') {
+              edges.push({ from: symId, to: `__unresolved__::${base}`, type: 'extends' });
+            }
+          }
+        }
+      }
+      classStack.push({ id: symId, indent });
+      continue;
+    }
+
+    // Function / method definition
+    const fnMatch = line.match(/^(?:(async)\s+)?def\s+(\w+)\s*\(([^)]*)\)/);
+    if (fnMatch) {
+      const isAsync = !!(fnMatch[1]);
+      const name = fnMatch[2];
+      const sig = `(${fnMatch[3]})`;
+      const currentClass = classStack.length > 0 ? classStack[classStack.length - 1] : null;
+
+      if (currentClass) {
+        // Method inside a class
+        const vis: 'public' | 'private' | 'protected' = name.startsWith('__') && !name.endsWith('__') ? 'private'
+          : name.startsWith('_') ? 'protected' : 'public';
+        const symId = `${currentClass.id}::${name}`;
+        if (!nodes.find(n => n.id === symId)) {
+          nodes.push({
+            id: symId, type: 'method', file: relPath, name,
+            line: lineNum, exported: vis === 'public',
+            parent: currentClass.id, signature: sig,
+            visibility: vis, async: isAsync,
+          });
+          edges.push({ from: currentClass.id, to: symId, type: 'contains' });
+        }
+      } else {
+        // Module-level function
+        const symId = `${fileId}::${name}`;
+        if (!nodes.find(n => n.id === symId)) {
+          nodes.push({
+            id: symId, type: 'function', file: relPath, name,
+            line: lineNum, exported: !name.startsWith('_'),
+            signature: sig, async: isAsync,
+          });
+          edges.push({ from: fileId, to: symId, type: 'defines' });
+        }
+      }
     }
   }
 
@@ -218,7 +405,7 @@ export class GraphIndexer {
       } catch { /* skip unreadable files */ }
     }
 
-    // Resolve __unresolved__ extends edges against the global symbol table
+    // Resolve __unresolved__ extends/implements edges against the global symbol table
     const edges = rawEdges
       .map(edge => {
         if (!edge.to.startsWith('__unresolved__::')) return edge;
@@ -279,6 +466,7 @@ export class GraphIndexer {
     const g = this.graphs.get(sessionId);
     if (!g) return { symbols: [], relatedFiles: [] };
 
+    // Only keep terms longer than 3 chars to avoid noise; match only node-name-contains-term
     const terms = query.toLowerCase().split(/\W+/).filter(t => t.length > 3);
     const matched: GNode[] = [];
     const relatedFiles = new Set<string>();
@@ -286,7 +474,7 @@ export class GraphIndexer {
     for (const node of g.nodes.values()) {
       if (node.type === 'file') continue;
       const lower = node.name.toLowerCase();
-      if (terms.some(t => lower.includes(t) || t.includes(lower))) {
+      if (terms.some(t => lower.includes(t))) {
         matched.push(node);
         relatedFiles.add(node.file);
         this.getAffectedFiles(node.file, sessionId).forEach(f => relatedFiles.add(f));
@@ -303,8 +491,31 @@ export class GraphIndexer {
     if (!g) return '';
 
     const lines: string[] = [`File: ${filePath}`];
-    const symbols = [...g.nodes.values()].filter(n => n.file === filePath && n.type !== 'file');
-    if (symbols.length) lines.push(`Exports: ${symbols.filter(s => s.exported).map(s => `${s.type} ${s.name}`).join(', ')}`);
+
+    // Top-level exported symbols
+    const topLevel = [...g.nodes.values()].filter(n =>
+      n.file === filePath && n.type !== 'file' && !n.parent && n.exported
+    );
+    if (topLevel.length) {
+      lines.push(`Exports: ${topLevel.map(s => {
+        const vis = s.visibility && s.visibility !== 'public' ? `${s.visibility} ` : '';
+        const mod = [s.static ? 'static' : '', s.async ? 'async' : '', s.abstract ? 'abstract' : ''].filter(Boolean).join(' ');
+        const modStr = mod ? `[${mod}] ` : '';
+        return `${modStr}${vis}${s.type} ${s.name}${s.signature ?? ''}:${s.line}`;
+      }).join(', ')}`);
+    }
+
+    // Classes with their method counts
+    const classes = [...g.nodes.values()].filter(n => n.file === filePath && n.type === 'class');
+    for (const cls of classes) {
+      const methods = (g.outEdges.get(cls.id) ?? [])
+        .filter(e => e.type === 'contains')
+        .map(e => g.nodes.get(e.to))
+        .filter((n): n is GNode => n !== undefined);
+      if (methods.length) {
+        lines.push(`  ${cls.name}: ${methods.map(m => `${m.visibility === 'private' ? '-' : m.visibility === 'protected' ? '#' : '+'}${m.name}${m.signature ?? '()'}`).join(', ')}`);
+      }
+    }
 
     const deps = (g.outEdges.get(filePath) ?? []).filter(e => e.type === 'imports').map(e => e.to);
     if (deps.length) lines.push(`Imports: ${deps.join(', ')}`);
@@ -363,7 +574,7 @@ export class GraphIndexer {
     return lines.length > relevant.size + 1 ? lines.join('\n') : null;
   }
 
-  // Generate a class hierarchy Mermaid diagram
+  // Generate a class hierarchy Mermaid diagram using `contains` edges for methods
   toClassDiagram(sessionId: string, fileFilter?: string[]): string | null {
     const g = this.graphs.get(sessionId);
     if (!g) return null;
@@ -375,16 +586,29 @@ export class GraphIndexer {
 
     const lines = ['classDiagram'];
     for (const cls of classes.slice(0, 20)) {
-      const methods = [...g.nodes.values()].filter(n => n.file === cls.file && n.type === 'function' && n.exported);
+      // Get methods via `contains` edges — only real class members
+      const methods = (g.outEdges.get(cls.id) ?? [])
+        .filter(e => e.type === 'contains')
+        .map(e => g.nodes.get(e.to))
+        .filter((n): n is GNode => n !== undefined && n.type === 'method');
+
       lines.push(`  class ${cls.name} {`);
-      for (const m of methods.slice(0, 6)) lines.push(`    +${m.name}()`);
+      if (cls.abstract) lines.push(`    <<abstract>>`);
+      for (const m of methods.slice(0, 8)) {
+        const prefix = m.visibility === 'private' ? '-' : m.visibility === 'protected' ? '#' : '+';
+        const mods = [m.static ? '$' : '', m.abstract ? '*' : ''].filter(Boolean).join('');
+        lines.push(`    ${prefix}${m.name}()${mods}`);
+      }
       lines.push('  }');
     }
 
-    for (const e of g.edges.filter(e2 => e2.type === 'extends')) {
+    for (const e of g.edges) {
+      if (e.type !== 'extends' && e.type !== 'implements') continue;
       const from = g.nodes.get(e.from);
       const to = g.nodes.get(e.to);
-      if (from && to) lines.push(`  ${to.name} <|-- ${from.name}`);
+      if (!from || !to) continue;
+      if (e.type === 'extends') lines.push(`  ${to.name} <|-- ${from.name}`);
+      if (e.type === 'implements') lines.push(`  ${to.name} <|.. ${from.name}`);
     }
 
     return lines.length > 1 ? lines.join('\n') : null;
@@ -395,11 +619,14 @@ export class GraphIndexer {
     const g = this.graphs.get(sessionId);
     if (!g) return '';
 
-    const fileCount = [...g.nodes.values()].filter(n => n.type === 'file').length;
-    const symbolCount = [...g.nodes.values()].filter(n => n.type !== 'file').length;
+    const nodes = [...g.nodes.values()];
+    const fileCount = nodes.filter(n => n.type === 'file').length;
+    const classCount = nodes.filter(n => n.type === 'class').length;
+    const methodCount = nodes.filter(n => n.type === 'method').length;
+    const fnCount = nodes.filter(n => n.type === 'function').length;
     const importCount = g.edges.filter(e => e.type === 'imports').length;
 
-    const topFiles = [...g.nodes.values()]
+    const topFiles = nodes
       .filter(n => n.type === 'file')
       .map(n => ({
         file: n.file,
@@ -410,7 +637,10 @@ export class GraphIndexer {
       .map(x => `${x.file} (imported by ${x.inDegree})`)
       .join(', ');
 
-    return `Knowledge graph: ${fileCount} files, ${symbolCount} symbols, ${importCount} import edges.\nMost-imported files: ${topFiles}`;
+    return [
+      `Knowledge graph: ${fileCount} files, ${classCount} classes, ${methodCount} methods, ${fnCount} functions, ${importCount} import edges.`,
+      `Most-imported files: ${topFiles}`,
+    ].join('\n');
   }
 
   private getCodeFiles(dir: string): string[] {
