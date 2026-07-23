@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rank_request.json",
+  "title": "Chunk Ranker — input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["query", "candidates", "k"],
+  "properties": {
+    "query": {
+      "description": "The user query to rank candidate chunks against.",
+      "type": "string",
+      "minLength": 1
+    },
+    "candidates": {
+      "description": "Candidate chunks retrieved upstream, to be re-ranked.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" }
+        }
+      }
+    },
+    "k": {
+      "description": "Maximum number of chunks to return. Bounds output length (invariant).",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

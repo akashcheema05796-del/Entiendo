@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rank_response.json",
+  "title": "Chunk Ranker — output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["chunks"],
+  "properties": {
+    "chunks": {
+      "description": "Re-ranked chunks, highest score first. Length <= input.k (invariant).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "score"],
+        "properties": {
+          "id": { "type": "string" },
+          "score": {
+            "description": "Relevance score. Non-negative (invariant).",
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

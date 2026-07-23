@@ -1,10 +1,23 @@
-node_modules/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
 build/
 dist/
-coverage/
-.DS_Store
-*.log
-.env*
-!.env.example
-.session_cache.db
-workspace/
+.venv/
+venv/
+
+# Test / tooling
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Entiendo generated artifacts — never hand-edited (SPEC.md §12).
+# (Real projects that USE entiendo generate these; they are not committed here.)
+/entiendo/graph.json
+/entiendo/coverage.json
+
+# Local env
+.env

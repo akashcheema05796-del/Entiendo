@@ -1,0 +1,35 @@
+apiVersion: entiendo/v1
+kind: Node
+
+id: config.retrieval
+name: Retrieval Config
+nodeKind: config                     # environment/config surface — dashed box
+group: retrieval
+owner: mehar
+status: active
+
+# Config nodes claim the non-secret config surface. Secrets are referenced,
+# never rendered (Invariant 6) — only the fact and timestamp of change.
+claims:
+  - config/retrieval.yaml
+
+contract:
+  invariants:
+    - "top_n >= k"                   # can't rank more than were retrieved
+  sideEffects: none
+
+dependencies:
+  calls:  []
+  reads:  []
+  writes: []
+  config: []
+
+evals:
+  tier0:
+    - type: schema_validation        # config shape is validated like any contract
+
+observability:
+  spanName: config.retrieval
+
+approval:
+  required: false

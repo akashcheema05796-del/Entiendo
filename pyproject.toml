@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "entiendo"
+version = "0.1.0"
+description = "Build-time instrumentation, a generated system map, and a scoped editing loop — where the node, not the file tree, is the unit of work."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Entiendo" }]
+keywords = ["instrumentation", "llm", "observability", "evals", "codegen", "system-map"]
+
+# Runtime dependencies. Kept deliberately minimal — the tool must be trivially
+# recoverable (SPEC.md §12). Heavier deps (opentelemetry, duckdb) arrive with the
+# phases that need them (L2/L3), not at scaffold time.
+dependencies = [
+  "pyyaml>=6.0",
+  "jsonschema>=4.0",
+]
+
+[project.optional-dependencies]
+# Phase 2 (L1 extractor / reconciler) — static analysis.
+extract = []
+# Phase 3 (L2 instrumentation) — OTel span attribution + cost meter.
+instrument = [
+  "opentelemetry-api>=1.20",
+  "opentelemetry-sdk>=1.20",
+]
+# Phase 4 (L3 history) — boring, inspectable storage.
+history = [
+  "duckdb>=0.9",
+  "pyarrow>=14.0",
+]
+dev = [
+  "pytest>=7.0",
+]
+
+[project.scripts]
+ent = "ent.cli:main"
+
+[project.urls]
+Homepage = "https://entiendo.dev"
+Specification = "https://github.com/akashdatageek/entiendo/blob/main/SPEC.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

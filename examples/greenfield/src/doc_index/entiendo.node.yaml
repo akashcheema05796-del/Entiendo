@@ -1,0 +1,36 @@
+apiVersion: entiendo/v1
+kind: Node
+
+id: state.doc_index
+name: Document Index
+nodeKind: state                     # holds data — drawn as a cylinder
+group: retrieval
+owner: mehar
+status: active
+
+# A state node claims the artifacts that define the store: its schema/DDL and
+# the index build config. The data itself is not a claimed file.
+claims:
+  - src/doc_index/schema.sql
+
+contract:
+  # State nodes still declare a contract: what a well-formed record looks like.
+  invariants:
+    - "every row has a non-null embedding"
+  sideEffects: writes                # none | writes | external | irreversible
+
+dependencies:
+  calls:  []
+  reads:  []
+  writes: []
+  config: []
+
+evals:
+  tier0:
+    - type: schema_validation
+
+observability:
+  spanName: state.doc_index
+
+approval:
+  required: false

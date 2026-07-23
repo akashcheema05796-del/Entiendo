@@ -1,0 +1,2 @@
+{"input": {"query": "how do i reset my password", "candidates": [{"id": "a", "text": "To reset your password, open Settings and click Reset."}, {"id": "b", "text": "Our office is open 9-5."}], "k": 1}, "expect": {"chunks_len_max": 1, "scores_non_negative": true}}
+{"input": {"query": "office hours", "candidates": [{"id": "a", "text": "To reset your password, open Settings."}, {"id": "b", "text": "Our office is open 9-5, Monday to Friday."}], "k": 2}, "expect": {"chunks_len_max": 2, "scores_non_negative": true}}
