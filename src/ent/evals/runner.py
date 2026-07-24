@@ -10,9 +10,14 @@ Each check type is driven by the node's `evals.tier0` manifest entries:
 
 These are static — they do not execute node code, so they stay deterministic and
 fast (the whole point of tier0). Runtime invariant enforcement rides on the spans
-from the instrumentation layer and lands with the health lens. tier1/tier2 are
-separate, more expensive tiers (golden datasets, LLM judge) and are out of scope
-here.
+from the instrumentation layer and lands with the health lens.
+
+tier1 (golden datasets) and tier2 (LLM judge) DO execute the node — they are the
+more expensive tiers (SPEC.md §5.1). tier1 replays the node `minRuns` times over
+a golden dataset, scores with the declared metric, and judges the mean against
+the baseline with a significance threshold: **red only on statistically
+meaningful regression** (§5.3), everything else is "within band". tier2 samples
+rows and scores them with an LLM judge against a rubric.
 """
 
 from __future__ import annotations
@@ -21,9 +26,11 @@ import json
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from ..manifest import Node
+from .entrypoint import EntrypointError, resolve_entrypoint
+from .metrics import get_metric
 
 
 @dataclass
@@ -70,6 +77,140 @@ def run_tier0(node: Node, root: Path) -> EvalResult:
     verdict = "red" if any(c.status == "fail" for c in checks) else "green"
     duration_ms = (time.perf_counter() - start) * 1000.0
     return EvalResult(node.id, 0, verdict, round(duration_ms, 3), checks)
+
+
+def _mean(xs: list[float]) -> float:
+    return sum(xs) / len(xs) if xs else 0.0
+
+
+def _load_dataset(path: Path) -> list[dict[str, Any]]:
+    rows = []
+    for _, row in _iter_rows(path):
+        if row is not _BAD_ROW and isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None = None) -> EvalResult:
+    """Golden-dataset scoring: replay minRuns times, judge mean vs baseline (§5.3)."""
+    root = Path(root)
+    start = time.perf_counter()
+    golden = next(
+        (e for e in node.raw.get("evals", {}).get("tier1", []) if e.get("type") == "golden"),
+        None,
+    )
+
+    def done(checks: list[Check]) -> EvalResult:
+        verdict = "red" if any(c.status == "fail" for c in checks) else "green"
+        return EvalResult(node.id, 1, verdict, round((time.perf_counter() - start) * 1000, 3), checks)
+
+    if golden is None:
+        return done([Check("golden", "skip", "no tier1 golden configured")])
+    if golden.get("humanBlessed") is not True:
+        return done([Check("golden", "fail", "golden dataset requires humanBlessed: true (§5.2)")])
+
+    dataset = _load_dataset(root / golden["dataset"]) if golden.get("dataset") else []
+    if not dataset:
+        return done([Check("golden", "fail", f"dataset '{golden.get('dataset')}' missing or empty")])
+
+    try:
+        metric = get_metric(golden["metric"])
+    except KeyError as exc:
+        return done([Check("golden", "fail", str(exc))])
+
+    fn = entrypoint
+    if fn is None:
+        try:
+            fn = resolve_entrypoint(node, root)
+        except EntrypointError as exc:
+            return done([Check("golden", "skip", f"node not runnable: {exc}")])
+
+    min_runs = int(golden.get("minRuns", 1))
+    significance = float(golden.get("significance", 0.0))
+    baseline = golden.get("baseline")
+
+    run_means: list[float] = []
+    for _ in range(min_runs):
+        row_scores = []
+        for i, row in enumerate(dataset):
+            try:
+                out = fn(row["input"])
+            except Exception as exc:
+                return done([Check("golden", "fail", f"node raised on dataset row {i}: {exc}")])
+            row_scores.append(metric(out, row.get("expected", {})))
+        run_means.append(_mean(row_scores))
+
+    score = _mean(run_means)
+    detail = f"{golden['metric']}={score:.4f} over {min_runs} run(s)"
+    if baseline is not None:
+        delta = score - baseline
+        detail += f", baseline={baseline}, delta={delta:+.4f} (sig={significance})"
+        if delta < -significance:
+            return done([Check("golden", "fail", f"regression — {detail}")])
+        detail += " — within band"
+    return done([Check("golden", "pass", detail)])
+
+
+def run_tier2(
+    node: Node,
+    root: Path,
+    *,
+    judge: Callable[[Any, Any, str], float] | None = None,
+    entrypoint: Callable[..., Any] | None = None,
+) -> EvalResult:
+    """LLM-judge scoring against a rubric over a sample (§5.1). Needs a judge callable.
+
+    `judge(input, output, rubric) -> score in [1, 5]`. Without a judge the tier is
+    skipped (the LLM judge is expensive and must be wired explicitly), never faked.
+    """
+    root = Path(root)
+    start = time.perf_counter()
+    conf = next(
+        (e for e in node.raw.get("evals", {}).get("tier2", []) if e.get("type") == "llm_judge"),
+        None,
+    )
+
+    def done(checks: list[Check]) -> EvalResult:
+        verdict = "red" if any(c.status == "fail" for c in checks) else "green"
+        return EvalResult(node.id, 2, verdict, round((time.perf_counter() - start) * 1000, 3), checks)
+
+    if conf is None:
+        return done([Check("llm_judge", "skip", "no tier2 llm_judge configured")])
+
+    rubric_path = root / conf["rubric"] if conf.get("rubric") else None
+    if rubric_path is None or not rubric_path.exists():
+        return done([Check("llm_judge", "fail", f"rubric '{conf.get('rubric')}' not found")])
+    rubric = rubric_path.read_text()
+
+    if judge is None:
+        return done([Check("llm_judge", "skip",
+                           "no judge configured — the LLM judge is expensive; wire one via run_tier2(judge=...)")])
+
+    # Sample inputs from the tier1 golden dataset (the available labelled inputs).
+    golden = next((e for e in node.raw.get("evals", {}).get("tier1", []) if e.get("type") == "golden"), None)
+    dataset = _load_dataset(root / golden["dataset"]) if golden and golden.get("dataset") else []
+    if not dataset:
+        return done([Check("llm_judge", "skip", "no sample inputs (needs a tier1 golden dataset)")])
+
+    fn = entrypoint
+    if fn is None:
+        try:
+            fn = resolve_entrypoint(node, root)
+        except EntrypointError as exc:
+            return done([Check("llm_judge", "skip", f"node not runnable: {exc}")])
+
+    sample = dataset[: int(conf.get("sampleSize", len(dataset)))]
+    scores = []
+    for i, row in enumerate(sample):
+        try:
+            out = fn(row["input"])
+        except Exception as exc:
+            return done([Check("llm_judge", "fail", f"node raised on sample row {i}: {exc}")])
+        scores.append(float(judge(row["input"], out, rubric)))
+
+    avg = _mean(scores)
+    status = "pass" if avg >= 3.0 else "fail"
+    return done([Check("llm_judge", status, f"mean judge score {avg:.2f}/5 over {len(sample)} sample(s)")])
 
 
 # --------------------------------------------------------------------------- #

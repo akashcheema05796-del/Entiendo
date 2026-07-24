@@ -28,7 +28,7 @@ render six lenses → edit through the node.
 $ ent validate       # validates every entiendo.node.yaml; specific errors; exit 0/1
 $ ent init           # scaffolds entiendo/ (+ a starter manifest with --node-id/--at)
 $ ent extract        # emits graph.json + coverage.json; fails on undeclared-dep drift
-$ ent eval <node>    # runs tier0 (schema/invariant/smoke); green/red verdict, <2s
+$ ent eval <node>    # tier0 static; --tier 1 golden (minRuns+significance); --tier 2 LLM judge
 $ ent snapshot       # records composite versions + verdicts to append-only history
 $ ent render         # builds a self-contained HTML map: all six lenses
 $ ent edit <node>    # scoped context; --changed reviews an edit (boundary+verdict+approval)
@@ -50,7 +50,11 @@ What **is** real today:
   OTel-compatible span carrying `entiendo.node_id` (and `ent.record()` meters
   cost/tokens), never in the request path (Invariant 2). `ent eval` runs the
   deterministic tier0 checks (schema / invariant / smoke) to a green/red verdict.
-  See `src/ent/instrument.py`, `src/ent/tracing.py`, `src/ent/evals/runner.py`.
+  **tier1** (`--tier 1`) replays the node `minRuns` times over a golden dataset,
+  scores with the declared metric, and flags red **only on statistically
+  meaningful regression** vs the baseline (§5.3); **tier2** (`--tier 2`) is the
+  LLM-judge scaffold (rubric-driven, judge wired explicitly). See
+  `src/ent/instrument.py`, `src/ent/tracing.py`, `src/ent/evals/`.
 - **`ent snapshot` + `ent render`** — L3/L4: `snapshot` records composite
   versions (code/prompt/config/model) + tier0 verdicts to an append-only history
   log (version events dedup, so the timeline shows *changes*); `render` builds a
