@@ -9,6 +9,13 @@ from __future__ import annotations
 
 import ent
 
+# These intra-project imports are exactly the edges the L1 reconciler verifies:
+# retrieval.chunk_ranker -> retrieval.vector_store, and -> llm.gateway. They
+# match this node's declared `dependencies.calls`, so `ent extract` reports them
+# as verified (declared AND observed) with no drift.
+from ..gateway.client import complete
+from ..vector_store.store import search
+
 
 @ent.node("retrieval.chunk_ranker")
 def rank(request: dict) -> dict:
@@ -19,8 +26,9 @@ def rank(request: dict) -> dict:
       - all(c.score >= 0 for c in output.chunks)
     """
     k = request["k"]
-    # Illustrative: real logic would call retrieval.vector_store + llm.gateway
-    # and read from state.doc_index — exactly the edges the reconciler verifies.
+    # Illustrative: call the vector store, then the LLM gateway to score.
+    hits = search([0.0], top_n=k)  # retrieval.vector_store
+    complete("rank these chunks")  # llm.gateway
     ranked = sorted(
         request["candidates"],
         key=lambda c: len(c.get("text", "")),

@@ -8,7 +8,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done
 | Phase | Layer | Status |
 |---|---|---|
 | 1 | L0 — Boundaries | ☑ `ent validate` + `ent init` working |
-| 2 | L1 — Extractor & reconciler | ☐ |
+| 2 | L1 — Extractor & reconciler | ☑ `ent extract` → graph.json + coverage.json |
 | 3 | L2 — Instrumentation + eval runner | ☐ |
 | 4 | L3/L4 — History + render (lenses 1, 4, 5) | ☐ |
 | 5 | L4 — remainder (lenses 2, 3, 6) | ☐ |
@@ -37,7 +37,23 @@ Static analysis of claimed files → actual imports/calls. Emit `graph.json`,
 `coverage.json`. Fail on declared-vs-actual divergence.
 
 **Acceptance:** deliberately add an undeclared dependency → build fails naming
-both nodes. Coverage number is correct.
+both nodes. Coverage number is correct. ✓ **Met** — `ent extract` verifies
+Python import edges against declared `dependencies`; an undeclared edge fails
+naming both nodes; the greenfield example reconciles clean at 100% coverage.
+`tests/test_extractor.py` covers drift, double-claim, dangling deps, coverage.
+
+Implemented:
+- `src/ent/extractor.py` — AST import analysis, edge reconciliation (undeclared
+  = hard fail; declared-but-unverified = reported), coverage over the file
+  universe with an `entiendo/unclaimed.txt` acknowledgement list, deterministic
+  `graph.json` + `coverage.json` output
+- `src/ent/commands/extract.py` — validates first, writes artifacts (or `--check`
+  CI mode), exit 0/1/2
+- greenfield: `ranker.py` now imports its neighbours (verified edges) and
+  `entiendo/unclaimed.txt` acknowledges IO schemas / eval fixtures / docs
+
+Note: `graph.json` / `coverage.json` are generated (git-ignored in the example);
+run `ent extract` to regenerate them.
 
 ## Phase 3 — L2: Instrumentation + eval runner
 `@ent.node()` decorator, OTel span attribution, tier0 runner, cost meter.
