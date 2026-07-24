@@ -187,8 +187,8 @@ def review_edit(root: Path, node_id: str, changed_paths: list[str]) -> EditOutco
 
     if not boundary.within_claims:
         status = "blocked: boundary-change proposal required"
-    elif result.verdict == "red":
-        status = "blocked: tier0 red"
+    elif result.verdict in ("RED", "ERROR"):
+        status = f"blocked: tier0 {result.verdict.lower()}"
     elif approval_required:
         status = "awaiting-signoff"
     else:

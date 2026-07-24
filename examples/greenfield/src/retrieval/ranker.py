@@ -28,8 +28,9 @@ def rank(request: dict) -> dict:
     """
     k = request["k"]
     # Illustrative: call the vector store, then the LLM gateway to score.
-    hits = search([0.0], top_n=k)  # retrieval.vector_store
-    complete("rank these chunks")  # llm.gateway
+    # One dict in, one dict out — the execution contract (Phase 7 §1.1).
+    hits = search({"query_vec": [0.0], "top_n": k})   # retrieval.vector_store
+    complete({"prompt": "rank these chunks"})          # llm.gateway
     ranked = sorted(
         request["candidates"],
         key=lambda c: len(c.get("text", "")),

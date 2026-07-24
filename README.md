@@ -18,21 +18,29 @@ This README is the map to the scaffold.
 
 ---
 
-## Status: complete — L0 → L5 implemented
+## Status: L0 → L5 + Phase 7 (real evals) implemented
 
-All six phases (SPEC.md §8) are **implemented**. The full loop works end to end:
-declare nodes → reconcile the graph → instrument + eval → record history →
-render six lenses → edit through the node.
+All six phases (SPEC.md §8) plus **Phase 7 (real evals)** are implemented. The
+full loop works end to end: declare nodes → reconcile the graph → instrument →
+**execute + eval** → record history → render six lenses → edit through the node.
 
 ```
-$ ent validate       # validates every entiendo.node.yaml; specific errors; exit 0/1
-$ ent init           # scaffolds entiendo/ (+ a starter manifest with --node-id/--at)
-$ ent extract        # emits graph.json + coverage.json; fails on undeclared-dep drift
-$ ent eval <node>    # tier0 static; --tier 1 golden (minRuns+significance); --tier 2 LLM judge
-$ ent snapshot       # records composite versions + verdicts to append-only history
-$ ent render         # builds a self-contained HTML map: all six lenses
-$ ent edit <node>    # scoped context; --changed reviews an edit (boundary+verdict+approval)
+$ ent validate            # schema + semantic checks (incl. restricted invariants)
+$ ent init                # scaffolds entiendo/ (+ a starter manifest)
+$ ent extract             # graph.json + coverage.json; fails on drift; proposes entrypoints
+$ ent eval <node>         # tier0 EXECUTES the node → GREEN/RED/UNTESTED/ERROR
+$ ent eval --all --tier 1 # golden: minRuns + significance + budgets (the pre-merge gate)
+$ ent bless <node>        # sign a golden dataset's content (humanBlessed, void on change)
+$ ent baseline accept <n> # promote a pending baseline
+$ ent snapshot            # record composite versions + verdicts to append-only history
+$ ent render              # self-contained HTML map: six lenses + "executable N/M"
+$ ent edit <node>         # scoped edit loop: context + boundary + verdict + approval
 ```
+
+> **The one-line test (Phase 7 §15):** break `ranker.py` and run
+> `ent eval retrieval.chunk_ranker`. It goes **RED** and names the failed
+> invariant with the real numbers (`len(output.chunks)=2 <= input.k=1`). That is
+> the difference between an instrument and a diagram — see [`docs/phase7.md`](./docs/phase7.md).
 
 What **is** real today:
 
@@ -46,15 +54,17 @@ What **is** real today:
   checks them against declared `dependencies`. Undeclared edges are drift and
   fail the build (Invariant 5); it emits `graph.json` + `coverage.json`. See
   `src/ent/extractor.py`.
-- **`ent eval` + `@ent.node()`** — L2 instrumentation: the decorator emits an
-  OTel-compatible span carrying `entiendo.node_id` (and `ent.record()` meters
-  cost/tokens), never in the request path (Invariant 2). `ent eval` runs the
-  deterministic tier0 checks (schema / invariant / smoke) to a green/red verdict.
-  **tier1** (`--tier 1`) replays the node `minRuns` times over a golden dataset,
-  scores with the declared metric, and flags red **only on statistically
-  meaningful regression** vs the baseline (§5.3); **tier2** (`--tier 2`) is the
-  LLM-judge scaffold (rubric-driven, judge wired explicitly). See
-  `src/ent/instrument.py`, `src/ent/tracing.py`, `src/ent/evals/`.
+- **`ent eval` + `@ent.node()`** — L2 instrumentation + **Phase 7 real evals**:
+  the decorator emits an OTel-compatible span carrying `entiendo.node_id` (and
+  `ent.record()` meters cost/tokens), never in the request path (Invariant 2).
+  **tier0 now executes the node** over fixture rows in isolation (dependency calls
+  served from stubs; any unstubbed call is a `TIER0_IO_VIOLATION`) and evaluates
+  the real invariants against real output via a restricted AST evaluator (no
+  `eval`/`exec`) → GREEN/RED/UNTESTED/ERROR. **tier1** replays `minRuns` times,
+  scores with the metric, and applies anti-flicker statistics
+  (WITHIN_BAND/REGRESSED/IMPROVED/UNSTABLE) + budgets (DEGRADED); `humanBlessed`
+  is enforced by a content signature. See `src/ent/evals/`, `src/ent/invariants.py`,
+  `src/ent/testing.py`, `docs/phase7.md`.
 - **`ent snapshot` + `ent render`** — L3/L4: `snapshot` records composite
   versions (code/prompt/config/model) + tier0 verdicts to an append-only history
   log (version events dedup, so the timeline shows *changes*); `render` builds a

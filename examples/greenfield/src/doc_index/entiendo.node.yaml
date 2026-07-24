@@ -14,9 +14,10 @@ claims:
   - src/doc_index/schema.sql
 
 contract:
-  # State nodes still declare a contract: what a well-formed record looks like.
-  invariants:
-    - "every row has a non-null embedding"
+  # A state node has no entrypoint → UNTESTED. Invariants are expressions over
+  # input/output (Phase 7 §4); a store has neither, so the record constraint
+  # ("every row has a non-null embedding") lives in schema.sql, not here.
+  invariants: []
   sideEffects: writes                # none | writes | external | irreversible
 
 dependencies:

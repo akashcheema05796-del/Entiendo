@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .invariants import InvariantError, validate_invariant
 from .manifest import MANIFEST_FILENAME, discover, load
 from .schema import build_validator
 
@@ -92,6 +93,8 @@ def validate_paths(paths: list[Path], *, root: Path) -> Report:
         _check_ref_targets(manifest, path, result)
         _check_claims_exist(manifest, root, result)
         _check_human_blessed(manifest, result)
+        _check_entrypoint_claimed(manifest, result)
+        _check_invariants_wellformed(manifest, result)
 
     return report
 
@@ -144,6 +147,27 @@ def _check_claims_exist(manifest: dict[str, Any], root: Path, result: FileResult
     for claim in manifest.get("claims", []):
         if not (root / claim).exists():
             result.errors.append(f"claims: '{claim}' does not exist under {root}")
+
+
+def _check_entrypoint_claimed(manifest: dict[str, Any], result: FileResult) -> None:
+    entrypoint = manifest.get("contract", {}).get("entrypoint")
+    if not entrypoint:
+        return
+    module_path = entrypoint.split("::", 1)[0]
+    claims = {Path(c).as_posix() for c in manifest.get("claims", [])}
+    if Path(module_path).as_posix() not in claims:
+        result.errors.append(
+            f"contract.entrypoint: '{module_path}' is not in claims — a node cannot "
+            "be tested through code it does not own (Phase 7 §1.1)"
+        )
+
+
+def _check_invariants_wellformed(manifest: dict[str, Any], result: FileResult) -> None:
+    for inv in manifest.get("contract", {}).get("invariants", []) or []:
+        try:
+            validate_invariant(inv)
+        except InvariantError as exc:
+            result.errors.append(f"contract.invariants: \"{inv}\" — {exc}")
 
 
 def _check_human_blessed(manifest: dict[str, Any], result: FileResult) -> None:

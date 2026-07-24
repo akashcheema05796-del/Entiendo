@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .evals.entrypoint import entrypoint_spec, propose_entrypoint, scan_decorated
 from .manifest import MANIFEST_FILENAME, _SKIP_DIRS, Node, discover, load
 
 GRAPH_ARTIFACT = "entiendo/graph.json"
@@ -306,13 +307,40 @@ def extract(root: Path) -> ExtractResult:
         )
     errors.extend(edge_errors)
 
+    # Entrypoint cross-check (Phase 7 §1.2): drift is an error; a decorated node
+    # with no entrypoint gets a proposed line so filling it in is copy-paste.
+    proposals, entry_errors = _entrypoints(nodes, root)
+    errors.extend(entry_errors)
+
     graph = {
         "apiVersion": "entiendo/v1",
         "nodes": [_node_summary(n) for n in sorted(nodes, key=lambda n: n.id)],
         "edges": edges,
         "doubleClaimed": doubles,
+        "proposedEntrypoints": proposals,
     }
     return ExtractResult(graph=graph, coverage=coverage, errors=errors)
+
+
+def _entrypoints(nodes: list[Node], root: Path) -> tuple[dict[str, str], list[str]]:
+    proposals: dict[str, str] = {}
+    errors: list[str] = []
+    for node in nodes:
+        spec = entrypoint_spec(node)
+        if spec:
+            path_str, _, func = spec.partition("::")
+            target = root / path_str
+            decorated = scan_decorated(target) if target.exists() else {}
+            if func in decorated and decorated[func] != node.id:
+                errors.append(
+                    f"entrypoint drift: {node.id} entrypoint '{spec}' is decorated "
+                    f"@ent.node('{decorated[func]}') — decorator and manifest disagree"
+                )
+        else:
+            proposed = propose_entrypoint(node, root)
+            if proposed:
+                proposals[node.id] = proposed
+    return proposals, errors
 
 
 def write_artifacts(result: ExtractResult, root: Path) -> tuple[Path, Path]:

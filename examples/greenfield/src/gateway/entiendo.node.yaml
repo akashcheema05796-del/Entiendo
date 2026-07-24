@@ -16,7 +16,7 @@ contract:
   # For an external dependency the contract captures what you require of it and
   # what you promise callers, plus the fact that it is not deterministic.
   invariants:
-    - "output.text is a non-empty string on success"
+    - "isinstance(output.text, str)"
   sideEffects: external              # none | writes | external | irreversible
 
 dependencies:

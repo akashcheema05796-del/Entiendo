@@ -24,6 +24,7 @@ version:
 
 # ---- the contract: what "correct" means for THIS node alone ----
 contract:
+  entrypoint: src/retrieval/ranker.py::rank   # module path :: callable (must be claimed)
   input:  { $ref: ./schemas/rank_request.json }
   output: { $ref: ./schemas/rank_response.json }
   invariants:

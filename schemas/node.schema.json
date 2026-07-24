@@ -70,6 +70,11 @@
       "additionalProperties": false,
       "required": ["sideEffects"],
       "properties": {
+        "entrypoint": {
+          "description": "How `ent` executes the node for evals: '<module path>::<callable>'. The path must be one of the node's claims. Optional — a node without it is UNTESTED, not a build failure (Phase 7 §1).",
+          "type": "string",
+          "pattern": "^[^:]+\\.py::[A-Za-z_][A-Za-z0-9_]*$"
+        },
         "input": {
           "description": "JSON-Schema (or $ref to one) describing valid input.",
           "type": "object"
@@ -106,6 +111,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "executionMode": {
+          "description": "'skip' downgrades the node to UNTESTED for tier0 — explicit, visible, counted, never silently green (Phase 7 §2.2).",
+          "type": "string",
+          "enum": ["run", "skip"],
+          "default": "run"
+        },
         "tier0": {
           "description": "Deterministic, <1s, free. AI may author freely (§5.2).",
           "type": "array",
