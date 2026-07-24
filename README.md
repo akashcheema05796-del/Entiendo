@@ -36,6 +36,7 @@ $ ent snapshot            # record composite versions + verdicts to append-only 
 $ ent render              # self-contained HTML map: six lenses + "executable N/M"
 $ ent edit <node>         # scoped edit loop: context + boundary + verdict + approval
 $ ent retrofit <root>     # infer nodes in an unmanaged repo → staged manifest proposals
+$ ent serve               # interactive web app: click a node, ask an AI to change it, watch tier0
 ```
 
 > **The one-line test (Phase 7 §15):** break `ranker.py` and run
@@ -86,6 +87,15 @@ What **is** real today:
   entrypoint from a lone public function) and stages one manifest proposal per
   node for node-by-node review (`--accept`). Semi-automated migration, never a
   silent scan. `examples/legacy/` is the demo input. See `src/ent/retrofit.py`.
+- **`ent serve`** — the interactive edit surface: a localhost web app (stdlib
+  backend, self-contained frontend) where you click a node, see its scoped
+  context, run tier0/tier1, and describe a change in natural language. An LLM
+  (Claude Opus 5, via the `anthropic` SDK) edits **only within the node's
+  claims**, tier0 reruns, and the verdict + blast radius + approval gate surface
+  live — with a one-click revert. The map stays read-only (Invariant 2); only the
+  edit endpoint writes. The model is optional (`pip install -e '.[serve]'` + an
+  API key); without it the explorer and evals still work. See `src/ent/server.py`,
+  `src/ent/agent.py`, `docs/edit-surface.md`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
   project laid out the Entiendo way. Full loop:
   `cd examples/greenfield && ent validate && ent extract && ent snapshot && ent render && ent edit retrieval.chunk_ranker`.

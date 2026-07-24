@@ -33,6 +33,10 @@ history = [
   "duckdb>=0.9",
   "pyarrow>=14.0",
 ]
+# L5 (interactive edit surface) — the editing model. The HTTP server is stdlib.
+serve = [
+  "anthropic>=0.40",
+]
 dev = [
   "pytest>=7.0",
 ]
