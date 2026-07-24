@@ -1,0 +1,3 @@
+# Legacy config surface — unmanaged. Retrofit infers a `config` node from it.
+catalog_url: https://example.invalid/catalog
+ledger_path: /var/lib/ledger.db

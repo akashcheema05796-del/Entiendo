@@ -35,6 +35,7 @@ $ ent baseline accept <n> # promote a pending baseline
 $ ent snapshot            # record composite versions + verdicts to append-only history
 $ ent render              # self-contained HTML map: six lenses + "executable N/M"
 $ ent edit <node>         # scoped edit loop: context + boundary + verdict + approval
+$ ent retrofit <root>     # infer nodes in an unmanaged repo → staged manifest proposals
 ```
 
 > **The one-line test (Phase 7 §15):** break `ranker.py` and run
@@ -80,6 +81,11 @@ What **is** real today:
   evals + baseline — the AI edits through the node, not the repo (Invariant 8).
   `--changed` enforces the claim boundary, reruns tier0, shows blast radius, and
   applies the approval gate. See `src/ent/editloop.py`.
+- **`ent retrofit`** — the §12 v2 path: infers node boundaries in an *unmanaged*
+  repo (directory grouping, kind from extensions, deps from static imports,
+  entrypoint from a lone public function) and stages one manifest proposal per
+  node for node-by-node review (`--accept`). Semi-automated migration, never a
+  silent scan. `examples/legacy/` is the demo input. See `src/ent/retrofit.py`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
   project laid out the Entiendo way. Full loop:
   `cd examples/greenfield && ent validate && ent extract && ent snapshot && ent render && ent edit retrieval.chunk_ranker`.
