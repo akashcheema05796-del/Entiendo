@@ -1,0 +1,12 @@
+# Files intentionally not owned by any node (Invariant 4 — unclaimed is visible,
+# not hidden). Root-relative glob patterns, one per line. `ent extract` counts
+# these as acknowledged so they don't show up as "unaccounted".
+
+# Contract IO schemas are referenced by manifests via $ref, not claimed as code.
+src/retrieval/schemas/*.json
+
+# Eval fixtures + rubrics live under evals/, owned by their node's eval config.
+evals/*
+
+# Project docs.
+README.md

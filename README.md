@@ -16,17 +16,18 @@ This README is the map to the scaffold.
 
 ---
 
-## Status: L0 working, L1+ scaffolded
+## Status: L0–L1 working, L2+ scaffolded
 
-Phase 1 (L0 — Boundaries) is **implemented**: `ent validate` and `ent init`
-work. The rest of the architecture is present and wired so the shape is legible;
-logic lands phase by phase (L1 → L5). Each not-yet-built subcommand runs today
-and tells you which phase implements it.
+Phases 1–2 (L0 boundaries, L1 extractor/reconciler) are **implemented**:
+`ent validate`, `ent init`, and `ent extract` work. The rest of the architecture
+is present and wired; logic lands phase by phase (L2 → L5). Each not-yet-built
+subcommand runs today and tells you which phase implements it.
 
 ```
 $ ent validate      # validates every entiendo.node.yaml; specific errors; exit 0/1
 $ ent init          # scaffolds entiendo/ (+ a starter manifest with --node-id/--at)
-$ ent extract       # → "not implemented yet — planned for Phase 2 (L1)"
+$ ent extract       # emits graph.json + coverage.json; fails on undeclared-dep drift
+$ ent eval x.y      # → "not implemented yet — planned for Phase 3 (L2)"
 ```
 
 What **is** real today:
@@ -37,9 +38,13 @@ What **is** real today:
 - **`ent validate` / `ent init`** — L0 boundaries: schema conformance plus the
   semantic rules (id uniqueness, `$ref` resolution, claim existence, the
   `humanBlessed` gate on tier1 golden sets). See `src/ent/validation.py`.
+- **`ent extract`** — L1 reconciler: AST import analysis derives actual edges and
+  checks them against declared `dependencies`. Undeclared edges are drift and
+  fail the build (Invariant 5); it emits `graph.json` + `coverage.json`. See
+  `src/ent/extractor.py`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
-  project laid out the Entiendo way, with a real manifest of each node kind. It
-  validates clean: `cd examples/greenfield && ent validate`.
+  project laid out the Entiendo way. It validates and reconciles clean at 100%
+  coverage: `cd examples/greenfield && ent validate && ent extract`.
 - **`src/ent/`** — the package: CLI, one module per layer, the `@ent.node()`
   decorator (a safe pass-through until Phase 3).
 
