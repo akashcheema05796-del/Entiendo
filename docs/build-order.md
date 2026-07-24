@@ -132,6 +132,25 @@ Implemented:
 
 ---
 
+## Extensions (beyond the spec)
+
+Built after the L0 → L5 phases, one PR each, CI-gated.
+
+| # | Extension | Status |
+|---|---|---|
+| E1 | CI (GitHub Actions: pytest + validate/extract/eval) | ☑ |
+| E2 | tier1/tier2 eval runners (golden scoring + LLM-judge) | ☑ |
+| E3 | Runtime invariant enforcement | ☐ |
+| E4 | Retrofit path (§12 v2) — AI-proposed manifests | ☐ |
+
+**E2 — tier1/tier2.** `src/ent/evals/metrics.py` (ndcg@k / exact_match /
+accuracy), `entrypoint.py` (import a node's `@ent.node()` callable), and
+`runner.run_tier1`/`run_tier2`. tier1 replays `minRuns` times, scores vs baseline
+with a significance threshold (red only on meaningful regression, §5.3); tier2 is
+the rubric-driven LLM-judge scaffold (judge wired explicitly, never faked). The
+greenfield ranker is runnable, so `ent eval retrieval.chunk_ranker --tier 1`
+scores a real ndcg@5. `tests/test_tier1_tier2.py`.
+
 ## MVP — the two-week slice (SPEC.md §9)
 
 Resist building all six lenses. Prove the loop end to end on **five nodes** of

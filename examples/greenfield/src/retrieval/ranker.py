@@ -12,9 +12,10 @@ import ent
 # These intra-project imports are exactly the edges the L1 reconciler verifies:
 # retrieval.chunk_ranker -> retrieval.vector_store, and -> llm.gateway. They
 # match this node's declared `dependencies.calls`, so `ent extract` reports them
-# as verified (declared AND observed) with no drift.
-from ..gateway.client import complete
-from ..vector_store.store import search
+# as verified (declared AND observed) with no drift. Absolute (root-relative)
+# imports so the node is also runnable in isolation for tier1/tier2 evals.
+from src.gateway.client import complete
+from src.vector_store.store import search
 
 
 @ent.node("retrieval.chunk_ranker")

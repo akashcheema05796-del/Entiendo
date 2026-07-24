@@ -9,6 +9,10 @@ Exit codes:
   1  red (a tier0 check failed)
   2  node not found / environment problem
   3  requested tier not implemented in this phase
+Exit codes:
+  0  green (all checks pass / skipped)
+  1  red (a check failed)
+  2  node not found / environment problem
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..evals.runner import run_tier0
+from ..evals.runner import run_tier0, run_tier1, run_tier2
 from ..manifest import find_node
 
 
@@ -31,7 +35,7 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
         "--tier",
         choices=["0", "1", "2"],
         default="0",
-        help="eval tier to run (default: 0 — deterministic, sub-second)",
+        help="eval tier: 0 static (default), 1 golden dataset, 2 LLM judge",
     )
     p.add_argument(
         "--root",
@@ -44,14 +48,6 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
 def _run(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
 
-    if args.tier != "0":
-        tier_name = {"1": "golden datasets", "2": "LLM judge"}[args.tier]
-        print(
-            f"ent eval --tier {args.tier}: not implemented yet ({tier_name}). "
-            "tier0 is available now; tier1/tier2 land in a later phase."
-        )
-        return 3
-
     try:
         node = find_node(root, args.node)
     except ModuleNotFoundError as exc:
@@ -62,8 +58,9 @@ def _run(args: argparse.Namespace) -> int:
         print(f"ent eval: no node with id '{args.node}' under {root}")
         return 2
 
+    runners = {"0": run_tier0, "1": run_tier1, "2": run_tier2}
     try:
-        result = run_tier0(node, root)
+        result = runners[args.tier](node, root)
     except ModuleNotFoundError as exc:
         print(f"ent eval: missing dependency — {exc}. Try: pip install -e '.[dev]'")
         return 2
@@ -75,5 +72,5 @@ def _run(args: argparse.Namespace) -> int:
     print()
     verdict = result.verdict.upper()
     print(f"{'●' if result.verdict == 'green' else '✗'} {args.node}: {verdict} "
-          f"(tier0, {result.duration_ms:.0f}ms)")
+          f"(tier{args.tier}, {result.duration_ms:.0f}ms)")
     return 0 if result.verdict == "green" else 1
