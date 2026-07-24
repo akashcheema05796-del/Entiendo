@@ -74,6 +74,15 @@ def load(path: Path) -> dict[str, Any]:
     return data
 
 
+def find_node(root: Path, node_id: str) -> "Node | None":
+    """Load the node with the given id from a project, or None if absent."""
+    for path in discover(Path(root)):
+        data = load(path)
+        if data.get("id") == node_id:
+            return Node.from_manifest(data, path)
+    return None
+
+
 @dataclass(frozen=True)
 class Node:
     """A thin typed view over a parsed manifest.
