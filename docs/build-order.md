@@ -9,7 +9,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done
 |---|---|---|
 | 1 | L0 — Boundaries | ☑ `ent validate` + `ent init` working |
 | 2 | L1 — Extractor & reconciler | ☑ `ent extract` → graph.json + coverage.json |
-| 3 | L2 — Instrumentation + eval runner | ☐ |
+| 3 | L2 — Instrumentation + eval runner | ☑ `@ent.node()` spans + `ent eval` tier0 |
 | 4 | L3/L4 — History + render (lenses 1, 4, 5) | ☐ |
 | 5 | L4 — remainder (lenses 2, 3, 6) | ☐ |
 | 6 | L5 — Scoped edit loop | ☐ |
@@ -59,7 +59,23 @@ run `ent extract` to regenerate them.
 `@ent.node()` decorator, OTel span attribution, tier0 runner, cost meter.
 
 **Acceptance:** one real request produces spans mapped to node IDs;
-`ent eval <node>` returns tier0 verdict in <2s.
+`ent eval <node>` returns tier0 verdict in <2s. ✓ **Met** — a call through an
+`@ent.node()` callable produces a span carrying `entiendo.node_id` (verified via
+`ent.tracing.capture()`); all five greenfield nodes return a green tier0 verdict
+in well under 2s (~1–70ms each). `tests/test_instrument.py` + `tests/test_evals.py`.
+
+Implemented:
+- `src/ent/tracing.py` — OTel-compatible `Span` + opt-in `capture()` recorder;
+  emits a real OTel span when opentelemetry is installed, no-op otherwise. Never
+  in the request path (Invariant 2).
+- `src/ent/instrument.py` — real `@ent.node()` (times, re-raises unchanged, binds
+  `entiendo.node_id`) + `ent.record()` cost/token meter.
+- `src/ent/evals/runner.py` — deterministic tier0: schema_validation,
+  invariant_check, smoke → green/red verdict.
+- `src/ent/commands/eval.py` — `ent eval <node>`; tier0 now, tier1/tier2 announced.
+
+Note: runtime invariant *enforcement* and tier1/tier2 (golden/LLM-judge) are
+deliberately deferred — tier0 stays static so it's deterministic and sub-second.
 
 ## Phase 4 — L3/L4: History + render (lenses 1, 4, 5)
 Append-only history store. Web surface: structure, health, timeline. Ship these

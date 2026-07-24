@@ -16,18 +16,20 @@ This README is the map to the scaffold.
 
 ---
 
-## Status: L0–L1 working, L2+ scaffolded
+## Status: L0–L2 working, L3+ scaffolded
 
-Phases 1–2 (L0 boundaries, L1 extractor/reconciler) are **implemented**:
-`ent validate`, `ent init`, and `ent extract` work. The rest of the architecture
-is present and wired; logic lands phase by phase (L2 → L5). Each not-yet-built
+Phases 1–3 (L0 boundaries, L1 extractor/reconciler, L2 instrumentation + tier0
+evals) are **implemented**: `ent validate`, `ent init`, `ent extract`, and
+`ent eval` work, and `@ent.node()` emits spans. The rest of the architecture is
+present and wired; logic lands phase by phase (L3 → L5). Each not-yet-built
 subcommand runs today and tells you which phase implements it.
 
 ```
 $ ent validate      # validates every entiendo.node.yaml; specific errors; exit 0/1
 $ ent init          # scaffolds entiendo/ (+ a starter manifest with --node-id/--at)
 $ ent extract       # emits graph.json + coverage.json; fails on undeclared-dep drift
-$ ent eval x.y      # → "not implemented yet — planned for Phase 3 (L2)"
+$ ent eval <node>   # runs tier0 (schema/invariant/smoke); green/red verdict, <2s
+$ ent render        # → "not implemented yet — planned for Phase 4 (L4)"
 ```
 
 What **is** real today:
@@ -42,11 +44,16 @@ What **is** real today:
   checks them against declared `dependencies`. Undeclared edges are drift and
   fail the build (Invariant 5); it emits `graph.json` + `coverage.json`. See
   `src/ent/extractor.py`.
+- **`ent eval` + `@ent.node()`** — L2 instrumentation: the decorator emits an
+  OTel-compatible span carrying `entiendo.node_id` (and `ent.record()` meters
+  cost/tokens), never in the request path (Invariant 2). `ent eval` runs the
+  deterministic tier0 checks (schema / invariant / smoke) to a green/red verdict.
+  See `src/ent/instrument.py`, `src/ent/tracing.py`, `src/ent/evals/runner.py`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
-  project laid out the Entiendo way. It validates and reconciles clean at 100%
-  coverage: `cd examples/greenfield && ent validate && ent extract`.
-- **`src/ent/`** — the package: CLI, one module per layer, the `@ent.node()`
-  decorator (a safe pass-through until Phase 3).
+  project laid out the Entiendo way. It validates, reconciles clean at 100%
+  coverage, and every node passes tier0:
+  `cd examples/greenfield && ent validate && ent extract && ent eval retrieval.chunk_ranker`.
+- **`src/ent/`** — the package: CLI, one module per layer.
 
 ---
 
