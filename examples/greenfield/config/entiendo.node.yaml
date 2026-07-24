@@ -14,8 +14,9 @@ claims:
   - config/retrieval.yaml
 
 contract:
-  invariants:
-    - "top_n >= k"                   # can't rank more than were retrieved
+  # A config node has no entrypoint → UNTESTED. Invariants are expressions over
+  # `input`/`output` (Phase 7 §4); a config surface has neither, so none here.
+  invariants: []
   sideEffects: none
 
 dependencies:

@@ -10,8 +10,13 @@ import ent
 
 
 @ent.node("llm.gateway")
-def complete(prompt: str, model: str = "claude-sonnet-4-6") -> dict:
-    """Call the model provider. Side effect: external, non-deterministic."""
+def complete(request: dict) -> dict:
+    """Call the model provider. Side effect: external, non-deterministic.
+
+    One dict in, one dict out (Phase 7 §1.1): {prompt, model?} -> {text, model}.
+    """
+    prompt = request.get("prompt", "")
+    model = request.get("model", "claude-sonnet-4-6")
     # Illustrative only — no real network call.
     result = {"text": "", "model": model}
     # Meter spend onto this node's span (the cost meter). A no-op if the caller

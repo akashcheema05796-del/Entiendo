@@ -88,7 +88,7 @@ def test_boundary_handles_absolute_paths() -> None:
 def test_in_bounds_green_edit_is_ready() -> None:
     outcome = review_edit(GREENFIELD, "retrieval.chunk_ranker", ["src/retrieval/ranker.py"])
     assert outcome.boundary.within_claims
-    assert outcome.verdict == "green"
+    assert outcome.verdict == "GREEN"
     assert outcome.status == "ready-to-merge"
 
 

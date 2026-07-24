@@ -9,7 +9,11 @@ import ent
 
 
 @ent.node("retrieval.vector_store")
-def search(query_vec: list[float], top_n: int = 20) -> dict:
-    """Return the top-N nearest document chunks. Reads state.doc_index."""
-    # Illustrative only.
+def search(request: dict) -> dict:
+    """Return the top-N nearest document chunks. Reads state.doc_index.
+
+    One dict in, one dict out (Phase 7 §1.1): {query_vec, top_n} -> {hits}.
+    """
+    top_n = request.get("top_n", 20)
+    # Illustrative only — a real store reads state.doc_index.
     return {"hits": []}

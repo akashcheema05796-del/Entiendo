@@ -12,6 +12,7 @@ claims:
   - src/vector_store/store.py
 
 contract:
+  entrypoint: src/vector_store/store.py::search   # runnable in isolation (no deps)
   invariants:
     - "all(0.0 <= h.similarity <= 1.0 for h in output.hits)"
   sideEffects: none

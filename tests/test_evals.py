@@ -1,7 +1,7 @@
-"""L2 tier0 eval runner tests (Phase 3).
+"""tier0 execution tests (Phase 7 §5, §15).
 
-Acceptance (SPEC.md §8, Phase 3): `ent eval <node>` returns a tier0 verdict fast.
-Verifies green on the greenfield nodes and red on the failure modes.
+tier0 now RUNS the node over fixture rows and evaluates real invariants against
+real output. Verdicts: GREEN / RED / UNTESTED / ERROR.
 """
 
 from __future__ import annotations
@@ -13,88 +13,43 @@ import pytest
 pytest.importorskip("jsonschema")
 pytest.importorskip("yaml")
 
+from ent import verdicts  # noqa: E402
 from ent.evals.runner import run_tier0  # noqa: E402
-from ent.manifest import Node, find_node  # noqa: E402
+from ent.manifest import find_node  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GREENFIELD = REPO_ROOT / "examples" / "greenfield"
 
-GREENFIELD_NODES = [
-    "retrieval.chunk_ranker",
-    "retrieval.vector_store",
-    "state.doc_index",
-    "llm.gateway",
-    "config.retrieval",
-]
+
+def test_executable_greenfield_nodes_are_green() -> None:
+    for node_id in ("retrieval.chunk_ranker", "retrieval.vector_store"):
+        node = find_node(GREENFIELD, node_id)
+        result = run_tier0(node, GREENFIELD)
+        assert result.verdict == verdicts.GREEN, [c.detail for c in result.checks]
 
 
-@pytest.mark.parametrize("node_id", GREENFIELD_NODES)
-def test_greenfield_nodes_pass_tier0(node_id: str) -> None:
-    node = find_node(GREENFIELD, node_id)
-    assert node is not None
-    result = run_tier0(node, GREENFIELD)
-    assert result.verdict == "green", [c for c in result.checks if c.status == "fail"]
+def test_no_entrypoint_nodes_are_untested() -> None:
+    for node_id in ("state.doc_index", "llm.gateway", "config.retrieval"):
+        node = find_node(GREENFIELD, node_id)
+        result = run_tier0(node, GREENFIELD)
+        assert result.verdict == verdicts.UNTESTED
 
 
 def test_tier0_is_fast() -> None:
     node = find_node(GREENFIELD, "retrieval.chunk_ranker")
-    result = run_tier0(node, GREENFIELD)
-    assert result.duration_ms < 2000  # sub-2s acceptance bar
+    assert run_tier0(node, GREENFIELD).duration_ms < 2000
 
 
-def _mknode(tmp_path: Path, manifest: dict, files: dict[str, str]) -> Node:
-    import yaml
+def test_break_ranker_goes_red_with_real_numbers(tmp_path: Path) -> None:
+    """The one-line test (§15): break the node, it goes red and says why."""
+    node = find_node(GREENFIELD, "retrieval.chunk_ranker")
 
-    for rel, content in files.items():
-        p = tmp_path / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
-    path = tmp_path / "entiendo.node.yaml"
-    path.write_text(yaml.safe_dump(manifest))
-    return Node.from_manifest(manifest, path)
+    # An entrypoint that violates len(output.chunks) <= input.k.
+    def bad(inp: dict) -> dict:
+        return {"chunks": [{"id": c["id"], "score": 1.0} for c in inp["candidates"]]}
 
-
-def test_malformed_invariant_is_red(tmp_path: Path) -> None:
-    node = _mknode(
-        tmp_path,
-        {
-            "id": "x.y", "name": "X", "nodeKind": "compute", "owner": "me",
-            "claims": ["s.py"],
-            "contract": {"invariants": ["len(output.chunks <= input.k"], "sideEffects": "none"},
-            "evals": {"tier0": [{"type": "invariant_check"}]},
-        },
-        {"s.py": "x = 1\n"},
-    )
-    result = run_tier0(node, tmp_path)
-    assert result.verdict == "red"
-    assert any("malformed invariant" in c.detail for c in result.checks)
-
-
-def test_missing_smoke_fixture_is_red(tmp_path: Path) -> None:
-    node = _mknode(
-        tmp_path,
-        {
-            "id": "x.y", "name": "X", "nodeKind": "compute", "owner": "me",
-            "claims": ["s.py"],
-            "contract": {"sideEffects": "none"},
-            "evals": {"tier0": [{"type": "smoke", "fixture": "evals/missing.jsonl"}]},
-        },
-        {"s.py": "x = 1\n"},
-    )
-    result = run_tier0(node, tmp_path)
-    assert result.verdict == "red"
-    assert any("not found" in c.detail for c in result.checks)
-
-
-def test_no_tier0_is_red(tmp_path: Path) -> None:
-    # No node without a tier-0 eval (Invariant 3).
-    node = _mknode(
-        tmp_path,
-        {
-            "id": "x.y", "name": "X", "nodeKind": "compute", "owner": "me",
-            "claims": ["s.py"], "contract": {"sideEffects": "none"},
-        },
-        {"s.py": "x = 1\n"},
-    )
-    result = run_tier0(node, tmp_path)
-    assert result.verdict == "red"
+    result = run_tier0(node, GREENFIELD, entrypoint=bad)
+    assert result.verdict == verdicts.RED
+    failed = [c for c in result.checks if c.status == "fail"]
+    assert failed and "len(output.chunks)" in failed[0].detail
+    assert "input.k" in failed[0].detail  # shows the real numbers, not "assertion failed"

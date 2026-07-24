@@ -1,42 +1,40 @@
-"""L2 — tier0 eval runner.
+"""The eval runner (Phase 7). tier0 executes the node; tier1 scores it.
 
-Runs the deterministic, sub-second checks that gate every edit (SPEC.md §5.1).
-Each check type is driven by the node's `evals.tier0` manifest entries:
+**tier0** now *runs the node* over fixture rows in isolation (§2): dependency
+calls are served from the fixture's stubs, and any unstubbed dependency call is an
+I/O violation. For each row it checks the output against the contract schema and
+evaluates the real invariants against the real output. Verdicts: GREEN / RED /
+UNTESTED / ERROR (§5).
 
-  - schema_validation  contract input/output $ref schemas are valid JSON Schema,
-                       and every smoke fixture `input` conforms to the input schema
-  - invariant_check    every `contract.invariants` expression is well-formed
-  - smoke              the fixture exists and every row parses as JSON
-
-These are static — they do not execute node code, so they stay deterministic and
-fast (the whole point of tier0). Runtime invariant enforcement rides on the spans
-from the instrumentation layer and lands with the health lens.
-
-tier1 (golden datasets) and tier2 (LLM judge) DO execute the node — they are the
-more expensive tiers (SPEC.md §5.1). tier1 replays the node `minRuns` times over
-a golden dataset, scores with the declared metric, and judges the mean against
-the baseline with a significance threshold: **red only on statistically
-meaningful regression** (§5.3), everything else is "within band". tier2 samples
-rows and scores them with an LLM judge against a rubric.
+**tier1** executes the node `minRuns` times over a golden dataset with real I/O
+permitted, scores each run with the declared metric, and judges the run
+distribution against the baseline with the anti-flicker statistics of §7
+(WITHIN_BAND / REGRESSED / IMPROVED / UNSTABLE), overlaying budget checks (§9,
+DEGRADED). Blessing is enforced (§8): an unblessed or stale dataset runs
+advisory-only.
 """
 
 from __future__ import annotations
 
 import json
+import statistics
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from .. import baselines, gitinfo, history, testing, tracing, verdicts
+from ..invariants import InvariantError, eval_invariant
 from ..manifest import Node
-from .entrypoint import EntrypointError, resolve_entrypoint
+from ..version import compute_version
+from .entrypoint import EntrypointDrift, EntrypointError, NoEntrypoint, resolve_entrypoint
 from .metrics import get_metric
 
 
 @dataclass
 class Check:
     type: str
-    status: str  # "pass" | "fail" | "skip"
+    status: str  # "pass" | "fail" | "skip" | "error"
     detail: str
 
 
@@ -44,112 +42,287 @@ class Check:
 class EvalResult:
     node_id: str
     tier: int
-    verdict: str  # "green" | "red"
+    verdict: str
     duration_ms: float
     checks: list[Check] = field(default_factory=list)
+    stats: dict[str, Any] = field(default_factory=dict)
+    advisory: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def run_tier0(node: Node, root: Path) -> EvalResult:
-    """Run the node's tier0 checks and return a verdict."""
-    root = Path(root)
-    tier0 = node.raw.get("evals", {}).get("tier0", []) or []
-    start = time.perf_counter()
+# --------------------------------------------------------------------------- #
+# fixtures
+# --------------------------------------------------------------------------- #
 
-    checks: list[Check] = []
-    for entry in tier0:
-        kind = entry.get("type")
-        if kind == "schema_validation":
-            checks.append(_check_schema(node, root))
-        elif kind == "invariant_check":
-            checks.append(_check_invariants(node))
-        elif kind == "smoke":
-            checks.append(_check_smoke(node, root, entry.get("fixture")))
-        else:  # pragma: no cover - schema forbids unknown types
-            checks.append(Check(kind or "?", "skip", "unknown tier0 check type"))
-
-    if not checks:
-        # No node without a tier-0 eval (Invariant 3) — surface the gap as red.
-        checks.append(Check("tier0", "fail", "node declares no tier0 evals (Invariant 3)"))
-
-    verdict = "red" if any(c.status == "fail" for c in checks) else "green"
-    duration_ms = (time.perf_counter() - start) * 1000.0
-    return EvalResult(node.id, 0, verdict, round(duration_ms, 3), checks)
-
-
-def _mean(xs: list[float]) -> float:
-    return sum(xs) / len(xs) if xs else 0.0
-
-
-def _load_dataset(path: Path) -> list[dict[str, Any]]:
-    rows = []
-    for _, row in _iter_rows(path):
-        if row is not _BAD_ROW and isinstance(row, dict):
-            rows.append(row)
+def load_rows(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not Path(path).exists():
+        return rows
+    for i, line in enumerate(Path(path).read_text().splitlines(), start=1):
+        line = line.strip()
+        if not line:
+            continue
+        rows.append(json.loads(line))
     return rows
 
 
-def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None = None) -> EvalResult:
-    """Golden-dataset scoring: replay minRuns times, judge mean vs baseline (§5.3)."""
+def _tier0_fixtures(node: Node, root: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for entry in node.raw.get("evals", {}).get("tier0", []):
+        if entry.get("type") == "smoke" and entry.get("fixture"):
+            for i, row in enumerate(load_rows(root / entry["fixture"])):
+                row.setdefault("name", f"{entry['fixture']}#{i}")
+                rows.append(row)
+    return rows
+
+
+# --------------------------------------------------------------------------- #
+# tier0 — execution
+# --------------------------------------------------------------------------- #
+
+def run_tier0(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None = None) -> EvalResult:
     root = Path(root)
     start = time.perf_counter()
-    golden = next(
-        (e for e in node.raw.get("evals", {}).get("tier1", []) if e.get("type") == "golden"),
-        None,
-    )
 
-    def done(checks: list[Check]) -> EvalResult:
-        verdict = "red" if any(c.status == "fail" for c in checks) else "green"
-        return EvalResult(node.id, 1, verdict, round((time.perf_counter() - start) * 1000, 3), checks)
+    def done(verdict: str, checks: list[Check]) -> EvalResult:
+        return EvalResult(node.id, 0, verdict, round((time.perf_counter() - start) * 1000, 3), checks)
 
+    if node.raw.get("evals", {}).get("executionMode") == "skip":
+        return done(verdicts.UNTESTED, [Check("execution", "skip", "executionMode: skip")])
+
+    if entrypoint is None:
+        try:
+            entrypoint = resolve_entrypoint(node, root)
+        except NoEntrypoint:
+            return done(verdicts.UNTESTED, [Check("entrypoint", "skip", "no contract.entrypoint")])
+        except EntrypointDrift as exc:
+            return done(verdicts.ERROR, [Check("entrypoint", "error", str(exc))])
+        except EntrypointError as exc:
+            return done(verdicts.ERROR, [Check("entrypoint", "error", str(exc))])
+
+    rows = _tier0_fixtures(node, root)
+    if not rows:
+        return done(verdicts.UNTESTED, [Check("smoke", "skip", "entrypoint but no fixture rows")])
+
+    contract = node.raw.get("contract", {})
+    do_schema = any(e.get("type") == "schema_validation" for e in node.raw["evals"]["tier0"])
+    do_invariants = any(e.get("type") == "invariant_check" for e in node.raw["evals"]["tier0"])
+
+    checks: list[Check] = []
+    for row in rows:
+        name = row["name"]
+        # --- execute in isolation ---
+        try:
+            with testing.stub(node, row):
+                output = entrypoint(row["input"])
+        except (testing.Tier0IOViolation) as exc:
+            checks.append(Check("isolation", "error",
+                                f"TIER0_IO_VIOLATION on '{name}': reached unstubbed dependency "
+                                f"'{exc}' — check the node's dependencies block"))
+            return done(verdicts.ERROR, checks)
+        except testing.Tier0QueueExhausted as exc:
+            checks.append(Check("isolation", "error", f"queue exhausted on '{name}': {exc}"))
+            return done(verdicts.ERROR, checks)
+        except Exception as exc:
+            expect_error = row.get("expectError")
+            if expect_error and type(exc).__name__ == expect_error:
+                checks.append(Check("expectError", "pass", f"'{name}': raised {expect_error} as expected"))
+                continue
+            checks.append(Check("execute", "fail",
+                                f"'{name}': raised {type(exc).__name__}: {exc}"))
+            return done(verdicts.RED, checks)
+
+        if row.get("expectError"):
+            checks.append(Check("expectError", "fail",
+                                f"'{name}': expected {row['expectError']} but returned normally"))
+            return done(verdicts.RED, checks)
+
+        # --- schema ---
+        if do_schema:
+            err = _schema_check(contract, row["input"], output, node.path.parent)
+            if err:
+                checks.append(Check("schema_validation", "fail", f"'{name}': {err}"))
+                return done(verdicts.RED, checks)
+
+        # --- invariants (real evaluation) ---
+        if do_invariants:
+            for inv in contract.get("invariants", []) or []:
+                try:
+                    passed, detail = eval_invariant(inv, row["input"], output)
+                except (InvariantError, Exception) as exc:
+                    checks.append(Check("invariant_check", "fail",
+                                        f"'{name}': invariant \"{inv}\" could not evaluate: {exc}"))
+                    return done(verdicts.RED, checks)
+                if not passed:
+                    checks.append(Check("invariant_check", "fail",
+                                        f"'{name}': invariant \"{inv}\" failed: {detail}"))
+                    return done(verdicts.RED, checks)
+
+        # --- expect (exact) ---
+        if "expect" in row and output != row["expect"]:
+            checks.append(Check("expect", "fail", f"'{name}': output != expected"))
+            return done(verdicts.RED, checks)
+
+        checks.append(Check("row", "pass", f"'{name}' ran, conforms, invariants hold"))
+
+    return done(verdicts.GREEN, checks)
+
+
+def _schema_check(contract: dict, inp: Any, output: Any, manifest_dir: Path) -> str | None:
+    import jsonschema
+
+    for side, value in (("input", inp), ("output", output)):
+        spec = contract.get(side)
+        if isinstance(spec, dict) and "$ref" in spec:
+            target = (manifest_dir / spec["$ref"]).resolve()
+            if not target.exists():
+                return f"{side} $ref '{spec['$ref']}' not found"
+            schema = json.loads(target.read_text())
+            errs = sorted(jsonschema.Draft202012Validator(schema).iter_errors(value),
+                          key=lambda e: list(e.path))
+            if errs:
+                return f"{side} does not conform: {errs[0].message}"
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# tier1 — golden runner (§6, §7, §8, §9)
+# --------------------------------------------------------------------------- #
+
+def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None = None) -> EvalResult:
+    root = Path(root)
+    start = time.perf_counter()
+
+    def done(verdict: str, checks: list[Check], stats: dict | None = None, advisory: bool = False) -> EvalResult:
+        return EvalResult(node.id, 1, verdict, round((time.perf_counter() - start) * 1000, 3),
+                          checks, stats or {}, advisory)
+
+    golden = next((e for e in node.raw.get("evals", {}).get("tier1", []) if e.get("type") == "golden"), None)
     if golden is None:
-        return done([Check("golden", "skip", "no tier1 golden configured")])
-    if golden.get("humanBlessed") is not True:
-        return done([Check("golden", "fail", "golden dataset requires humanBlessed: true (§5.2)")])
+        return done(verdicts.UNTESTED, [Check("golden", "skip", "no tier1 golden configured")])
 
-    dataset = _load_dataset(root / golden["dataset"]) if golden.get("dataset") else []
-    if not dataset:
-        return done([Check("golden", "fail", f"dataset '{golden.get('dataset')}' missing or empty")])
+    dataset_path = root / golden["dataset"] if golden.get("dataset") else None
+    rows = load_rows(dataset_path) if dataset_path else []
+    if not rows:
+        return done(verdicts.ERROR, [Check("golden", "error", f"dataset '{golden.get('dataset')}' missing/empty")])
+    if any("expect" not in r for r in rows):
+        return done(verdicts.ERROR, [Check("golden", "error", "every golden row requires 'expect'")])
+
+    # --- blessing (§8): gating only if manifest-blessed AND signature matches ---
+    gating = golden.get("humanBlessed") is True and baselines.blessing_valid(root, node.id, dataset_path)
+    advisory = not gating
+    bless_note = ("blessed" if gating else
+                  "ADVISORY — dataset not blessed or changed since blessing (run `ent bless`)")
 
     try:
         metric = get_metric(golden["metric"])
     except KeyError as exc:
-        return done([Check("golden", "fail", str(exc))])
+        return done(verdicts.ERROR, [Check("golden", "error", str(exc))], advisory=advisory)
 
-    fn = entrypoint
-    if fn is None:
+    if entrypoint is None:
         try:
-            fn = resolve_entrypoint(node, root)
+            entrypoint = resolve_entrypoint(node, root)
+        except NoEntrypoint:
+            return done(verdicts.UNTESTED, [Check("entrypoint", "skip", "no contract.entrypoint")])
         except EntrypointError as exc:
-            return done([Check("golden", "skip", f"node not runnable: {exc}")])
+            return done(verdicts.ERROR, [Check("entrypoint", "error", str(exc))], advisory=advisory)
 
-    min_runs = int(golden.get("minRuns", 1))
-    significance = float(golden.get("significance", 0.0))
-    baseline = golden.get("baseline")
+    baseline_rec = baselines.read_baseline(root, node.id) or {}
+    baseline = baseline_rec.get("baseline", golden.get("baseline"))
+    min_runs = int(baseline_rec.get("minRuns", golden.get("minRuns", 1)))
+    significance = float(baseline_rec.get("significance", golden.get("significance", 0.0)))
 
-    run_means: list[float] = []
+    run_scores: list[float] = []
+    total_cost = 0.0
+    latencies: list[float] = []
     for _ in range(min_runs):
-        row_scores = []
-        for i, row in enumerate(dataset):
-            try:
-                out = fn(row["input"])
-            except Exception as exc:
-                return done([Check("golden", "fail", f"node raised on dataset row {i}: {exc}")])
-            row_scores.append(metric(out, row.get("expected", {})))
-        run_means.append(_mean(row_scores))
+        with tracing.capture() as spans:
+            row_scores = []
+            for i, row in enumerate(rows):
+                try:
+                    out = entrypoint(row["input"])
+                except Exception as exc:
+                    return done(verdicts.ERROR,
+                                [Check("golden", "error", f"node raised on row {i}: {exc}")], advisory=advisory)
+                row_scores.append(metric(out, row["expect"]))
+        run_scores.append(_mean(row_scores))
+        total_cost += sum(s.cost_usd or 0.0 for s in spans)
+        latencies.extend(s.duration_ms for s in spans if s.node_id == node.id)
 
-    score = _mean(run_means)
-    detail = f"{golden['metric']}={score:.4f} over {min_runs} run(s)"
-    if baseline is not None:
-        delta = score - baseline
-        detail += f", baseline={baseline}, delta={delta:+.4f} (sig={significance})"
-        if delta < -significance:
-            return done([Check("golden", "fail", f"regression — {detail}")])
-        detail += " — within band"
-    return done([Check("golden", "pass", detail)])
+    mean = _mean(run_scores)
+    spread = statistics.stdev(run_scores) if len(run_scores) > 1 else 0.0
+    p95 = _percentile(latencies, 95) if latencies else 0.0
+    cost_per_call = total_cost / (min_runs * len(rows)) if rows else 0.0
 
+    stats = {
+        "runs": [round(s, 4) for s in run_scores], "mean": round(mean, 4),
+        "spread": round(spread, 4), "baseline": baseline, "n": min_runs,
+        "metric": golden["metric"], "p95LatencyMs": round(p95, 1),
+        "costUsd": round(total_cost, 4), "blessed": gating,
+        "compositeVersion": compute_version(node, root)["composite"],
+    }
+
+    verdict, detail = _stat_verdict(mean, baseline, spread, significance)
+    stats["delta"] = round(mean - baseline, 4) if baseline is not None else None
+
+    # baseline proposal on improvement (§7 — never automatic)
+    if verdict == verdicts.IMPROVED or baseline is None:
+        baselines.write_pending(root, node.id, {
+            "baseline": round(mean, 4), "metric": golden["metric"],
+            "minRuns": min_runs, "significance": significance,
+        })
+        detail += " — baseline proposal written (ent baseline accept)"
+
+    # budgets (§9): correct-but-slow/expensive → DEGRADED (unless already red)
+    budget_note = _budget_check(node.raw.get("budgets", {}), p95, cost_per_call)
+    if budget_note and verdict not in (verdicts.REGRESSED,):
+        verdict = verdicts.DEGRADED
+        detail += f" — {budget_note}"
+
+    checks = [Check("golden", "pass" if verdict in (verdicts.WITHIN_BAND, verdicts.IMPROVED) else
+                    "fail" if verdict == verdicts.REGRESSED else "skip",
+                    f"{golden['metric']}={mean:.4f} n={min_runs} spread={spread:.4f} "
+                    f"baseline={baseline} → {verdict} [{bless_note}] {detail}")]
+
+    _record_eval(root, node, stats, verdict, min_runs)
+    return done(verdict, checks, stats, advisory)
+
+
+def _stat_verdict(mean: float, baseline: float | None, spread: float, sig: float) -> tuple[str, str]:
+    if baseline is None:
+        return verdicts.WITHIN_BAND, "no baseline yet"
+    delta = mean - baseline
+    if abs(delta) <= sig:
+        return verdicts.WITHIN_BAND, f"delta={delta:+.4f} within significance {sig}"
+    if delta < 0 and abs(delta) > spread:
+        return verdicts.REGRESSED, f"delta={delta:+.4f} exceeds spread {spread:.4f}"
+    if delta > 0 and abs(delta) > spread:
+        return verdicts.IMPROVED, f"delta={delta:+.4f} exceeds spread {spread:.4f}"
+    return verdicts.UNSTABLE, f"delta={delta:+.4f} within run-to-run spread {spread:.4f} — too noisy to judge"
+
+
+def _budget_check(budgets: dict, p95: float, cost_per_call: float) -> str | None:
+    over = []
+    if budgets.get("p95LatencyMs") is not None and p95 > budgets["p95LatencyMs"]:
+        over.append(f"p95 {p95:.0f}ms > {budgets['p95LatencyMs']}ms")
+    if budgets.get("costPerCallUsd") is not None and cost_per_call > budgets["costPerCallUsd"]:
+        over.append(f"cost ${cost_per_call:.4f} > ${budgets['costPerCallUsd']}")
+    return "over budget: " + "; ".join(over) if over else None
+
+
+def _record_eval(root: Path, node: Node, stats: dict, verdict: str, n: int) -> None:
+    row = {"ts": gitinfo.now_iso(), "nodeId": node.id, "tier": 1, "verdict": verdict, **stats}
+    path = Path(root) / "entiendo" / "history" / "evals.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as fh:
+        fh.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+# --------------------------------------------------------------------------- #
+# tier2 — LLM judge (scaffold; out of Phase 7 scope, kept working)
+# --------------------------------------------------------------------------- #
 
 def run_tier2(
     node: Node,
@@ -158,161 +331,63 @@ def run_tier2(
     judge: Callable[[Any, Any, str], float] | None = None,
     entrypoint: Callable[..., Any] | None = None,
 ) -> EvalResult:
-    """LLM-judge scoring against a rubric over a sample (§5.1). Needs a judge callable.
-
-    `judge(input, output, rubric) -> score in [1, 5]`. Without a judge the tier is
-    skipped (the LLM judge is expensive and must be wired explicitly), never faked.
-    """
+    """Rubric-driven LLM judge over a sample. Without a judge it skips — never faked."""
     root = Path(root)
     start = time.perf_counter()
-    conf = next(
-        (e for e in node.raw.get("evals", {}).get("tier2", []) if e.get("type") == "llm_judge"),
-        None,
-    )
+    conf = next((e for e in node.raw.get("evals", {}).get("tier2", []) if e.get("type") == "llm_judge"), None)
 
-    def done(checks: list[Check]) -> EvalResult:
-        verdict = "red" if any(c.status == "fail" for c in checks) else "green"
+    def done(verdict: str, checks: list[Check]) -> EvalResult:
         return EvalResult(node.id, 2, verdict, round((time.perf_counter() - start) * 1000, 3), checks)
 
     if conf is None:
-        return done([Check("llm_judge", "skip", "no tier2 llm_judge configured")])
-
+        return done(verdicts.UNTESTED, [Check("llm_judge", "skip", "no tier2 llm_judge configured")])
     rubric_path = root / conf["rubric"] if conf.get("rubric") else None
     if rubric_path is None or not rubric_path.exists():
-        return done([Check("llm_judge", "fail", f"rubric '{conf.get('rubric')}' not found")])
+        return done(verdicts.ERROR, [Check("llm_judge", "error", f"rubric '{conf.get('rubric')}' not found")])
     rubric = rubric_path.read_text()
-
     if judge is None:
-        return done([Check("llm_judge", "skip",
-                           "no judge configured — the LLM judge is expensive; wire one via run_tier2(judge=...)")])
+        return done(verdicts.UNTESTED, [Check("llm_judge", "skip",
+                    "no judge configured — the LLM judge is expensive; wire one via run_tier2(judge=...)")])
 
-    # Sample inputs from the tier1 golden dataset (the available labelled inputs).
     golden = next((e for e in node.raw.get("evals", {}).get("tier1", []) if e.get("type") == "golden"), None)
-    dataset = _load_dataset(root / golden["dataset"]) if golden and golden.get("dataset") else []
+    dataset = load_rows(root / golden["dataset"]) if golden and golden.get("dataset") else []
     if not dataset:
-        return done([Check("llm_judge", "skip", "no sample inputs (needs a tier1 golden dataset)")])
+        return done(verdicts.UNTESTED, [Check("llm_judge", "skip", "no sample inputs (needs a tier1 golden dataset)")])
 
-    fn = entrypoint
-    if fn is None:
+    if entrypoint is None:
         try:
-            fn = resolve_entrypoint(node, root)
+            entrypoint = resolve_entrypoint(node, root)
         except EntrypointError as exc:
-            return done([Check("llm_judge", "skip", f"node not runnable: {exc}")])
+            return done(verdicts.UNTESTED, [Check("llm_judge", "skip", f"node not runnable: {exc}")])
 
     sample = dataset[: int(conf.get("sampleSize", len(dataset)))]
     scores = []
     for i, row in enumerate(sample):
         try:
-            out = fn(row["input"])
+            out = entrypoint(row["input"])
         except Exception as exc:
-            return done([Check("llm_judge", "fail", f"node raised on sample row {i}: {exc}")])
+            return done(verdicts.ERROR, [Check("llm_judge", "error", f"node raised on sample row {i}: {exc}")])
         scores.append(float(judge(row["input"], out, rubric)))
 
     avg = _mean(scores)
+    verdict = verdicts.GREEN if avg >= 3.0 else verdicts.RED
     status = "pass" if avg >= 3.0 else "fail"
-    return done([Check("llm_judge", status, f"mean judge score {avg:.2f}/5 over {len(sample)} sample(s)")])
+    return done(verdict, [Check("llm_judge", status, f"mean judge score {avg:.2f}/5 over {len(sample)} sample(s)")])
 
 
 # --------------------------------------------------------------------------- #
-# individual checks
+# helpers
 # --------------------------------------------------------------------------- #
 
-def _load_json_schema(ref: str, manifest_dir: Path) -> tuple[dict[str, Any] | None, str | None]:
-    target = (manifest_dir / ref).resolve()
-    if not target.exists():
-        return None, f"$ref '{ref}' not found"
-    try:
-        return json.loads(target.read_text()), None
-    except json.JSONDecodeError as exc:
-        return None, f"$ref '{ref}' is not valid JSON: {exc}"
+def _mean(xs: list[float]) -> float:
+    return sum(xs) / len(xs) if xs else 0.0
 
 
-def _check_schema(node: Node, root: Path) -> Check:
-    import jsonschema  # lazy
-
-    manifest_dir = node.path.parent
-    contract = node.raw.get("contract", {})
-    schemas: dict[str, Any] = {}
-
-    # 1. contract schemas load + are valid JSON Schema
-    for side in ("input", "output"):
-        spec = contract.get(side)
-        if isinstance(spec, dict) and "$ref" in spec:
-            schema, err = _load_json_schema(spec["$ref"], manifest_dir)
-            if err:
-                return Check("schema_validation", "fail", err)
-            try:
-                jsonschema.Draft202012Validator.check_schema(schema)
-            except jsonschema.exceptions.SchemaError as exc:
-                return Check("schema_validation", "fail", f"{side} schema invalid: {exc.message}")
-            schemas[side] = schema
-
-    if not schemas:
-        return Check("schema_validation", "pass", "no contract schemas to validate")
-
-    # 2. smoke fixture inputs conform to the input schema
-    rows_checked = 0
-    if "input" in schemas:
-        validator = jsonschema.Draft202012Validator(schemas["input"])
-        for entry in node.raw.get("evals", {}).get("tier0", []):
-            if entry.get("type") == "smoke" and entry.get("fixture"):
-                for i, row in _iter_rows(root / entry["fixture"]):
-                    if "input" not in row:
-                        continue
-                    errs = sorted(validator.iter_errors(row["input"]), key=lambda e: list(e.path))
-                    if errs:
-                        return Check(
-                            "schema_validation", "fail",
-                            f"{entry['fixture']} row {i}: input does not conform — {errs[0].message}",
-                        )
-                    rows_checked += 1
-
-    detail = f"{len(schemas)} schema(s) valid"
-    if rows_checked:
-        detail += f", {rows_checked} input row(s) conform"
-    return Check("schema_validation", "pass", detail)
-
-
-def _check_invariants(node: Node) -> Check:
-    invariants = node.raw.get("contract", {}).get("invariants", []) or []
-    if not invariants:
-        return Check("invariant_check", "pass", "no invariants declared")
-    for expr in invariants:
-        try:
-            compile(expr, "<invariant>", "eval")
-        except SyntaxError as exc:
-            return Check("invariant_check", "fail", f"malformed invariant '{expr}': {exc.msg}")
-    return Check("invariant_check", "pass", f"{len(invariants)} invariant(s) well-formed")
-
-
-def _check_smoke(node: Node, root: Path, fixture: str | None) -> Check:
-    if not fixture:
-        return Check("smoke", "fail", "smoke check declares no fixture")
-    path = root / fixture
-    if not path.exists():
-        return Check("smoke", "fail", f"fixture '{fixture}' not found")
-    count = 0
-    for i, row in _iter_rows(path):
-        if row is _BAD_ROW:
-            return Check("smoke", "fail", f"fixture '{fixture}' line {i} is not valid JSON")
-        count += 1
-    if count == 0:
-        return Check("smoke", "fail", f"fixture '{fixture}' is empty")
-    return Check("smoke", "pass", f"{count} fixture row(s) parse")
-
-
-_BAD_ROW: Any = object()
-
-
-def _iter_rows(path: Path):
-    """Yield (line_no, parsed_row) for a jsonl file. Bad lines yield _BAD_ROW."""
-    if not path.exists():
-        return
-    for i, line in enumerate(path.read_text().splitlines(), start=1):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            yield i, json.loads(line)
-        except json.JSONDecodeError:
-            yield i, _BAD_ROW
+def _percentile(xs: list[float], p: int) -> float:
+    if not xs:
+        return 0.0
+    s = sorted(xs)
+    k = (len(s) - 1) * p / 100
+    lo = int(k)
+    hi = min(lo + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * (k - lo)

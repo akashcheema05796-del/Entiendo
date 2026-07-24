@@ -28,9 +28,6 @@ jobs:
           ent validate
           ent extract --check
 
-      - name: Eval every example node (L2 tier0)
+      - name: Eval every example node (tier0 executes the nodes)
         working-directory: examples/greenfield
-        run: |
-          for node in retrieval.chunk_ranker retrieval.vector_store state.doc_index llm.gateway config.retrieval; do
-            ent eval "$node"
-          done
+        run: ent eval --all

@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from . import gitinfo, history
+from . import gitinfo, history, verdicts
 from .evals.runner import run_tier0
 from .extractor import extract
 from .manifest import Node, discover, load
@@ -30,11 +30,17 @@ def build_view(root: Path) -> dict[str, Any]:
 
     by_id = {n.id: n for n in nodes}
     node_views = []
+    executable = 0
     for gnode in result.graph["nodes"]:
         node = by_id.get(gnode["id"])
-        health = run_tier0(node, root).verdict if node else "unknown"
+        health = run_tier0(node, root).verdict if node else verdicts.ERROR
+        if health != verdicts.UNTESTED:
+            executable += 1
         version = compute_version(node, root) if node else {}
-        node_views.append({**gnode, "health": health, "version": version})
+        node_views.append({
+            **gnode, "health": health,
+            "healthColour": verdicts.colour(health), "version": version,
+        })
 
     timelines = {n.id: history.timeline(root, n.id) for n in nodes}
 
@@ -52,6 +58,8 @@ def build_view(root: Path) -> dict[str, Any]:
         "nodes": sorted(node_views, key=lambda n: n["id"]),
         "edges": result.graph["edges"],
         "reconciled": result.ok,
+        "executable": executable,
+        "nodeCount": len(node_views),
         "timelines": timelines,
         "traces": trace_events,
         "traffic": traffic,
@@ -145,6 +153,7 @@ _TEMPLATE = """\
     --compute:#3b82f6; --state:#8b5cf6; --schema:#a855f7; --config:#64748b;
     --external:#f59e0b; --pipeline:#0ea5e9;
     --green:#22c55e; --red:#ef4444; --degraded:#f59e0b;
+    --grey:#9aa0aa; --amber:#f59e0b;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#141417; --panel:#1c1c22; --ink:#ececf1; --muted:#9a9aa8; --line:#2c2c34; }
@@ -207,7 +216,7 @@ _TEMPLATE = """\
   const view = JSON.parse(document.getElementById('view').textContent);
   const KIND = {compute:'--compute',state:'--state',schema:'--schema',config:'--config',
                 external:'--external',pipeline:'--pipeline'};
-  const HEALTH = {green:'--green',red:'--red',degraded:'--degraded'};
+  const HEALTH = {green:'--green',red:'--red',degraded:'--degraded',grey:'--grey',amber:'--amber'};
   const cvar = n => getComputedStyle(document.documentElement).getPropertyValue(n) || '#888';
   const main = document.getElementById('main');
   const esc = s => (s??'').toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -217,6 +226,7 @@ _TEMPLATE = """\
     document.getElementById('summary').innerHTML =
       `${view.nodes.length} nodes · ${view.edges.length} edges · ` +
       `<span class="cov">coverage ${Math.round(c.coverage*100)}%</span> · ` +
+      `<span class="cov">executable ${view.executable}/${view.nodeCount}</span> · ` +
       `${view.reconciled ? 'reconciled ✓' : 'drift ✗'}` +
       (view.commit ? ` · @${esc(view.commit)}` : '');
   }
@@ -261,10 +271,11 @@ _TEMPLATE = """\
     main.innerHTML = Object.keys(g).sort().map(name =>
       `<div class="group"><h2>${esc(name)}</h2><div class="grid">` +
       g[name].map(n => {
-        const hv = HEALTH[n.health]||'--line';
+        const hv = HEALTH[n.healthColour]||'--line';
         const card = nodeCard(n, hv);
         const dot = `<span class="dot" style="background:${cvar(hv)}"></span>`;
-        return card.replace('<div class="id">', `<div class="id">${dot}`);
+        const label = `<span class="badge">${esc(n.health)}</span>`;
+        return card.replace('<div class="id">', `<div class="id">${dot}${label}`);
       }).join('') + `</div></div>`).join('');
   }
 

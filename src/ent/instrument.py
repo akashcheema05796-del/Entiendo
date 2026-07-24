@@ -18,7 +18,7 @@ import functools
 import time
 from typing import Callable, TypeVar
 
-from . import tracing
+from . import testing, tracing
 from .tracing import Span
 
 F = TypeVar("F", bound=Callable[..., object])
@@ -37,6 +37,12 @@ def node(node_id: str, *, span_name: str | None = None) -> Callable[[F], F]:
     def decorator(fn: F) -> F:
         @functools.wraps(fn)
         def wrapper(*args: object, **kwargs: object) -> object:
+            # tier0 isolation: a call to a *neighbour* node is served from the
+            # fixture stubs (or raises), and never actually runs — no I/O.
+            handled, stubbed = testing.intercept(node_id)
+            if handled:
+                return stubbed
+
             span = Span(node_id=node_id, name=name)
             span_token = tracing._current.set(span)
             start = time.perf_counter()

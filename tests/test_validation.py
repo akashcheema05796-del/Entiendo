@@ -108,3 +108,25 @@ def test_empty_root_reports_no_manifests(tmp_path: Path) -> None:
     report = validate_root(tmp_path)
     assert not report.ok
     assert any("no entiendo.node.yaml" in e for e in report.cross_errors)
+
+
+def test_entrypoint_must_be_claimed(tmp_path: Path) -> None:
+    body = WELL_FORMED.replace(
+        "contract:\n  invariants: []\n  sideEffects: none",
+        "contract:\n  entrypoint: other.py::run\n  invariants: []\n  sideEffects: none",
+    )
+    manifest = _write(tmp_path, body)
+    report = validate_paths([manifest], root=tmp_path)
+    assert not report.ok
+    assert any("not in claims" in e for e in report.results[0].errors)
+
+
+def test_invariant_with_dunder_is_rejected(tmp_path: Path) -> None:
+    body = WELL_FORMED.replace(
+        "invariants: []",
+        'invariants: ["__import__(\'os\')"]',
+    )
+    manifest = _write(tmp_path, body)
+    report = validate_paths([manifest], root=tmp_path)
+    assert not report.ok
+    assert any("contract.invariants" in e for e in report.results[0].errors)

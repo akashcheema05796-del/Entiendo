@@ -37,12 +37,56 @@ def ndcg_at_k(actual: Any, expected: Any, k: int) -> float:
     return dcg / ideal if ideal > 0 else 0.0
 
 
+def f1(actual: Any, expected: Any) -> float:
+    """Set F1 over actual['items'] vs expected['items'] (order-independent)."""
+    a = set(actual.get("items", []) if isinstance(actual, dict) else actual or [])
+    e = set(expected.get("items", []) if isinstance(expected, dict) else expected or [])
+    if not a and not e:
+        return 1.0
+    tp = len(a & e)
+    if tp == 0:
+        return 0.0
+    precision = tp / len(a)
+    recall = tp / len(e)
+    return 2 * precision * recall / (precision + recall)
+
+
+def contains(actual: Any, expected: Any) -> float:
+    """1.0 if expected['text'] is a substring of actual['text']."""
+    a = actual.get("text", "") if isinstance(actual, dict) else str(actual)
+    e = expected.get("text", "") if isinstance(expected, dict) else str(expected)
+    return 1.0 if e in a else 0.0
+
+
 def get_metric(name: str) -> Metric:
-    """Resolve a metric by name. Supports 'ndcg@<k>', 'exact_match', 'accuracy'."""
+    """Resolve a metric by name.
+
+    Built-ins: 'ndcg@<k>', 'exact_match', 'accuracy', 'f1', 'contains'.
+    Custom: a dotted path 'module.path:callable' (Phase 7 §6.1) so no one has to
+    patch the runner to score their own node.
+    """
     if name.startswith("ndcg@"):
         k = int(name.split("@", 1)[1])
         return lambda a, e: ndcg_at_k(a, e, k)
-    table: dict[str, Metric] = {"exact_match": exact_match, "accuracy": accuracy}
-    if name not in table:
-        raise KeyError(f"unknown metric '{name}' (have: ndcg@k, {', '.join(table)})")
-    return table[name]
+    table: dict[str, Metric] = {
+        "exact_match": exact_match, "accuracy": accuracy, "f1": f1, "contains": contains,
+    }
+    if name in table:
+        return table[name]
+    if ":" in name:
+        return _load_custom(name)
+    raise KeyError(f"unknown metric '{name}' (have: ndcg@k, {', '.join(table)}, or a dotted path)")
+
+
+def _load_custom(dotted: str) -> Metric:
+    import importlib
+
+    module_name, _, attr = dotted.partition(":")
+    try:
+        module = importlib.import_module(module_name)
+        fn = getattr(module, attr)
+    except Exception as exc:
+        raise KeyError(f"could not load custom metric '{dotted}': {exc}")
+    if not callable(fn):
+        raise KeyError(f"custom metric '{dotted}' is not callable")
+    return fn

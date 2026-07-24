@@ -132,6 +132,27 @@ Implemented:
 
 ---
 
+## Phase 7 — Real Evals ☑
+
+The phase that makes `GREEN` mean "the node behaved," not "the YAML is valid".
+A node's eval now **executes the node**. See `docs/phase7.md` for detail.
+
+- **7.1 Execution contract** — `contract.entrypoint: <path>::<callable>` (must be
+  claimed); resolver + decorator cross-check (drift). `src/ent/evals/entrypoint.py`.
+- **7.2 Isolation** — tier0 runs with no I/O: dependency calls are served from
+  fixture stubs; an unstubbed call is `TIER0_IO_VIOLATION`. `src/ent/testing.py`.
+- **7.3 Real invariants + verdicts** — a restricted AST evaluator (no eval/exec)
+  evaluates invariants against real output; verdicts GREEN/RED/UNTESTED/ERROR;
+  the render surface shows "executable N/M". `src/ent/invariants.py`, `verdicts.py`.
+- **7.4 tier1 runner** — golden datasets, metrics, minRuns, anti-flicker
+  statistics (§7: WITHIN_BAND/REGRESSED/IMPROVED/UNSTABLE), budgets (DEGRADED).
+- **7.5 Blessing + baselines** — `ent bless` signs dataset content (void on
+  change → advisory); `ent baseline accept` promotes a pending baseline.
+
+**One-line test (§15):** break `ranker.py`, run `ent eval retrieval.chunk_ranker`
+→ RED naming the failed invariant with the real numbers
+(`len(output.chunks)=2 <= input.k=1`). Covered by `tests/test_evals.py`.
+
 ## Extensions (beyond the spec)
 
 Built after the L0 → L5 phases, one PR each, CI-gated.
@@ -139,8 +160,7 @@ Built after the L0 → L5 phases, one PR each, CI-gated.
 | # | Extension | Status |
 |---|---|---|
 | E1 | CI (GitHub Actions: pytest + validate/extract/eval) | ☑ |
-| E2 | tier1/tier2 eval runners (golden scoring + LLM-judge) | ☑ |
-| E3 | Runtime invariant enforcement | ☐ |
+| E2 | tier1/tier2 eval runners (superseded/extended by Phase 7) | ☑ |
 | E4 | Retrofit path (§12 v2) — AI-proposed manifests | ☐ |
 
 **E2 — tier1/tier2.** `src/ent/evals/metrics.py` (ndcg@k / exact_match /
