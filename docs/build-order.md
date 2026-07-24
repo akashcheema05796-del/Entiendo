@@ -12,7 +12,9 @@ Legend: ☐ not started · ◐ in progress · ☑ done
 | 3 | L2 — Instrumentation + eval runner | ☑ `@ent.node()` spans + `ent eval` tier0 |
 | 4 | L3/L4 — History + render (lenses 1, 4, 5) | ☑ `ent snapshot` + `ent render` |
 | 5 | L4 — remainder (lenses 2, 3, 6) | ☑ flow / trace / blast radius |
-| 6 | L5 — Scoped edit loop | ☐ |
+| 6 | L5 — Scoped edit loop | ☑ `ent edit` — context + boundary + verdict + approval |
+
+**All phases complete.** The full loop L0 → L5 is implemented.
 
 ---
 
@@ -114,7 +116,19 @@ and blast-radius reachability/ranking.
 Context assembler, claim-boundary enforcement, auto tier0 rerun, approval gates.
 
 **Acceptance:** clicking a node and requesting a change produces an edit confined
-to `claims`, with a pass/fail verdict, without loading unrelated files.
+to `claims`, with a pass/fail verdict, without loading unrelated files. ✓ **Met** —
+`ent edit <node>` assembles a context of only the node's claimed file bodies +
+immediate neighbours' contracts (no bodies) + recent evals + baseline;
+`ent edit <node> --changed <paths>` enforces the claim boundary, reruns tier0 for
+a pass/fail verdict, shows the blast radius, and applies the approval gate.
+`tests/test_editloop.py`.
+
+Implemented:
+- `src/ent/editloop.py` — `assemble_context()` (the manifest IS the retrieval
+  index — nothing outside the node is loaded), `check_boundary()`, `review_edit()`
+  (boundary + tier0 + blast radius + approval → status).
+- `src/ent/commands/edit.py` — `ent edit`: show scoped context, or review an edit
+  (exit 0 ready/awaiting-signoff, 1 blocked, `--json` for machine use).
 
 ---
 
