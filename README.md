@@ -16,20 +16,19 @@ This README is the map to the scaffold.
 
 ---
 
-## Status: L0–L2 working, L3+ scaffolded
+## Status: L0–L4 working (lenses 1/4/5), L4-remainder + L5 scaffolded
 
-Phases 1–3 (L0 boundaries, L1 extractor/reconciler, L2 instrumentation + tier0
-evals) are **implemented**: `ent validate`, `ent init`, `ent extract`, and
-`ent eval` work, and `@ent.node()` emits spans. The rest of the architecture is
-present and wired; logic lands phase by phase (L3 → L5). Each not-yet-built
-subcommand runs today and tells you which phase implements it.
+Phases 1–4 are **implemented**: `ent validate`, `ent init`, `ent extract`,
+`ent eval`, `ent snapshot`, and `ent render` work; `@ent.node()` emits spans.
+Remaining: lenses 2/3/6 (Phase 5) and the scoped edit loop (Phase 6).
 
 ```
 $ ent validate      # validates every entiendo.node.yaml; specific errors; exit 0/1
 $ ent init          # scaffolds entiendo/ (+ a starter manifest with --node-id/--at)
 $ ent extract       # emits graph.json + coverage.json; fails on undeclared-dep drift
 $ ent eval <node>   # runs tier0 (schema/invariant/smoke); green/red verdict, <2s
-$ ent render        # → "not implemented yet — planned for Phase 4 (L4)"
+$ ent snapshot      # records composite versions + verdicts to append-only history
+$ ent render        # builds a self-contained HTML map: structure / health / timeline
 ```
 
 What **is** real today:
@@ -49,10 +48,16 @@ What **is** real today:
   cost/tokens), never in the request path (Invariant 2). `ent eval` runs the
   deterministic tier0 checks (schema / invariant / smoke) to a green/red verdict.
   See `src/ent/instrument.py`, `src/ent/tracing.py`, `src/ent/evals/runner.py`.
+- **`ent snapshot` + `ent render`** — L3/L4: `snapshot` records composite
+  versions (code/prompt/config/model) + tier0 verdicts to an append-only history
+  log (version events dedup, so the timeline shows *changes*); `render` builds a
+  self-contained HTML system map with three lenses — structure (kind/group),
+  health (verdict colour, matches `ent eval`), timeline (version + eval history).
+  Read-only, never in the request path (Invariant 2). See `src/ent/render.py`,
+  `src/ent/history.py`, `src/ent/version.py`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
-  project laid out the Entiendo way. It validates, reconciles clean at 100%
-  coverage, and every node passes tier0:
-  `cd examples/greenfield && ent validate && ent extract && ent eval retrieval.chunk_ranker`.
+  project laid out the Entiendo way. Full loop:
+  `cd examples/greenfield && ent validate && ent extract && ent snapshot && ent render`.
 - **`src/ent/`** — the package: CLI, one module per layer.
 
 ---
