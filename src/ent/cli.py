@@ -10,7 +10,8 @@ criteria pass.
     ent validate     L0  validate manifests against the schema
     ent extract      L1  emit graph.json + coverage.json; fail on drift
     ent eval <node>  L2  run a node's evals (tier0 by default)
-    ent render       L4  serve the render surface (six lenses)
+    ent snapshot     L3  record node versions + eval verdicts to history
+    ent render       L4  build/serve the render surface (lenses 1, 4, 5)
     ent version      -   print version + apiVersion
 """
 
@@ -25,6 +26,7 @@ from .commands import init as init_cmd
 from .commands import validate as validate_cmd
 from .commands import extract as extract_cmd
 from .commands import eval as eval_cmd
+from .commands import snapshot as snapshot_cmd
 from .commands import render as render_cmd
 
 
@@ -44,6 +46,7 @@ def _build_parser() -> argparse.ArgumentParser:
     validate_cmd.register(sub)
     extract_cmd.register(sub)
     eval_cmd.register(sub)
+    snapshot_cmd.register(sub)
     render_cmd.register(sub)
 
     return parser

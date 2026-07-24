@@ -10,7 +10,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done
 | 1 | L0 — Boundaries | ☑ `ent validate` + `ent init` working |
 | 2 | L1 — Extractor & reconciler | ☑ `ent extract` → graph.json + coverage.json |
 | 3 | L2 — Instrumentation + eval runner | ☑ `@ent.node()` spans + `ent eval` tier0 |
-| 4 | L3/L4 — History + render (lenses 1, 4, 5) | ☐ |
+| 4 | L3/L4 — History + render (lenses 1, 4, 5) | ☑ `ent snapshot` + `ent render` |
 | 5 | L4 — remainder (lenses 2, 3, 6) | ☐ |
 | 6 | L5 — Scoped edit loop | ☐ |
 
@@ -82,7 +82,19 @@ Append-only history store. Web surface: structure, health, timeline. Ship these
 three first — they deliver the "everything under control" glance.
 
 **Acceptance:** a node's version change is visible on the timeline within one
-commit; health colour matches `ent eval` output.
+commit; health colour matches `ent eval` output. ✓ **Met** — `ent snapshot`
+records composite versions (deduped, so only *changes* land) + eval verdicts to
+an append-only log; `ent render` builds a self-contained HTML surface whose Health
+lens computes verdicts via the same `run_tier0`, so the colour matches `ent eval`
+by construction. `tests/test_history.py` + `tests/test_render.py`.
+
+Implemented:
+- `src/ent/version.py` — composite version (code/prompt/config/model), deterministic
+- `src/ent/history.py` — append-only JSONL event log; version dedup; timeline reads
+- `src/ent/gitinfo.py` — commit + timestamp stamping (degrades outside git)
+- `src/ent/commands/snapshot.py` — `ent snapshot`: record versions + verdicts
+- `src/ent/render.py` + `src/ent/commands/render.py` — `ent render`: lenses 1
+  (structure), 4 (health), 5 (timeline) as one self-contained page; `--serve` too
 
 ## Phase 5 — L4 remainder: lenses 2, 3, 6
 Flow, trace, blast radius.
