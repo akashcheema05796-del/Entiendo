@@ -16,20 +16,20 @@ This README is the map to the scaffold.
 
 ---
 
-## Status: L0–L4 working (all six lenses), L5 scaffolded
+## Status: complete — L0 → L5 implemented
 
-Phases 1–5 are **implemented**: `ent validate`, `ent init`, `ent extract`,
-`ent eval`, `ent snapshot`, and `ent render` work; `@ent.node()` emits spans; and
-the render surface ships all six lenses (structure, flow, trace, health,
-timeline, blast radius). Remaining: the scoped edit loop (Phase 6, L5).
+All six phases (SPEC.md §8) are **implemented**. The full loop works end to end:
+declare nodes → reconcile the graph → instrument + eval → record history →
+render six lenses → edit through the node.
 
 ```
-$ ent validate      # validates every entiendo.node.yaml; specific errors; exit 0/1
-$ ent init          # scaffolds entiendo/ (+ a starter manifest with --node-id/--at)
-$ ent extract       # emits graph.json + coverage.json; fails on undeclared-dep drift
-$ ent eval <node>   # runs tier0 (schema/invariant/smoke); green/red verdict, <2s
-$ ent snapshot      # records composite versions + verdicts to append-only history
-$ ent render        # builds a self-contained HTML map: structure / health / timeline
+$ ent validate       # validates every entiendo.node.yaml; specific errors; exit 0/1
+$ ent init           # scaffolds entiendo/ (+ a starter manifest with --node-id/--at)
+$ ent extract        # emits graph.json + coverage.json; fails on undeclared-dep drift
+$ ent eval <node>    # runs tier0 (schema/invariant/smoke); green/red verdict, <2s
+$ ent snapshot       # records composite versions + verdicts to append-only history
+$ ent render         # builds a self-contained HTML map: all six lenses
+$ ent edit <node>    # scoped context; --changed reviews an edit (boundary+verdict+approval)
 ```
 
 What **is** real today:
@@ -59,9 +59,14 @@ What **is** real today:
   Record a request with `history.capture_trace(root, trace_id=...)`. Read-only,
   never in the request path (Invariant 2). See `src/ent/render.py`,
   `src/ent/history.py`, `src/ent/version.py`.
+- **`ent edit`** — L5 scoped edit loop: assembles a context of only the node's
+  claimed file bodies + immediate neighbours' contracts (no bodies) + recent
+  evals + baseline — the AI edits through the node, not the repo (Invariant 8).
+  `--changed` enforces the claim boundary, reruns tier0, shows blast radius, and
+  applies the approval gate. See `src/ent/editloop.py`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
   project laid out the Entiendo way. Full loop:
-  `cd examples/greenfield && ent validate && ent extract && ent snapshot && ent render`.
+  `cd examples/greenfield && ent validate && ent extract && ent snapshot && ent render && ent edit retrieval.chunk_ranker`.
 - **`src/ent/`** — the package: CLI, one module per layer.
 
 ---

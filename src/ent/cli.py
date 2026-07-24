@@ -11,7 +11,8 @@ criteria pass.
     ent extract      L1  emit graph.json + coverage.json; fail on drift
     ent eval <node>  L2  run a node's evals (tier0 by default)
     ent snapshot     L3  record node versions + eval verdicts to history
-    ent render       L4  build/serve the render surface (lenses 1, 4, 5)
+    ent render       L4  build/serve the render surface (six lenses)
+    ent edit <node>  L5  scoped edit loop: context + boundary + verdict + approval
     ent version      -   print version + apiVersion
 """
 
@@ -28,6 +29,7 @@ from .commands import extract as extract_cmd
 from .commands import eval as eval_cmd
 from .commands import snapshot as snapshot_cmd
 from .commands import render as render_cmd
+from .commands import edit as edit_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -48,6 +50,7 @@ def _build_parser() -> argparse.ArgumentParser:
     eval_cmd.register(sub)
     snapshot_cmd.register(sub)
     render_cmd.register(sub)
+    edit_cmd.register(sub)
 
     return parser
 

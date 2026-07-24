@@ -19,7 +19,7 @@ L5  Scoped edit loop          — node → AI context → edit → eval → verd
 | L2 | `src/ent/instrument.py`, `src/ent/evals/`, `commands/eval.py` | `@ent.node()` is the single piece of code that must live in the app. |
 | L3 | `src/ent/history.py`, `version.py`, `commands/snapshot.py` | Append-only JSONL event log; composite versions. Storage split target: git + Parquet/DuckDB + span store. |
 | L4 | `src/ent/render.py`, `commands/render.py` | Lenses 1/4/5 shipped (structure, health, timeline); 2/3/6 next. Read-only, never in the request path (Invariant 2). |
-| L5 | Phase 6 | Context assembler + claim-boundary enforcement + approval gates. |
+| L5 | `src/ent/editloop.py`, `commands/edit.py` | Context assembler + claim-boundary enforcement + tier0 rerun + blast radius + approval gates. |
 
 ## Trace binding (L2)
 
