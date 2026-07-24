@@ -1,0 +1,3 @@
+# Keep this a clean "unmanaged" example — retrofit outputs are runtime.
+/entiendo/
+**/entiendo.node.yaml

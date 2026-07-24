@@ -161,7 +161,15 @@ Built after the L0 → L5 phases, one PR each, CI-gated.
 |---|---|---|
 | E1 | CI (GitHub Actions: pytest + validate/extract/eval) | ☑ |
 | E2 | tier1/tier2 eval runners (superseded/extended by Phase 7) | ☑ |
-| E4 | Retrofit path (§12 v2) — AI-proposed manifests | ☐ |
+| E4 | Retrofit path (§12 v2) — AI-proposed manifests | ☑ `ent retrofit` |
+
+**E4 — retrofit.** `ent retrofit <root>` infers node boundaries in an unmanaged
+repo (group by directory, kind from extensions, deps from static import
+analysis, entrypoint from a single public function) and stages one manifest
+*proposal* per node under `entiendo/proposals/`, each with a confidence + notes.
+`--accept <id>` / `--accept-all` promotes them into place — a semi-automated
+migration reviewed node by node, never a silent scan. `examples/legacy/` is the
+unmanaged input; `src/ent/retrofit.py`; `tests/test_retrofit.py`.
 
 **E2 — tier1/tier2.** `src/ent/evals/metrics.py` (ndcg@k / exact_match /
 accuracy), `entrypoint.py` (import a node's `@ent.node()` callable), and

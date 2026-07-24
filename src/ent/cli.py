@@ -32,6 +32,7 @@ from .commands import render as render_cmd
 from .commands import edit as edit_cmd
 from .commands import bless as bless_cmd
 from .commands import baseline as baseline_cmd
+from .commands import retrofit as retrofit_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -55,6 +56,7 @@ def _build_parser() -> argparse.ArgumentParser:
     edit_cmd.register(sub)
     bless_cmd.register(sub)
     baseline_cmd.register(sub)
+    retrofit_cmd.register(sub)
 
     return parser
 
