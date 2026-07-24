@@ -16,27 +16,32 @@ This README is the map to the scaffold.
 
 ---
 
-## Status: scaffold
+## Status: L0 working, L1+ scaffolded
 
-This repository is a **structural scaffold**, not a working tool yet. Every
-piece of the architecture is present and wired so the shape is legible, but the
-logic lands phase by phase (L0 → L5). Each `ent` subcommand runs today and tells
-you which phase implements it.
+Phase 1 (L0 — Boundaries) is **implemented**: `ent validate` and `ent init`
+work. The rest of the architecture is present and wired so the shape is legible;
+logic lands phase by phase (L1 → L5). Each not-yet-built subcommand runs today
+and tells you which phase implements it.
 
 ```
-$ ent --help
-$ ent validate      # → "not implemented yet — planned for Phase 1 (L0)"
+$ ent validate      # validates every entiendo.node.yaml; specific errors; exit 0/1
+$ ent init          # scaffolds entiendo/ (+ a starter manifest with --node-id/--at)
+$ ent extract       # → "not implemented yet — planned for Phase 2 (L1)"
 ```
 
-What **is** real in the scaffold:
+What **is** real today:
 
 - **[`SPEC.md`](./SPEC.md)** — the complete specification (v2).
 - **[`schemas/node.schema.json`](./schemas/node.schema.json)** — the manifest
   JSON-Schema. This is *the contract for the entire system* (SPEC.md §12).
+- **`ent validate` / `ent init`** — L0 boundaries: schema conformance plus the
+  semantic rules (id uniqueness, `$ref` resolution, claim existence, the
+  `humanBlessed` gate on tier1 golden sets). See `src/ent/validation.py`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
-  project laid out the Entiendo way, with a real manifest of each node kind.
-- **`src/ent/`** — the package skeleton: CLI, one module per layer, the
-  `@ent.node()` decorator (a safe pass-through until Phase 3).
+  project laid out the Entiendo way, with a real manifest of each node kind. It
+  validates clean: `cd examples/greenfield && ent validate`.
+- **`src/ent/`** — the package: CLI, one module per layer, the `@ent.node()`
+  decorator (a safe pass-through until Phase 3).
 
 ---
 
@@ -109,7 +114,9 @@ Entiendo/
   src/ent/                    the tool
     cli.py                    argparse entry; one file per subcommand under commands/
     commands/                 init, validate, extract, eval, render
-    manifest.py               L0  node model + constants
+    manifest.py               L0  node model: discover, load, Node
+    schema.py                 L0  schema load + validator
+    validation.py             L0  schema + semantic checks
     extractor.py              L1  reconciler (stub)
     version.py                L1/L3 composite versioning (stub)
     instrument.py             L2  @ent.node() decorator (safe pass-through)

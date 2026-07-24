@@ -1,17 +1,19 @@
 """L0 — Manifest model. The core primitive of Entiendo.
 
-STUB. Phase 1 turns this into a typed loader/model for entiendo.node.yaml. For
-now it documents the shape and offers the constants the rest of the scaffold
-agrees on. The authoritative contract is schemas/node.schema.json — this module
-must never drift from it (that reconciliation is itself an L0 acceptance test).
+A node is declared by exactly one `entiendo.node.yaml`, colocated with the
+module it describes (SPEC.md §1.3). This module discovers, loads, and offers a
+thin typed view over those files. The authoritative *contract* is
+schemas/node.schema.json — this module never re-implements validation, it defers
+to it (see schema.py + validation.py).
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-# Every node is declared by a file with this exact name, colocated with the
-# module it describes (SPEC.md §1.3).
+# Every node is declared by a file with this exact name (SPEC.md §1.3).
 MANIFEST_FILENAME = "entiendo.node.yaml"
 
 # The manifest apiVersion this scaffold speaks.
@@ -26,18 +28,72 @@ SIDE_EFFECTS = ("none", "writes", "external", "irreversible")
 # Lifecycle states.
 STATUSES = ("active", "deprecated", "experimental")
 
+# Directories that never contain project manifests — skip them during discovery.
+_SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", ".mypy_cache",
+             ".pytest_cache", "dist", "build"}
+
 
 def schema_path() -> Path:
     """Absolute path to the bundled node JSON-Schema.
 
-    Resolved relative to the repo root so tests and the (future) validator agree
-    on a single source of truth.
+    Resolved relative to the repo root so tests and the validator agree on a
+    single source of truth.
     """
     # src/ent/manifest.py → repo root is two parents up from src/ent.
     return Path(__file__).resolve().parents[2] / "schemas" / "node.schema.json"
 
 
-# Phase 1 will add:
-#   @dataclass class Node: ...           # typed view over the parsed yaml
-#   def load(path: Path) -> Node: ...    # parse + normalise
-#   def discover(root: Path) -> list[Path]: ...  # find every manifest
+def discover(root: Path) -> list[Path]:
+    """Find every `entiendo.node.yaml` under `root`, sorted for stable output.
+
+    Prunes vendored / generated directories so discovery stays fast and doesn't
+    trip over unrelated files.
+    """
+    root = Path(root)
+    found: list[Path] = []
+    for path in root.rglob(MANIFEST_FILENAME):
+        if any(part in _SKIP_DIRS for part in path.relative_to(root).parts):
+            continue
+        found.append(path)
+    return sorted(found)
+
+
+def load(path: Path) -> dict[str, Any]:
+    """Parse a manifest file into a plain dict.
+
+    Raises:
+        ModuleNotFoundError: if `pyyaml` is not installed.
+        yaml.YAMLError: if the file is not valid YAML.
+        ValueError: if the document is not a mapping.
+    """
+    import yaml  # local import: keeps the dependency lazy
+
+    data = yaml.safe_load(Path(path).read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: manifest must be a YAML mapping, got {type(data).__name__}")
+    return data
+
+
+@dataclass(frozen=True)
+class Node:
+    """A thin typed view over a parsed manifest.
+
+    Only surfaces the fields the L0 tooling needs today; the raw dict is kept on
+    `.raw` so later phases can reach anything without a model change.
+    """
+
+    id: str
+    node_kind: str
+    path: Path
+    claims: tuple[str, ...]
+    raw: dict[str, Any]
+
+    @classmethod
+    def from_manifest(cls, data: dict[str, Any], path: Path) -> "Node":
+        return cls(
+            id=data.get("id", ""),
+            node_kind=data.get("nodeKind", ""),
+            path=Path(path),
+            claims=tuple(data.get("claims", []) or []),
+            raw=data,
+        )
