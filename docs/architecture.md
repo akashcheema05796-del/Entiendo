@@ -43,6 +43,7 @@ service — the tool must be trivially recoverable (SPEC.md §12).
 
 One topology, six views — same boxes every time, only the meaning of colour and
 motion changes (SPEC.md §4): **Structure**, **Flow**, **Trace**, **Health**,
-**Timeline**, **Blast radius**. Ship structure/health/timeline first (Phase 4);
-flow/trace/blast follow (Phase 5). Every lens must terminate in an action — edit,
-revert, or approve — or it gets cut (SPEC.md §10).
+**Timeline**, **Blast radius**. All six ship (Phases 4–5): structure/health/
+timeline first, then flow/trace/blast. Every lens must terminate in an action —
+edit, revert, or approve — or it gets cut (SPEC.md §10); the scoped edit loop
+(L5, Phase 6) provides that action surface.

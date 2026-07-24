@@ -30,7 +30,7 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
     p.add_argument("--port", type=int, default=7373, help="port for --serve (default: 7373)")
     p.add_argument(
         "--lens",
-        choices=["structure", "health", "timeline"],
+        choices=["structure", "flow", "trace", "health", "timeline", "blast"],
         default="structure",
         help="initial lens (default: structure)",
     )

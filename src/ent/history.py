@@ -21,8 +21,9 @@ the queryable index over them and over eval results.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 HISTORY_DIR = "entiendo/history"
 BASELINES_DIR = "entiendo/baselines"
@@ -119,3 +120,68 @@ def timeline(root: Path, node_id: str | None = None) -> list[dict[str, Any]]:
     if node_id is None:
         return events
     return [e for e in events if e.get("nodeId") == node_id]
+
+
+def append_trace(
+    root: Path,
+    hops: list[dict[str, Any]],
+    *,
+    trace_id: str,
+    commit: str | None = None,
+    ts: str | None = None,
+) -> dict[str, Any]:
+    """Append a trace event — one request's hops (node, latency, status, cost).
+
+    The trace lens (lens 3) reads these to answer 'what happened to *this*
+    request?' with latency per hop.
+    """
+    total = round(max((h.get("duration_ms", 0.0) for h in hops), default=0.0), 3)
+    return _append(
+        root,
+        {
+            "kind": "trace",
+            "traceId": trace_id,
+            "hops": hops,
+            "totalMs": total,
+            "commit": commit,
+            "ts": ts,
+        },
+    )
+
+
+def traces(root: Path) -> list[dict[str, Any]]:
+    """All recorded trace events, in order."""
+    return [e for e in read_events(root) if e.get("kind") == "trace"]
+
+
+@contextmanager
+def capture_trace(
+    root: Path,
+    *,
+    trace_id: str,
+    commit: str | None = None,
+    ts: str | None = None,
+) -> Iterator[list[Any]]:
+    """Capture spans from `@ent.node()` calls in this block and record them.
+
+    Read-only: this only observes and persists — it never alters the wrapped
+    calls (Invariant 2). Usage:
+
+        with history.capture_trace(root, trace_id="req-1"):
+            handle_request(...)
+    """
+    from . import tracing  # L3 may depend on L2
+
+    with tracing.capture() as spans:
+        yield spans
+    hops = [
+        {
+            "node": s.node_id,
+            "duration_ms": round(s.duration_ms, 3),
+            "status": s.status,
+            "cost_usd": s.cost_usd,
+            "tokens": s.tokens,
+        }
+        for s in spans
+    ]
+    append_trace(root, hops, trace_id=trace_id, commit=commit, ts=ts)

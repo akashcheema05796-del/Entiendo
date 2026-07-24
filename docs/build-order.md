@@ -11,7 +11,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done
 | 2 | L1 — Extractor & reconciler | ☑ `ent extract` → graph.json + coverage.json |
 | 3 | L2 — Instrumentation + eval runner | ☑ `@ent.node()` spans + `ent eval` tier0 |
 | 4 | L3/L4 — History + render (lenses 1, 4, 5) | ☑ `ent snapshot` + `ent render` |
-| 5 | L4 — remainder (lenses 2, 3, 6) | ☐ |
+| 5 | L4 — remainder (lenses 2, 3, 6) | ☑ flow / trace / blast radius |
 | 6 | L5 — Scoped edit loop | ☐ |
 
 ---
@@ -97,7 +97,18 @@ Implemented:
   (structure), 4 (health), 5 (timeline) as one self-contained page; `--serve` too
 
 ## Phase 5 — L4 remainder: lenses 2, 3, 6
-Flow, trace, blast radius.
+Flow, trace, blast radius. ☑ **Done.**
+
+- **Flow (2):** directed edges + per-node volume (traffic count from recorded traces).
+- **Trace (3):** `history.capture_trace(root, trace_id=...)` records a request's
+  hops (node, latency, status, cost) from `@ent.node()` spans; the lens shows
+  latency per hop. `src/ent/history.py`.
+- **Blast radius (6):** `render.blast_radius(view, node_id)` computes transitive
+  downstream dependents ranked by direct contract coupling; the page highlights
+  them interactively. `src/ent/render.py`.
+
+`tests/test_lenses.py` covers trace recording (incl. error hops), flow volume,
+and blast-radius reachability/ranking.
 
 ## Phase 6 — L5: Scoped edit loop
 Context assembler, claim-boundary enforcement, auto tier0 rerun, approval gates.

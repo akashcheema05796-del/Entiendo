@@ -16,11 +16,12 @@ This README is the map to the scaffold.
 
 ---
 
-## Status: L0–L4 working (lenses 1/4/5), L4-remainder + L5 scaffolded
+## Status: L0–L4 working (all six lenses), L5 scaffolded
 
-Phases 1–4 are **implemented**: `ent validate`, `ent init`, `ent extract`,
-`ent eval`, `ent snapshot`, and `ent render` work; `@ent.node()` emits spans.
-Remaining: lenses 2/3/6 (Phase 5) and the scoped edit loop (Phase 6).
+Phases 1–5 are **implemented**: `ent validate`, `ent init`, `ent extract`,
+`ent eval`, `ent snapshot`, and `ent render` work; `@ent.node()` emits spans; and
+the render surface ships all six lenses (structure, flow, trace, health,
+timeline, blast radius). Remaining: the scoped edit loop (Phase 6, L5).
 
 ```
 $ ent validate      # validates every entiendo.node.yaml; specific errors; exit 0/1
@@ -51,9 +52,12 @@ What **is** real today:
 - **`ent snapshot` + `ent render`** — L3/L4: `snapshot` records composite
   versions (code/prompt/config/model) + tier0 verdicts to an append-only history
   log (version events dedup, so the timeline shows *changes*); `render` builds a
-  self-contained HTML system map with three lenses — structure (kind/group),
-  health (verdict colour, matches `ent eval`), timeline (version + eval history).
-  Read-only, never in the request path (Invariant 2). See `src/ent/render.py`,
+  self-contained HTML system map with **all six lenses** — structure (kind/group),
+  flow (edge direction + trace volume), trace (per-hop latency/cost of a recorded
+  request), health (verdict colour, matches `ent eval`), timeline (version + eval
+  history), and blast radius (downstream dependents ranked by coupling).
+  Record a request with `history.capture_trace(root, trace_id=...)`. Read-only,
+  never in the request path (Invariant 2). See `src/ent/render.py`,
   `src/ent/history.py`, `src/ent/version.py`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
   project laid out the Entiendo way. Full loop:
