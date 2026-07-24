@@ -1,0 +1,41 @@
+apiVersion: entiendo/v1
+kind: Node
+
+id: llm.gateway
+name: LLM Gateway
+nodeKind: external                   # third-party API you don't control
+group: llm
+owner: mehar
+status: active
+
+# An external node claims the local adapter/client you own, not the remote API.
+claims:
+  - src/gateway/client.py
+
+contract:
+  # For an external dependency the contract captures what you require of it and
+  # what you promise callers, plus the fact that it is not deterministic.
+  invariants:
+    - "output.text is a non-empty string on success"
+  sideEffects: external              # none | writes | external | irreversible
+
+dependencies:
+  calls:  []
+  reads:  []
+  writes: []
+  config: [config.retrieval]
+
+evals:
+  tier0:
+    - type: schema_validation
+
+budgets:
+  p95LatencyMs: 2500
+  costPerCallUsd: 0.01
+  tokensPerCall: 4000
+
+observability:
+  spanName: llm.gateway
+
+approval:
+  required: true                     # touching the model boundary needs sign-off

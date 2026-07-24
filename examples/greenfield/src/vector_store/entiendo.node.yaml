@@ -1,0 +1,38 @@
+apiVersion: entiendo/v1
+kind: Node
+
+id: retrieval.vector_store
+name: Vector Store
+nodeKind: compute
+group: retrieval
+owner: mehar
+status: active
+
+claims:
+  - src/vector_store/store.py
+
+contract:
+  invariants:
+    - "all(0.0 <= h.similarity <= 1.0 for h in output.hits)"
+  sideEffects: none
+
+dependencies:
+  calls:  []
+  reads:  [state.doc_index]
+  writes: []
+  config: [config.retrieval]
+
+evals:
+  tier0:
+    - type: invariant_check
+    - type: smoke
+      fixture: evals/retrieval.vector_store/smoke.jsonl
+
+budgets:
+  p95LatencyMs: 120
+
+observability:
+  spanName: retrieval.vector_store
+
+approval:
+  required: false

@@ -1,0 +1,2 @@
+{"input": {"query_vec": [0.1, 0.2, 0.3], "top_n": 5}, "expect": {"similarity_in_unit_range": true}}
+{"input": {"query_vec": [0.0, 0.0, 0.0], "top_n": 1}, "expect": {"similarity_in_unit_range": true}}

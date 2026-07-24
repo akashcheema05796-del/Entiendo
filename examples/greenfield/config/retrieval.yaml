@@ -1,0 +1,12 @@
+# Retrieval config — claimed by node `config.retrieval`.
+# Non-secret config surface. Secrets live in the environment and are referenced
+# by name, never written here (Invariant 6).
+
+top_n: 20            # candidates fetched from the vector store
+k: 5                 # chunks the ranker returns (invariant: top_n >= k)
+
+model: claude-sonnet-4-6
+similarity_threshold: 0.25
+
+# Secret is referenced, not rendered:
+api_key: ${env:LLM_API_KEY}
