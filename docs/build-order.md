@@ -162,6 +162,16 @@ Built after the L0 → L5 phases, one PR each, CI-gated.
 | E1 | CI (GitHub Actions: pytest + validate/extract/eval) | ☑ |
 | E2 | tier1/tier2 eval runners (superseded/extended by Phase 7) | ☑ |
 | E4 | Retrofit path (§12 v2) — AI-proposed manifests | ☑ `ent retrofit` |
+| E5 | Interactive edit surface (`ent serve`) — AI-assisted edit loop | ☑ |
+
+**E5 — interactive edit surface.** `ent serve` puts the scoped edit loop behind a
+web app: click a node → context + evals; describe a change → an LLM (Claude Opus 5)
+edits within the node's claims, tier0 reruns, verdict + blast radius + approval
+surface live, with one-click revert. Backend is stdlib `http.server`
+(`src/ent/server.py`, pure `handle_api` router); the model is
+`src/ent/agent.py` (optional `[serve]` extra); read-only map (Invariant 2), edits
+write claims only. `tests/test_agent.py` + `tests/test_server.py` (stub client,
+no real API). See `docs/edit-surface.md`.
 
 **E4 — retrofit.** `ent retrofit <root>` infers node boundaries in an unmanaged
 repo (group by directory, kind from extensions, deps from static import
