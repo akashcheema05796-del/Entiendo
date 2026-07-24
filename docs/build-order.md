@@ -7,7 +7,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done
 
 | Phase | Layer | Status |
 |---|---|---|
-| 1 | L0 — Boundaries | ◐ scaffold only |
+| 1 | L0 — Boundaries | ☑ `ent validate` + `ent init` working |
 | 2 | L1 — Extractor & reconciler | ☐ |
 | 3 | L2 — Instrumentation + eval runner | ☐ |
 | 4 | L3/L4 — History + render (lenses 1, 4, 5) | ☐ |
@@ -20,11 +20,17 @@ Legend: ☐ not started · ◐ in progress · ☑ done
 Manifest schema, JSON-Schema validator, `ent init`, `ent validate`.
 
 **Acceptance:** a repo with 3 hand-written manifests validates; a malformed one
-fails with a useful error.
+fails with a useful error. ✓ **Met** — `ent validate` validates the five
+greenfield manifests and reports specific, per-field errors on malformed input;
+`tests/test_validation.py` covers both directions.
 
-Scaffold present: `schemas/node.schema.json`, `src/ent/manifest.py`,
-`src/ent/commands/{init,validate}.py`, `examples/greenfield/` (5 manifests).
-Remaining: the parser/model in `manifest.py` and the real validate/init logic.
+Implemented:
+- `src/ent/schema.py` — cached schema load + Draft 2020-12 validator
+- `src/ent/manifest.py` — `discover()`, `load()`, `Node` model
+- `src/ent/validation.py` — schema conformance + semantic rules (id uniqueness,
+  `$ref` resolution, claim existence, `humanBlessed` gate)
+- `src/ent/commands/validate.py` — one-pass report, exit 0/1/2
+- `src/ent/commands/init.py` — idempotent `entiendo/` scaffold + starter manifest
 
 ## Phase 2 — L1: Extractor & reconciler
 Static analysis of claimed files → actual imports/calls. Emit `graph.json`,
