@@ -1,5 +1,7 @@
 # Entiendo
 
+[![CI](https://github.com/akashdatageek/Entiendo/actions/workflows/ci.yml/badge.svg)](https://github.com/akashdatageek/Entiendo/actions/workflows/ci.yml)
+
 > *entiendo* — Spanish for "I understand." The whole claim of the tool is that
 > the human **and** the model can say "I understand this system." CLI binary: `ent`.
 
