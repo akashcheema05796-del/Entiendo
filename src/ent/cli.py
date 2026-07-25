@@ -34,6 +34,7 @@ from .commands import bless as bless_cmd
 from .commands import baseline as baseline_cmd
 from .commands import retrofit as retrofit_cmd
 from .commands import serve as serve_cmd
+from .commands import mcp as mcp_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -59,6 +60,7 @@ def _build_parser() -> argparse.ArgumentParser:
     baseline_cmd.register(sub)
     retrofit_cmd.register(sub)
     serve_cmd.register(sub)
+    mcp_cmd.register(sub)
 
     return parser
 
