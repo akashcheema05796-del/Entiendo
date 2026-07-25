@@ -37,6 +37,10 @@ history = [
 serve = [
   "anthropic>=0.40",
 ]
+# `ent mcp` — Entiendo as an MCP server for Claude Code.
+mcp = [
+  "mcp>=1.0",
+]
 dev = [
   "pytest>=7.0",
 ]
