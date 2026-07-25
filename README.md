@@ -103,6 +103,172 @@ What **is** real today:
 
 ---
 
+## What a project looks like
+
+Point Entiendo at a repo and every declared component becomes a **node** on one
+topology you steer through — not a folder in a tree. This is
+[`examples/greenfield/`](./examples/greenfield/): five nodes, reconciled at 100%
+coverage. Run `cd examples/greenfield && ent extract` and this is the graph it
+derives:
+
+```mermaid
+flowchart LR
+  subgraph retrieval[" retrieval "]
+    ranker["retrieval.chunk_ranker<br/><small>compute · 🟢 GREEN</small>"]
+    vstore["retrieval.vector_store<br/><small>compute · 🟢 GREEN</small>"]
+    idx["state.doc_index<br/><small>state · ⚪ untested</small>"]
+    cfg["config.retrieval<br/><small>config · ⚪ untested</small>"]
+  end
+  subgraph llm[" llm "]
+    gw["llm.gateway<br/><small>external · ⚪ untested</small>"]
+  end
+
+  ranker -->|calls ✓| vstore
+  ranker -->|calls ✓| gw
+  ranker -.->|reads| idx
+  ranker -.->|config| cfg
+  vstore -.->|reads| idx
+  vstore -.->|config| cfg
+  gw    -.->|config| cfg
+
+  classDef compute fill:#3b82f6,stroke:#1c1c22,color:#fff;
+  classDef state fill:#8b5cf6,stroke:#1c1c22,color:#fff;
+  classDef config fill:#64748b,stroke:#1c1c22,color:#fff;
+  classDef external fill:#f59e0b,stroke:#1c1c22,color:#111;
+  class ranker,vstore compute;
+  class idx state;
+  class cfg config;
+  class gw external;
+```
+
+**Reading the map:** colour is the node **kind** (blue `compute` · violet `state`
+· slate `config` · amber `external`). A **solid** arrow is an edge the extractor
+*verified* against a real import (`✓`); a **dashed** arrow is declared but not
+statically provable (`reads`/`config`). Health is the node's tier0 verdict —
+🟢 GREEN means the node **executed** and its invariants held, ⚪ means no
+executable eval yet. An undeclared import would fail `ent extract` naming both
+nodes (Invariant 5), so what you see is guaranteed to match the code.
+
+### The rendered surface — `ent render`
+
+`ent render` builds a **self-contained HTML page** (inline CSS/JS, no build step,
+read-only) with one topology and six lenses — a browser tab each:
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Entiendo — Structure                                                      │
+│  5 nodes · 7 edges · coverage 100% · executable 2/5 · reconciled ✓  @a1b2c │
+├──────────────────────────────────────────────────────────────────────────┤
+│ │1·Structure│ 2·Flow │ 3·Trace │ 4·Health │ 5·Timeline │ 6·Blast radius │ │
+├──────────────────────────────────────────────────────────────────────────┤
+│  retrieval                                                                 │
+│  ▎retrieval.chunk_ranker        [compute] [mehar]        v: a1b2c3d        │
+│  ▎  calls retrieval.vector_store ✓ · calls llm.gateway ✓ · reads … · config…│
+│  ▎retrieval.vector_store        [compute] [mehar]        v: c3d4e5f        │
+│  ▎  reads state.doc_index · config config.retrieval                        │
+│  llm                                                                       │
+│  ▎llm.gateway                   [external] [mehar]       v: 9f8e7d6        │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+The **Health** lens re-colours the same cards by tier0 verdict (it calls the same
+`run_tier0` as `ent eval`, so the colour matches by construction):
+
+```
+  🟢 retrieval.chunk_ranker   GREEN      executed · invariants held
+  🟢 retrieval.vector_store   GREEN      executed · invariants held
+  ⚪ config.retrieval         UNTESTED   no executable eval
+  ⚪ llm.gateway              UNTESTED   no executable eval
+  ⚪ state.doc_index          UNTESTED   no executable eval
+```
+
+The other four: **Flow** (edge direction + per-node traffic volume), **Trace**
+(per-hop latency/cost of one recorded request), **Timeline** (version + eval
+history), **Blast radius** (click a node → its transitive downstream dependents
+light up, ranked by coupling).
+
+### The interactive edit loop — `ent serve`
+
+`ent serve` puts that surface behind a localhost web app: click a node → its
+scoped context; describe a change in English → an LLM edits it **within the
+node's claims**, tier0 reruns, and the verdict + blast radius + approval gate
+update live, with one-click revert:
+
+```
+┌ nodes (by health) ┬ retrieval.chunk_ranker ──────────────────────────────┐
+│ 🟢 chunk_ranker    │ claims:   src/retrieval/ranker.py                     │
+│ 🟢 vector_store    │ contract: len(output.chunks) <= input.k              │
+│ ⚪ doc_index       │ neighbours (contracts only): vector_store · gateway   │
+│ ⚪ gateway         │ [ Run tier0 ]  [ Run tier1 ]                          │
+│ ⚪ retrieval.cfg   │ ┌ describe a change ─────────────────────────────┐    │
+│                   │ │ clamp scores into [0, 1]                        │    │
+│                   │ └──────────────────────────── [ propose & apply ]┘    │
+│                   │ verdict:  🟢 GREEN · ready-to-merge                    │
+│                   │ blast radius:  0 downstream        [ diff ] [ revert ] │
+└───────────────────┴───────────────────────────────────────────────────────┘
+```
+
+The map stays read-only (Invariant 2); only the edit endpoint writes, and only
+inside the claims. A red edit is **blocked**, and the pre-edit content is backed
+up for revert.
+
+---
+
+## How you work with it
+
+Two ways in, same guarantees. Either you drive the loop from the **CLI**, or an
+**AI edits through the node** (`ent serve`, or `ent mcp` with Claude Code).
+
+### The loop
+
+```mermaid
+flowchart LR
+  D["declare<br/><small>entiendo.node.yaml</small>"] --> V["ent validate<br/><small>L0 schema + rules</small>"]
+  V --> X["ent extract<br/><small>graph.json + coverage.json<br/>fail on drift</small>"]
+  X --> E["ent eval<br/><small>tier0 executes the node<br/>GREEN / RED</small>"]
+  E --> R["ent render<br/><small>six lenses</small>"]
+  R --> C["change it<br/><small>ent edit · serve · mcp</small>"]
+  C -->|"confined to claims<br/>tier0 reruns"| E
+```
+
+The manifest **is** the retrieval index: an edit loads only the node's claimed
+file bodies + its immediate neighbours' contracts (no bodies) — never the whole
+repo (Invariant 8). Every edit is boundary-checked, re-evaluated, and gated
+(`ready-to-merge` / `awaiting-signoff` / `blocked`) before it counts as done.
+
+### Editing through the node with Claude Code (`ent mcp`)
+
+Register Entiendo as an MCP server (`.mcp.json` → `{ "command": "ent", "args":
+["mcp"] }`) and Claude Code reads and writes *through the node*, not the file
+tree:
+
+```mermaid
+sequenceDiagram
+  participant CC as Claude Code
+  participant E as Entiendo · ent mcp
+  CC->>E: get_node_context(node)
+  E-->>CC: manifest + claimed file bodies<br/>+ neighbour contracts only
+  CC->>E: apply_edit(node, files)
+  Note over E: rejects paths outside claims<br/>backs up · reruns tier0
+  E-->>CC: verdict · blast radius · approval
+  Note over CC: red → revert_node(node)
+```
+
+A quick tour, end to end:
+
+```bash
+pip install -e '.[dev,mcp]'
+cd examples/greenfield
+ent validate                        # L0: manifests conform
+ent extract                         # L1: graph.json + coverage.json (no drift)
+ent eval retrieval.chunk_ranker     # L2/Phase 7: executes → 🟢 GREEN
+ent render && open entiendo/render.html  # L4: the six-lens map above
+ent serve                           # L5: click-and-edit surface (needs [serve])
+ent mcp                             # L5: same surface as MCP tools for Claude Code
+```
+
+---
+
 ## The node
 
 Everything hangs off one schema. A node is declared by an `entiendo.node.yaml`
