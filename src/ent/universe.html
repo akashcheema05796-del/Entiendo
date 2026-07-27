@@ -78,6 +78,24 @@
     border:1px solid var(--hairline); border-radius:8px; background:#05070ecc; display:none; }
   #minimap.on { display:block; }
 
+  /* Trace picker / Timeline scrubber (H3) — the lens's own instrument */
+  #timebar { position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:6; display:none;
+    background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:11px 15px;
+    backdrop-filter:blur(9px); width:min(700px,92vw); }
+  #timebar.on { display:block; }
+  #timebar h4 { margin:0 0 8px; font-size:10.5px; text-transform:uppercase; letter-spacing:.8px;
+    color:var(--muted); font-family:var(--font-body); }
+  .trace-row { display:flex; gap:10px; align-items:center; padding:5px 7px; border-radius:8px; cursor:pointer; font-size:12px; }
+  .trace-row:hover, .trace-row.sel { background:#ffffff10; }
+  .trace-row .tid { font-family:var(--font-mono); }
+  .trace-row .meta { color:var(--muted); font-family:var(--font-mono); font-size:11px; margin-left:auto; }
+  #timebar input[type=range] { width:100%; accent-color:var(--annotation); }
+  #timebar .axis { display:flex; justify-content:space-between; color:var(--muted); font-size:10.5px;
+    font-family:var(--font-mono); margin-top:4px; }
+  #hopinfo { font-family:var(--font-mono); font-size:11.5px; color:var(--starlight); margin-top:8px; min-height:16px; }
+  #timebar button.mini { background:#05070e99; border:1px solid var(--hairline); color:var(--starlight);
+    border-radius:7px; padding:4px 9px; cursor:pointer; font-size:11.5px; }
+
   /* dossier — logic first, hashes last */
   #dossier { position:fixed; top:0; right:0; height:100%; width:410px; max-width:94vw; z-index:8;
     background:var(--panel); border-left:1px solid var(--hairline); backdrop-filter:blur(12px);
@@ -152,6 +170,7 @@
 
 <div id="legend"></div>
 <canvas id="minimap" width="160" height="110"></canvas>
+<div id="timebar"></div>
 <div id="hint">scroll / pinch = zoom · drag field = pan · / = search · tab = cycle · ? nav</div>
 <div id="snapshot-note">Static snapshot. Run <code>ent serve</code> to steer, re-eval, and revert live.</div>
 <div id="empty"><div><h1>An empty Universe</h1><p>No units are declared yet. Run <code>ent init</code> and <code>ent new</code> to bring the first unit under the plane, then <code>ent render</code>.</p></div></div>
@@ -355,7 +374,12 @@ function drawEdge(e){ const a=byId[e.from], b=byId[e.to]; if(!a||!b) return;
   ctx.save(); ctx.globalAlpha=dim?0.07:(e.verified?0.5:0.26);
   ctx.strokeStyle=e.verified?cvar('--annotation'):cvar('--muted'); ctx.lineWidth=thick/cam.scale;
   ctx.setLineDash(e.verified?[]:[4/cam.scale,5/cam.scale]);
-  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); ctx.restore(); }
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  // Flow lens: per-edge kind label at the midpoint.
+  if (lens==='flow' && !dim && cam.scale>0.6){ ctx.setLineDash([]); ctx.globalAlpha=0.8;
+    ctx.fillStyle=cvar('--muted'); ctx.font=`${10/cam.scale+2}px var(--font-mono),monospace`; ctx.textAlign='center';
+    ctx.fillText((e.kinds||[]).join('/'), (a.x+b.x)/2, (a.y+b.y)/2 - 3); }
+  ctx.restore(); }
 
 function drawUnit(u){
   const dim=isDimmed(u), selectedTint = selected && blast.has(u.id);
@@ -380,8 +404,9 @@ function drawUnit(u){
     ctx.lineWidth=2; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.arc(u.x,u.y,u.r+8,0,Math.PI*2);
     ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=dim?0.16:1; }
 
-  ctx.lineWidth=1.6; ctx.strokeStyle=(lens==='health')?hcol:kcol;
-  ctx.fillStyle=((lens==='health')?hcol:kcol)+(u.container?'1c':'2a');
+  const bodyCol = (lens==='health'||lens==='timeline') ? healthColourAt(u) : kcol;
+  ctx.lineWidth=1.6; ctx.strokeStyle=bodyCol;
+  ctx.fillStyle=bodyCol+(u.container?'1c':'2a');
   if (form==='diamond'){ ctx.fillStyle=cvar('--annotation')+'2a'; ctx.strokeStyle=cvar('--annotation');
     ctx.beginPath(); ctx.moveTo(u.x,u.y-u.r); ctx.lineTo(u.x+u.r,u.y); ctx.lineTo(u.x,u.y+u.r);
     ctx.lineTo(u.x-u.r,u.y); ctx.closePath(); ctx.fill(); ctx.stroke(); }
@@ -422,8 +447,14 @@ function drawUnit(u){
   ctx.textAlign='center';
   ctx.fillText(u.container?`${u.group} (${u.count})`:shortName(u), u.x, u.y+u.r+15);
   if (lens==='flow' && u.traffic>0){ ctx.fillStyle=cvar('--annotation'); ctx.fillText('▤ '+u.traffic, u.x, u.y-u.r-8); }
-  if (lens==='timeline'){ const n=(u.timeline||[]).filter(e=>e.kind==='version').length;
-    if(n){ ctx.fillStyle=cvar('--muted'); ctx.fillText('◷ '+n, u.x, u.y-u.r-8); } }
+  if (lens==='timeline'){
+    // fingerprint band at the scrubbed commit (or now) — a short composite label.
+    const fp=tickAtCommit(u.id,'version',scrubIdx) || (u.timeline||[]).filter(e=>e.kind==='version').slice(-1)[0];
+    if (fp){ ctx.fillStyle=cvar('--annotation'); ctx.font="10px var(--font-mono),monospace";
+      ctx.fillText((fp.composite||'').slice(0,8), u.x, u.y-u.r-8); } }
+  if (lens==='blast' && selected && blast.has(u.id)){
+    const cpl=blastCoupling[u.id]; if (cpl!=null){ ctx.fillStyle=cvar('--signal-amber');
+      ctx.fillText('rank '+cpl, u.x, u.y-u.r-8); } }
   ctx.restore();
 }
 function shortName(u){ const p=u.id.split('.'); return p[p.length-1]; }
@@ -440,10 +471,36 @@ function loop(ts){
   for (const e of edges) drawEdge(e);
   drawParticles();
   for (const u of units) drawUnit(u);
+  drawComet();
   ctx.setTransform(DPR,0,0,DPR,0,0);
   drawMinimap();
   requestAnimationFrame(loop);
 }
+
+// Trace playback: a comet steps hop → hop; a failed hop halts it and pulses red.
+function drawComet(){
+  if (!playTrace) return;
+  const hops=playTrace.hops||[]; if (hops.length<2){ playing=false; return; }
+  const a=byId[hops[playHop]?.node], b=byId[hops[playHop+1]?.node];
+  const hop=hops[playHop+1]||hops[playHop];
+  if (playing && !RM){ playPhase+=0.02; if (playPhase>=1){ playPhase=0; playHop++;
+    if (playHop>=hops.length-1){ playHop=hops.length-2; playPhase=1; playing=false; } } }
+  const failed = hop && hop.status==='error';
+  if (failed) playing=false;
+  let x,y;
+  if (a&&b){ x=a.x+(b.x-a.x)*playPhase; y=a.y+(b.y-a.y)*playPhase; }
+  else if (a){ x=a.x; y=a.y; } else return;
+  const col = failed? cvar('--signal-red') : cvar('--annotation');
+  const pulse = failed? (Math.sin(t*0.3)*2+5) : 5;
+  const g=ctx.createRadialGradient(x,y,0,x,y,pulse+8); g.addColorStop(0,col); g.addColorStop(1,col+'00');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,pulse+8,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,pulse/cam.scale*0.6+2,0,Math.PI*2); ctx.fill();
+  const hi=document.getElementById('hopinfo');
+  if (hi && hop){ hi.innerHTML = `hop ${playHop+1}/${hops.length}: <b>${esc(hop.node)}</b> · `
+    + `${esc(hop.duration_ms)}ms · <span style="color:${hop.status==='error'?'var(--signal-red)':'var(--signal-green)'}">${esc(hop.status)}</span>`
+    + (playing?'':' · <button class="mini" onclick="replayCurrent()">▶ replay</button>'); }
+}
+function replayCurrent(){ if (playTrace) playbackTrace(playTrace); }
 
 function drawMinimap(){
   const on = cam.scale>1.5 && units.length;
@@ -498,8 +555,13 @@ canvas.addEventListener('dblclick', e=>{ // dbl-click a group hull re-collapses;
 });
 
 function onClick(u){ if (u.container){ expanded.add(u.group); buildLayout(); return; } select(u.id); }
+let blastCoupling={};
 function select(id){ if (typeof stopSteerPoll==='function') stopSteerPoll();
   selected=id; blast=new Set(computeBlast(id)); focusIdx=units.findIndex(u=>u.id===id);
+  // rank labels (H3): immediate dependents ranked by direct contract coupling.
+  const cpl={}; for (const e of view.edges){ if (e.to===id) cpl[e.from]=(cpl[e.from]||0)+(e.kinds||[]).length; }
+  const ranked=Object.keys(cpl).sort((a,b)=>cpl[b]-cpl[a]);
+  blastCoupling={}; ranked.forEach((n,i)=>blastCoupling[n]=i+1);
   openDossier(byId[id]||unitFromView(id)); writeUrlState(); }
 function unitFromView(id){ const n=view.nodes.find(x=>x.id===id); return n?unitItem(n):null; }
 function computeBlast(id){ const rev={}; for (const e of view.edges){ (rev[e.to] ??= []).push(e.from); }
@@ -582,7 +644,63 @@ window.addEventListener('hashchange', ()=>{ if (!_writingUrl && view) applyUrlSt
 document.querySelectorAll('.lens').forEach(b=>b.addEventListener('click', ()=>setLens(b.dataset.lens)));
 function setLens(l){ lens=l;
   document.querySelectorAll('.lens').forEach(x=>x.classList.toggle('active', x.dataset.lens===l));
-  drawLegend(); writeUrlState(); }
+  if (l!=='trace'){ playing=false; playTrace=null; }
+  if (l!=='timeline') scrubIdx=-1;
+  drawLegend(); updateTimebar(); writeUrlState(); }
+
+// --------------------------------------------------------------------------- //
+// H3 — Trace playback + Timeline scrubber (the lens's own instrument)
+// --------------------------------------------------------------------------- //
+const timebar=document.getElementById('timebar');
+let playTrace=null, playHop=0, playPhase=0, playing=false, scrubIdx=-1;
+
+function updateTimebar(){
+  if (lens==='trace'){ timebar.classList.add('on'); renderTracePicker(); }
+  else if (lens==='timeline' && (view.commits||[]).length){ timebar.classList.add('on'); renderScrubber(); }
+  else timebar.classList.remove('on');
+}
+
+function renderTracePicker(){
+  const traces=view.traces||[];
+  timebar.innerHTML = `<h4>Trace — recorded requests</h4>`
+    + (traces.length? traces.map((tr,i)=>
+        `<div class="trace-row" data-i="${i}"><span class="tid">${esc(tr.id)}</span>`
+        +`<span class="meta">${(tr.hops||[]).length} hops · ${esc(tr.totalMs)}ms · $${esc(tr.totalCostUsd||0)}</span></div>`).join('')
+      : `<div class="trace-row"><span class="meta">no traces recorded — instrument with @ent.node and record a request</span></div>`)
+    + `<div id="hopinfo"></div>`;
+  [...timebar.querySelectorAll('.trace-row')].forEach(el=>el.addEventListener('click',()=>{
+    const tr=traces[+el.dataset.i]; if(!tr) return; playbackTrace(tr);
+    [...timebar.querySelectorAll('.trace-row')].forEach(x=>x.classList.remove('sel')); el.classList.add('sel'); }));
+}
+function playbackTrace(tr){ playTrace=tr; playHop=0; playPhase=0; playing=true;
+  if (tr.hops&&tr.hops[0]){ const u=byId[tr.hops[0].node]; if(u) flyTo(u.x,u.y,Math.max(cam.scale,1.2)); } }
+
+function renderScrubber(){
+  const commits=view.commits||[]; const max=commits.length-1; const cur=scrubIdx<0?max:scrubIdx;
+  timebar.innerHTML = `<h4>Timeline — scrub fingerprints across commits</h4>`
+    + `<input type="range" id="scrub" min="0" max="${max}" value="${cur}">`
+    + `<div class="axis">${commits.map(c=>`<span>${esc(c.commit)}</span>`).join('')}</div>`
+    + `<div id="hopinfo">at <b>${esc(commits[cur]?.commit||'')}</b> — units show their fingerprint band at this commit`
+    + ` · <button class="mini" id="live">back to now</button></div>`;
+  const s=document.getElementById('scrub');
+  s.addEventListener('input', ()=>{ scrubIdx = +s.value===max ? -1 : +s.value; renderScrubber(); });
+  document.getElementById('live').addEventListener('click', ()=>{ scrubIdx=-1; renderScrubber(); });
+}
+
+// fingerprint / health at a scrubbed commit — read, never re-checkout (H3).
+function commitList(){ return (view.commits||[]).map(c=>c.commit); }
+function tickAtCommit(unitId, kind, idx){
+  const commits=commitList(); const upto = idx<0?commits.length-1:idx;
+  const tl=(view.timelines[unitId]||[]).filter(e=>e.kind===kind);
+  let found=null; for (const e of tl){ const ci=commits.indexOf(e.commit); if (ci>=0 && ci<=upto) found=e; }
+  return found;
+}
+function healthColourAt(u){
+  if (lens!=='timeline' || scrubIdx<0) return healthHex(u);
+  const ev=tickAtCommit(u.id,'eval',scrubIdx);
+  const map={green:'--green',red:'--red',untested:'--grey',error:'--amber',degraded:'--amber'};
+  return ev? cvar(map[(ev.verdict||'').toLowerCase()]||'--grey') : healthHex(u);
+}
 function drawLegend(){
   const el=document.getElementById('legend');
   if (lens==='health'){ el.innerHTML='<b>Health</b>'+[['green','GREEN'],['amber','degraded / over-budget'],['red','RED'],['grey','untested']]
@@ -592,8 +710,10 @@ function drawLegend(){
       + '<div class="row"><span class="g" style="background:var(--muted)"></span>declared · dim/dashed</div>'; }
   else if (lens==='blast'){ el.innerHTML='<b>Blast radius</b><div class="row">select a unit → its downstream dependents tint amber</div>'; }
   else if (lens==='trace'){ const n=(view.traces||[]).length;
-    el.innerHTML=`<b>Trace</b><div class="row">${n?`${n} recorded request(s) · ▤ volume in Flow`:'no trace recorded yet'}</div>`; }
-  else if (lens==='timeline'){ el.innerHTML='<b>Timeline</b><div class="row">◷ = version + eval ticks per unit</div>'; }
+    el.innerHTML=`<b>Trace</b><div class="row">${n?`pick a request below → a comet plays it hop by hop`:'no trace recorded yet'}</div>`
+      + '<div class="row">failed hop halts the comet and pulses red</div>'; }
+  else if (lens==='timeline'){ el.innerHTML='<b>Timeline</b><div class="row">scrub below to move every unit to its fingerprint at that commit</div>'
+      + '<div class="row">gold label = composite band · click a dossier tick to replay</div>'; }
   else { el.innerHTML='<b>Structure</b>'+[['compute','orb'],['state','ringed'],['schema','ring+band'],
       ['config','dashed'],['external','gold diamond'],['pipeline','container']]
       .map(([k,f])=>`<div class="row"><span class="g" style="background:${cvar('--'+k)}"></span>${k} · ${f}</div>`).join(''); }
@@ -675,9 +795,19 @@ function timelineSection(u){
   const ticks=(u.timeline||[]).filter(e=>e.kind==='version'); if (!ticks.length) return '';
   const rows=ticks.slice(-6).reverse().map(e=>{ const ch=e.changed||[];
     const chips=ch.length?ch.map(d=>`<span class="pill">${esc(d)}</span>`).join(''):'<span class="muted">initial</span>';
-    return `<div class="edge"><code>${esc(e.composite||'—')}</code> ${chips}</div>`; }).join('');
+    const act = STATIC ? '' : ` <button class="mini" onclick="replayFingerprint('${esc(u.id)}','${esc(e.composite)}')">replay</button>`;
+    return `<div class="edge"><code>${esc(e.composite||'—')}</code> ${chips}${act}</div>`; }).join('');
   return `<div class="sect"><h3>Timeline</h3><div class="muted" style="font-size:11px;margin-bottom:4px">`
-    + `fingerprint changes (code / prompt / config / model)</div>${rows}</div>`;
+    + `fingerprint changes (code / prompt / config / model) — click a tick to replay against it</div>${rows}`
+    + `<div id="replay-out"></div></div>`;
+}
+async function replayFingerprint(unitId, composite){
+  if (STATIC) return;
+  const out=document.getElementById('replay-out'); if (out) out.textContent='replaying…';
+  const {data}=await api('POST', `/api/node/${unitId}/replay`, {against:composite});
+  if (out){ out.innerHTML = data.error ? `<div class="inv" style="border-color:var(--signal-amber)">${esc(data.error)}</div>`
+    : `<div class="edge">changed: <b>${esc(data.attribution)}</b> · ${esc(data.metric||'metric')} `
+      +`${esc(data.old?.score)} → ${esc(data.current?.score)} · ${esc(data.verdict)}</div>`; }
 }
 function closeDossier(){ if(typeof stopSteerPoll==='function') stopSteerPoll();
   document.getElementById('dossier').classList.remove('open'); selected=null; blast.clear(); writeUrlState(); }
