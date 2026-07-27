@@ -91,6 +91,11 @@ def handle_api(root: Path, method: str, path: str, body: dict[str, Any] | None,
             if action == "revert" and method == "POST":
                 return _revert(root, node_id)
 
+            if action == "replay" and method == "POST":   # Timeline lens action (H3)
+                against = (body or {}).get("against", "")
+                from .replay import replay
+                return 200, replay(root, node_id, against)
+
         return 404, {"error": "not found"}
     except Exception as exc:  # never leak a stack to the client
         return 500, {"error": str(exc)}

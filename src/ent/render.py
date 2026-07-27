@@ -66,6 +66,7 @@ def build_view(root: Path) -> dict[str, Any]:
 
     timelines = {n.id: history.timeline(root, n.id) for n in nodes}
     _annotate_fingerprint_deltas(timelines)
+    commits = _commit_axis(timelines)
 
     return {
         "apiVersion": "entiendo/v1",
@@ -79,7 +80,30 @@ def build_view(root: Path) -> dict[str, Any]:
         "timelines": timelines,
         "traces": [_trace_view(t) for t in trace_events],
         "traffic": traffic,
+        "commits": commits,          # the Timeline scrubber's axis (H3)
     }
+
+
+def _commit_axis(timelines: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Ordered distinct commits from version events — the Timeline scrub axis.
+
+    Precomputed here so the scrubber reads fingerprint-per-commit; it never
+    re-checks-out (PLAN_v4 risk note). Each unit's fingerprint at a scrubbed
+    commit is the last version tick at or before it (derived client-side).
+    """
+    seen: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for events in timelines.values():
+        for e in events:
+            if e.get("kind") != "version":
+                continue
+            c = e.get("commit")
+            if c is None:
+                continue
+            if c not in seen:
+                seen[c] = {"commit": c, "ts": e.get("ts")}
+                order.append(c)
+    return [seen[c] for c in order]
 
 
 def _percentile(xs: list[float], p: int) -> float:
