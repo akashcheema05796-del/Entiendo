@@ -86,3 +86,44 @@ def composite(version: dict[str, Any]) -> str:
     material = {k: version.get(k) for k in VERSION_DIMENSIONS}
     blob = json.dumps(material, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:_SHORT]
+
+
+def pin_model(manifest_path: Path, model_id: str) -> str | None:
+    """Pin the `model` dimension in a manifest, preserving comments (SPEC §5.4).
+
+    Sets `version.model: <model_id>` with a line-level edit (so hand-authored
+    comments survive), creating the `version:` block or the `model:` line if
+    absent. Returns the previous model value (None if it wasn't set). The
+    fingerprint moves as a result — record it with `ent snapshot`.
+    """
+    path = Path(manifest_path)
+    lines = path.read_text(encoding="utf-8").splitlines()
+
+    def top_level(line: str) -> bool:
+        return bool(line) and not line[0].isspace() and line.lstrip().startswith(tuple("abcdefghijklmnopqrstuvwxyz"))
+
+    # locate the top-level `version:` block
+    v_idx = next((i for i, ln in enumerate(lines) if ln.rstrip() == "version:" or ln.startswith("version:")), None)
+    prev: str | None = None
+
+    if v_idx is not None:
+        # scan the block for a `model:` line
+        j = v_idx + 1
+        model_idx = None
+        while j < len(lines) and (not lines[j].strip() or lines[j][0].isspace()):
+            if lines[j].lstrip().startswith("model:"):
+                model_idx = j
+                break
+            j += 1
+        if model_idx is not None:
+            indent = lines[model_idx][: len(lines[model_idx]) - len(lines[model_idx].lstrip())]
+            prev = lines[model_idx].split("model:", 1)[1].split("#", 1)[0].strip() or None
+            lines[model_idx] = f"{indent}model: {model_id}"
+        else:
+            lines.insert(v_idx + 1, f"  model: {model_id}")
+    else:
+        lines.append("version:")
+        lines.append(f"  model: {model_id}")
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return prev

@@ -503,6 +503,8 @@ function openDossier(u){
         <span>model</span><code>${esc(fp.model||'—')}</code>
       </div></div>
 
+    ${timelineSection(u)}
+
     <div class="sect"><h3>Edges</h3>
       ${outs.length? outs.map(edgeLine).join(''):'<span class="pill">no outgoing edges</span>'}
       ${ins.length? '<div style="color:var(--muted);font-size:11px;margin-top:6px">depended on by</div>'+ins.map(e=>`<div class="edge">${esc(e.from)}</div>`).join(''):''}</div>
@@ -533,6 +535,20 @@ function openDossier(u){
     document.getElementById('approveBtn').title='No approval gate on this unit';
   }
 }
+// Timeline lens (Phase E): fingerprint dimension deltas per version tick.
+function timelineSection(u){
+  const ticks = (u.timeline||[]).filter(e => e.kind==='version');
+  if (!ticks.length) return '';
+  const rows = ticks.slice(-6).reverse().map(e => {
+    const ch = e.changed||[];
+    const chips = ch.length ? ch.map(d=>`<span class="pill">${esc(d)}</span>`).join('')
+                            : '<span class="muted">initial</span>';
+    return `<div class="edge"><code>${esc(e.composite||'—')}</code> ${chips}</div>`;
+  }).join('');
+  return `<div class="sect"><h3>Timeline</h3><div class="muted" style="font-size:11px;margin-bottom:4px">`
+    + `fingerprint changes (code / prompt / config / model)</div>${rows}</div>`;
+}
+
 function closeDossier(){ if(typeof stopSteerPoll==='function') stopSteerPoll();
   document.getElementById('dossier').classList.remove('open'); selected=null; blast.clear(); }
 
