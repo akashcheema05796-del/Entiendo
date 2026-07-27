@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entiendo — the Universe</title>
+<style>
+  :root {
+    --field:#0b0f2a; --field2:#131a3f; --ink:#e9ecff; --muted:#9aa0c8;
+    --panel:#151a38ee; --line:#2a3160; --accent:#7c8cff;
+    --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --grey:#8890b8; --gold:#f2c14e;
+    --compute:#7c8cff; --state:#c084fc; --schema:#a855f7; --config:#64748b;
+    --external:#f2c14e; --pipeline:#38bdf8;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body { font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    color:var(--ink); background:radial-gradient(1200px 800px at 30% 20%, var(--field2), var(--field) 70%);
+    overflow:hidden; }
+  #universe { position:fixed; inset:0; display:block; }
+  header { position:fixed; top:0; left:0; right:0; z-index:5; display:flex; gap:14px;
+    align-items:center; padding:12px 18px; pointer-events:none; }
+  header .brand { font-weight:700; letter-spacing:.2px; }
+  header .brand small { color:var(--muted); font-weight:400; }
+  #summary { color:var(--muted); font-size:12px; }
+  #lenses { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:6;
+    display:flex; gap:6px; background:var(--panel); border:1px solid var(--line);
+    border-radius:999px; padding:5px; backdrop-filter:blur(6px); }
+  .lens { border:0; background:transparent; color:var(--muted); border-radius:999px;
+    padding:6px 12px; cursor:pointer; font-size:12.5px; white-space:nowrap; }
+  .lens.active { background:var(--accent); color:#0b0f2a; font-weight:600; }
+  #legend { position:fixed; left:16px; bottom:14px; z-index:5; display:flex; flex-direction:column;
+    gap:4px; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:10px 12px; font-size:11.5px; color:var(--muted); backdrop-filter:blur(6px); }
+  #legend b { color:var(--ink); font-size:11px; text-transform:uppercase; letter-spacing:.6px; }
+  #legend .row { display:flex; align-items:center; gap:7px; }
+  #legend .g { width:10px; height:10px; border-radius:50%; display:inline-block; }
+
+  #dossier { position:fixed; top:0; right:0; height:100%; width:390px; max-width:92vw; z-index:8;
+    background:var(--panel); border-left:1px solid var(--line); backdrop-filter:blur(10px);
+    transform:translateX(100%); transition:transform .22s ease; overflow:auto; padding:20px 20px 40px; }
+  #dossier.open { transform:none; }
+  #dossier h2 { margin:2px 0 2px; font-size:17px; word-break:break-all; }
+  #dossier .kindline { color:var(--muted); font-size:12px; margin-bottom:12px; }
+  .verdict { display:inline-block; font-weight:700; padding:2px 9px; border-radius:6px; color:#0b0f2a; font-size:12px; }
+  .sect { border-top:1px solid var(--line); padding:12px 0 4px; }
+  .sect h3 { margin:0 0 6px; font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); }
+  .task { font-size:14px; }
+  .inv { font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--ink);
+    background:#0b0f2a55; border:1px solid var(--line); border-radius:6px; padding:4px 7px; margin:3px 0; }
+  .fp { display:grid; grid-template-columns:auto 1fr; gap:2px 10px; font-size:12px; }
+  .fp code { font-family:ui-monospace,Menlo,monospace; color:var(--muted); word-break:break-all; }
+  .edge { font-size:12px; margin:2px 0; }
+  .edge .k { color:var(--accent); font-weight:600; } .edge .v { color:var(--green); }
+  .pill { display:inline-block; font-size:11px; padding:1px 8px; border-radius:999px;
+    border:1px solid var(--line); color:var(--muted); margin:2px 4px 2px 0; }
+  details.artifacts summary { cursor:pointer; color:var(--muted); font-size:11px;
+    text-transform:uppercase; letter-spacing:.7px; }
+  details.artifacts li { font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+  .actions { position:sticky; bottom:0; background:linear-gradient(transparent, var(--panel) 30%);
+    padding-top:14px; margin-top:10px; }
+  textarea { width:100%; min-height:58px; border:1px solid var(--line); border-radius:8px;
+    background:#0b0f2a99; color:var(--ink); padding:8px; font:13px/1.4 inherit; resize:vertical; }
+  .btns { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  button.act { border:1px solid var(--line); background:#0b0f2a99; color:var(--ink);
+    border-radius:8px; padding:8px 13px; cursor:pointer; font-size:13px; }
+  button.act.primary { background:var(--accent); color:#0b0f2a; border-color:var(--accent); font-weight:600; }
+  button.act:disabled { opacity:.45; cursor:not-allowed; }
+  #status { font-size:12px; color:var(--muted); margin-top:6px; min-height:16px; }
+  #outcome { margin-top:8px; }
+  #snapshot-note { position:fixed; right:16px; bottom:14px; z-index:5; font-size:11.5px;
+    color:var(--muted); background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:8px 11px; max-width:300px; display:none; }
+  .close { position:absolute; top:12px; right:14px; cursor:pointer; color:var(--muted);
+    border:0; background:transparent; font-size:20px; line-height:1; }
+</style>
+</head>
+<body>
+<canvas id="universe"></canvas>
+
+<header>
+  <span class="brand">Entiendo <small>· the Universe · steer your codebase like mission control</small></span>
+  <span id="summary"></span>
+</header>
+
+<div id="lenses">
+  <button class="lens active" data-lens="structure">Structure</button>
+  <button class="lens" data-lens="flow">Flow</button>
+  <button class="lens" data-lens="trace">Trace</button>
+  <button class="lens" data-lens="health">Health</button>
+  <button class="lens" data-lens="timeline">Timeline</button>
+  <button class="lens" data-lens="blast">Blast radius</button>
+</div>
+
+<div id="legend"></div>
+<div id="snapshot-note">Static snapshot. Run <code>ent serve</code> to steer, re-eval, and revert live.</div>
+
+<aside id="dossier"><button class="close" title="close" onclick="closeDossier()">×</button><div id="dossier-body"></div></aside>
+
+<script id="view" type="application/json">__DATA__</script>
+<script>
+"use strict";
+// --------------------------------------------------------------------------- //
+// Bootstrap: embedded view (static `ent render`) or live fetch (`ent serve`).
+// --------------------------------------------------------------------------- //
+const EMBEDDED = JSON.parse(document.getElementById('view').textContent);
+const STATIC = EMBEDDED !== null;              // no backend behind a static file
+const RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const COLLAPSE_THRESHOLD = 12;                 // >12 units → collapse groups to containers
+
+const KIND_FORM = { compute:'orb', state:'ring', schema:'ring2', config:'dashed',
+                    external:'diamond', pipeline:'container' };   // gold diamond = external
+const KIND_COLOUR = { compute:'--compute', state:'--state', schema:'--schema',
+                      config:'--config', external:'--external', pipeline:'--pipeline' };
+const HEALTH_COLOUR = { green:'--green', red:'--red', amber:'--amber', degraded:'--amber',
+                        grey:'--grey' };
+const cvar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+const esc = s => (s??'').toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+const canvas = document.getElementById('universe');
+const ctx = canvas.getContext('2d');
+let DPR = Math.min(window.devicePixelRatio||1, 2);
+let W=0, H=0;
+function resize(){ W=canvas.clientWidth; H=canvas.clientHeight;
+  canvas.width=W*DPR; canvas.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+window.addEventListener('resize', resize);
+
+let view=null;                 // raw build_view model
+let units=[], edges=[];        // physics bodies + edges between visible items
+let byId={};                   // id -> unit body
+let expanded=new Set();        // group names the operator expanded
+let lens='structure';
+let hover=null, selected=null, dragging=null, dragMoved=false;
+let blast=new Set();           // downstream dependents of selected
+let particles=[];              // flow particles
+let t=0, fps=0, frames=0, lastFpsT=0;
+
+async function api(method, path, body){
+  const r = await fetch(path, {method, headers:{'Content-Type':'application/json'},
+    body: body?JSON.stringify(body):undefined});
+  return { status:r.status, data: await r.json() };
+}
+
+async function boot(){
+  resize();
+  view = STATIC ? EMBEDDED : (await api('GET','/api/graph')).data;
+  document.getElementById('snapshot-note').style.display = STATIC ? 'block' : 'none';
+  const c = view.coverage||{};
+  document.getElementById('summary').textContent =
+    `${view.nodes.length} units · coverage ${Math.round((c.coverage||0)*100)}% · `
+    + `executable ${view.executable}/${view.nodeCount} · ${view.reconciled?'reconciled ✓':'drift ✗'}`
+    + (view.commit?` · @${view.commit}`:'');
+  // auto-collapse groups when the field is crowded
+  if (view.nodes.length > COLLAPSE_THRESHOLD) expanded = new Set();
+  else expanded = new Set(groupsOf(view.nodes));
+  buildLayout();
+  drawLegend();
+  requestAnimationFrame(loop);
+}
+
+function groupsOf(nodes){ return [...new Set(nodes.map(n => n.group||'(ungrouped)'))]; }
+
+// --------------------------------------------------------------------------- //
+// Group-collapse: build the set of VISIBLE items (units or group containers)
+// and the aggregated edges between them.
+// --------------------------------------------------------------------------- //
+function buildLayout(){
+  const nodes = view.nodes;
+  const collapsing = nodes.length > COLLAPSE_THRESHOLD;
+  const prev = {}; units.forEach(u => prev[u.id] = u);   // keep positions across relayout
+
+  const items = [];          // {id, kind, group, container?, members?}
+  const itemOf = {};         // node id -> visible item id
+  const groups = {};
+  nodes.forEach(n => { (groups[n.group||'(ungrouped)'] ??= []).push(n); });
+
+  for (const [g, members] of Object.entries(groups)){
+    const showMembers = !collapsing || expanded.has(g) || g==='(ungrouped)';
+    if (showMembers){
+      members.forEach(n => { items.push(unitItem(n)); itemOf[n.id]=n.id; });
+    } else {
+      const cid = 'group:'+g;
+      const worst = members.map(m=>m.health).reduce(worstHealth, 'GREEN');
+      items.push({ id:cid, container:true, group:g, name:g, nodeKind:'pipeline',
+        health:worst, healthColour: worstColour(members), members:members.map(m=>m.id),
+        count:members.length });
+      members.forEach(n => { itemOf[n.id]=cid; });
+    }
+  }
+
+  // aggregate edges between visible items (dedupe, OR the verified flag)
+  const emap = {};
+  for (const e of view.edges){
+    const a=itemOf[e.from], b=itemOf[e.to];
+    if (!a||!b||a===b) continue;
+    const key=a+'->'+b;
+    if (!emap[key]) emap[key]={from:a,to:b,kinds:new Set(),verified:false};
+    (e.kinds||[]).forEach(k=>emap[key].kinds.add(k));
+    emap[key].verified = emap[key].verified || !!e.verified;
+  }
+  edges = Object.values(emap).map(e=>({from:e.from,to:e.to,kinds:[...e.kinds],verified:e.verified}));
+
+  // physics bodies — reuse prior positions, else seed on a ring
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.32;
+  units = items.map((it,i)=>{
+    const p = prev[it.id];
+    const a = (i/items.length)*Math.PI*2;
+    return Object.assign(it, {
+      x: p? p.x : cx + Math.cos(a)*R + (i%3-1)*8,
+      y: p? p.y : cy + Math.sin(a)*R + (i%2)*8,
+      vx:0, vy:0, r: it.container ? 30+Math.min(it.count,10)*2 : 18,
+    });
+  });
+  byId = {}; units.forEach(u=>byId[u.id]=u);
+  seedParticles();
+}
+
+function unitItem(n){
+  return { id:n.id, name:n.name||n.id, nodeKind:n.nodeKind, group:n.group||'(ungrouped)',
+    health:n.health, healthColour:n.healthColour, owner:n.owner, approvalRequired:n.approvalRequired,
+    task:n.task, invariants:n.invariants||[], claims:n.claims||[], sideEffects:n.sideEffects,
+    version:n.version||{}, traffic:(view.traffic||{})[n.id]||0,
+    timeline:(view.timelines||{})[n.id]||[] };
+}
+
+const RANK = {GREEN:0, IMPROVED:0, WITHIN_BAND:1, UNTESTED:2, DEGRADED:3, UNSTABLE:3, AMBER:3, ERROR:4, REGRESSED:5, RED:6};
+function worstHealth(a,b){ return (RANK[b]??2) > (RANK[a]??2) ? b : a; }
+function worstColour(members){
+  const w = members.map(m=>m.health).reduce(worstHealth,'GREEN');
+  return HEALTH_COLOUR[({GREEN:'green',RED:'red',UNTESTED:'grey'})[w]] ? w : w;
+}
+function healthHex(item){ return cvar(HEALTH_COLOUR[item.healthColour] || '--grey'); }
+function kindHex(item){ return cvar(KIND_COLOUR[item.nodeKind] || '--compute'); }
+
+// --------------------------------------------------------------------------- //
+// Physics — light force-directed layout; runs every frame with damping.
+// --------------------------------------------------------------------------- //
+function step(){
+  const cx=W/2, cy=H/2;
+  for (const u of units){
+    if (u===dragging) continue;
+    let fx=(cx-u.x)*0.0016, fy=(cy-u.y)*0.0016;          // gravity to centre
+    for (const v of units){
+      if (u===v) continue;
+      let dx=u.x-v.x, dy=u.y-v.y, d2=dx*dx+dy*dy||0.01, d=Math.sqrt(d2);
+      const rep=(u.r+v.r)*(u.r+v.r)*1.6/d2;              // repulsion
+      fx+=dx/d*rep; fy+=dy/d*rep;
+    }
+    u.vx=(u.vx+fx)*0.86; u.vy=(u.vy+fy)*0.86;
+  }
+  for (const e of edges){
+    const a=byId[e.from], b=byId[e.to]; if(!a||!b) continue;
+    let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.01;
+    const target=90+a.r+b.r, k=(d-target)*0.012;
+    const ux=dx/d, uy=dy/d;
+    if (a!==dragging){ a.vx+=ux*k; a.vy+=uy*k; }
+    if (b!==dragging){ b.vx-=ux*k; b.vy-=uy*k; }
+  }
+  for (const u of units){
+    if (u===dragging) continue;
+    u.x=Math.max(u.r+6, Math.min(W-u.r-6, u.x+u.vx));
+    u.y=Math.max(u.r+52, Math.min(H-u.r-6, u.y+u.vy));
+  }
+}
+
+// --------------------------------------------------------------------------- //
+// Flow particles — bright/fast on verified edges, dim/dashed on declared ones.
+// --------------------------------------------------------------------------- //
+function seedParticles(){
+  particles = [];
+  if (RM) return;                                   // reduced motion → no particles
+  for (const e of edges){
+    const n = e.verified ? 3 : 2;
+    for (let i=0;i<n;i++) particles.push({e, p:i/n, speed:e.verified?0.008:0.0035});
+  }
+}
+function drawParticles(){
+  if (RM) return;
+  for (const pt of particles){
+    const a=byId[pt.e.from], b=byId[pt.e.to]; if(!a||!b) continue;
+    pt.p += pt.speed; if (pt.p>1) pt.p-=1;
+    if (isDimmed(pt.e)) continue;
+    const x=a.x+(b.x-a.x)*pt.p, y=a.y+(b.y-a.y)*pt.p;
+    ctx.beginPath(); ctx.arc(x,y, pt.e.verified?2.4:1.6, 0, Math.PI*2);
+    ctx.fillStyle = pt.e.verified ? 'rgba(180,200,255,.95)' : 'rgba(140,150,200,.5)';
+    ctx.fill();
+  }
+}
+
+function isDimmed(item){
+  if (hover){
+    const id = item.id || null;
+    if (item.from!==undefined){                    // an edge
+      return item.from!==hover.id && item.to!==hover.id;
+    }
+    if (id===hover.id) return false;
+    return !edges.some(e => (e.from===hover.id&&e.to===id)||(e.to===hover.id&&e.from===id));
+  }
+  return false;
+}
+
+// --------------------------------------------------------------------------- //
+// Draw
+// --------------------------------------------------------------------------- //
+function drawEdge(e){
+  const a=byId[e.from], b=byId[e.to]; if(!a||!b) return;
+  const dim=isDimmed(e);
+  ctx.save();
+  ctx.globalAlpha = dim?0.08:(e.verified?0.5:0.28);
+  ctx.strokeStyle = e.verified ? cvar('--accent') : cvar('--muted');
+  ctx.lineWidth = e.verified?1.6:1;
+  ctx.setLineDash(e.verified?[]:[4,5]);             // declared-but-unverified = dashed
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  ctx.restore();
+}
+
+function drawUnit(u){
+  const dim=isDimmed(u);
+  const selectedTint = selected && blast.has(u.id);
+  const hcol=healthHex(u), kcol=kindHex(u);
+  const form = u.container ? 'container' : (KIND_FORM[u.nodeKind]||'orb');
+  ctx.save();
+  ctx.globalAlpha = dim?0.18:1;
+
+  // health glow (pulse on RED unless reduced-motion)
+  let glow = u.r + 10;
+  if (!RM && (u.health==='RED'||u.health==='REGRESSED')) glow += Math.sin(t*0.12)*4+4;
+  const g=ctx.createRadialGradient(u.x,u.y,u.r*0.4,u.x,u.y,glow);
+  g.addColorStop(0, hcol+'88'); g.addColorStop(1, hcol+'00');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(u.x,u.y,glow,0,Math.PI*2); ctx.fill();
+
+  // blast-radius tint ring
+  if (selectedTint){ ctx.strokeStyle=cvar('--amber'); ctx.globalAlpha=dim?0.2:0.9;
+    ctx.lineWidth=2; ctx.setLineDash([3,3]); ctx.beginPath();
+    ctx.arc(u.x,u.y,u.r+7,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=dim?0.18:1; }
+
+  const bodyCol = (lens==='health') ? hcol : kcol;
+  ctx.lineWidth=2; ctx.strokeStyle=bodyCol;
+  ctx.fillStyle = (lens==='health'? hcol : kcol) + (u.container?'22':'33');
+
+  if (form==='diamond'){                            // external → gold diamond
+    ctx.fillStyle = cvar('--gold')+'33'; ctx.strokeStyle=cvar('--gold');
+    ctx.beginPath(); ctx.moveTo(u.x,u.y-u.r); ctx.lineTo(u.x+u.r,u.y);
+    ctx.lineTo(u.x,u.y+u.r); ctx.lineTo(u.x-u.r,u.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (form==='dashed'){                       // config → dashed circle
+    ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+  } else if (form==='ring' || form==='ring2'){       // state / schema → ringed
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r-5,0,Math.PI*2); ctx.stroke();
+    if (form==='ring2'){ ctx.beginPath(); ctx.arc(u.x,u.y,u.r-9,-0.6,1.2); ctx.stroke(); }
+  } else if (form==='container'){                    // collapsed group
+    const s=u.r; roundRect(u.x-s,u.y-s,s*2,s*2,12); ctx.fill(); ctx.stroke();
+  } else {                                           // compute → orb
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  }
+
+  // approval gate marker (gold lock ring)
+  if (u.approvalRequired){ ctx.strokeStyle=cvar('--gold'); ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r+3,-0.9,-0.1); ctx.stroke(); }
+
+  // selection ring
+  if (selected===u.id){ ctx.strokeStyle=cvar('--ink'); ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r+4,0,Math.PI*2); ctx.stroke(); }
+
+  // label + flow-volume badge
+  ctx.globalAlpha = dim?0.35:1;
+  ctx.fillStyle=cvar('--ink'); ctx.font='11px -apple-system,sans-serif'; ctx.textAlign='center';
+  const label = u.container ? `${u.group} (${u.count})` : shortName(u);
+  ctx.fillText(label, u.x, u.y+u.r+14);
+  if (lens==='flow' && u.traffic>0){ ctx.fillStyle=cvar('--accent');
+    ctx.fillText('▤ '+u.traffic, u.x, u.y-u.r-8); }
+  if (lens==='timeline'){ const ticks=(u.timeline||[]).length; if(ticks){ ctx.fillStyle=cvar('--muted');
+    ctx.fillText('◷ '+ticks, u.x, u.y-u.r-8); } }
+  ctx.restore();
+}
+
+function shortName(u){ const p=u.id.split('.'); return p[p.length-1]; }
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function loop(ts){
+  t++; step();
+  ctx.clearRect(0,0,W,H);
+  for (const e of edges) drawEdge(e);
+  drawParticles();
+  for (const u of units) drawUnit(u);
+  // fps meter (dev aid)
+  frames++; if (ts-lastFpsT>500){ fps=Math.round(frames*1000/(ts-lastFpsT)); frames=0; lastFpsT=ts; }
+  requestAnimationFrame(loop);
+}
+
+// --------------------------------------------------------------------------- //
+// Interaction — hover isolation, drag, select (blast tint + dossier)
+// --------------------------------------------------------------------------- //
+function hit(mx,my){
+  for (let i=units.length-1;i>=0;i--){ const u=units[i];
+    if (Math.hypot(mx-u.x,my-u.y) <= u.r+4) return u; }
+  return null;
+}
+canvas.addEventListener('mousemove', e=>{
+  const mx=e.offsetX,my=e.offsetY;
+  if (dragging){ dragging.x=mx; dragging.y=my; dragging.vx=dragging.vy=0; dragMoved=true; hover=dragging; return; }
+  hover = hit(mx,my);
+  canvas.style.cursor = hover ? 'pointer' : 'default';
+});
+canvas.addEventListener('mousedown', e=>{ const u=hit(e.offsetX,e.offsetY);
+  if (u){ dragging=u; dragMoved=false; } });
+window.addEventListener('mouseup', e=>{
+  if (dragging && !dragMoved){ onClick(dragging); }
+  dragging=null;
+});
+canvas.addEventListener('mouseleave', ()=>{ hover=null; });
+
+function onClick(u){
+  if (u.container){ expanded.add(u.group); buildLayout(); return; }  // expand a collapsed group
+  select(u.id);
+}
+
+function select(id){
+  selected=id;
+  blast = new Set(computeBlast(id));
+  openDossier(byId[id] || unitFromView(id));
+}
+function unitFromView(id){ const n=view.nodes.find(x=>x.id===id); return n?unitItem(n):null; }
+
+function computeBlast(id){                            // transitive downstream dependents
+  const rev={}; for (const e of view.edges){ (rev[e.to] ??= []).push(e.from); }
+  const seen=new Set(), stack=[id];
+  while(stack.length){ const c=stack.pop();
+    for (const d of (rev[c]||[])){ if(!seen.has(d)){ seen.add(d); stack.push(d); } } }
+  return seen;
+}
+
+// --------------------------------------------------------------------------- //
+// Lenses
+// --------------------------------------------------------------------------- //
+document.querySelectorAll('.lens').forEach(b=>b.addEventListener('click', ()=>{
+  document.querySelectorAll('.lens').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); lens=b.dataset.lens; drawLegend();
+}));
+
+function drawLegend(){
+  const el=document.getElementById('legend');
+  if (lens==='health'){
+    el.innerHTML = '<b>Health</b>'+[['green','GREEN'],['amber','degraded'],['red','RED'],['grey','untested']]
+      .map(([c,l])=>`<div class="row"><span class="g" style="background:${cvar('--'+c)}"></span>${l}</div>`).join('');
+  } else if (lens==='flow'){
+    el.innerHTML = '<b>Flow</b><div class="row"><span class="g" style="background:var(--accent)"></span>verified · bright/fast</div>'
+      + '<div class="row"><span class="g" style="background:var(--muted)"></span>declared · dim/dashed</div>';
+  } else if (lens==='blast'){
+    el.innerHTML = '<b>Blast radius</b><div class="row">select a unit → its downstream dependents tint amber</div>';
+  } else if (lens==='trace'){
+    const n=(view.traces||[]).length;
+    el.innerHTML = `<b>Trace</b><div class="row">${n?`${n} recorded request(s) · ▤ volume in Flow`:'no trace recorded yet'}</div>`;
+  } else if (lens==='timeline'){
+    el.innerHTML = '<b>Timeline</b><div class="row">◷ = version + eval ticks per unit</div>';
+  } else {
+    el.innerHTML = '<b>Structure</b>'+[['compute','orb'],['state','ringed'],['schema','ring+band'],
+      ['config','dashed'],['external','gold diamond'],['pipeline','container']]
+      .map(([k,f])=>`<div class="row"><span class="g" style="background:${cvar('--'+k)}"></span>${k} · ${f}</div>`).join('');
+  }
+}
+
+// --------------------------------------------------------------------------- //
+// Dossier — logic first: task, contract, verdict, fingerprint, edges; artifacts
+// collapsed; ends in an action (steer / revert / approve).
+// --------------------------------------------------------------------------- //
+function openDossier(u){
+  if (!u) return;
+  const hcol=healthHex(u);
+  const outs=view.edges.filter(e=>e.from===u.id), ins=view.edges.filter(e=>e.to===u.id);
+  const edgeLine = e => `<div class="edge"><span class="k">${esc(e.kinds.join('/'))}</span> ${esc(e.to||e.from)}${e.verified?' <span class="v">✓</span>':''}</div>`;
+  const fp=u.version||{};
+  const body = `
+    <h2>${esc(u.id)}</h2>
+    <div class="kindline">${esc(u.nodeKind)} · owner ${esc(u.owner||'—')}
+      ${u.approvalRequired?'· <span class="pill">approval required</span>':''}
+      · side-effects ${esc(u.sideEffects||'none')}</div>
+
+    <div class="sect"><h3>Task</h3><div class="task">${esc(u.task||'—')}</div></div>
+
+    <div class="sect"><h3>Contract</h3>
+      ${(u.invariants&&u.invariants.length)? u.invariants.map(i=>`<div class="inv">${esc(i)}</div>`).join('')
+        : '<span class="pill">no invariants declared</span>'}</div>
+
+    <div class="sect"><h3>Verdict</h3>
+      <span id="verdict" class="verdict" style="background:${hcol}">${esc(u.health)}</span></div>
+
+    <div class="sect"><h3>Fingerprint</h3>
+      <div class="fp">
+        <span>composite</span><code>${esc((fp.composite||'—'))}</code>
+        <span>code</span><code>${esc(fp.code||'—')}</code>
+        <span>prompt</span><code>${esc(fp.prompt||'—')}</code>
+        <span>config</span><code>${esc(fp.config||'—')}</code>
+        <span>model</span><code>${esc(fp.model||'—')}</code>
+      </div></div>
+
+    <div class="sect"><h3>Edges</h3>
+      ${outs.length? outs.map(edgeLine).join(''):'<span class="pill">no outgoing edges</span>'}
+      ${ins.length? '<div style="color:var(--muted);font-size:11px;margin-top:6px">depended on by</div>'+ins.map(e=>`<div class="edge">${esc(e.from)}</div>`).join(''):''}</div>
+
+    <details class="artifacts sect"><summary>Artifacts — ${(u.claims||[]).length} claimed file(s)</summary>
+      <ul>${(u.claims||[]).map(c=>`<li>${esc(c)}</li>`).join('')||'<li class="pill">none</li>'}</ul></details>
+
+    <div class="actions">
+      <textarea id="instr" placeholder="Steer: describe a change — the workload edits within this unit's claims only"></textarea>
+      <div class="btns">
+        <button class="act primary" id="steerBtn" onclick="steer()">Steer</button>
+        <button class="act" id="revertBtn" onclick="revert()">Revert</button>
+        <button class="act" id="approveBtn" onclick="approve()">Approve</button>
+      </div>
+      <div id="status"></div><div id="outcome"></div>
+    </div>`;
+  document.getElementById('dossier-body').innerHTML = body;
+  document.getElementById('dossier').classList.add('open');
+
+  const eval0 = document.createElement('button'); // re-eval affordance
+  if (STATIC){
+    for (const id of ['steerBtn','revertBtn','approveBtn']){
+      const b=document.getElementById(id); b.disabled=true;
+      b.title='Static snapshot — run `ent serve` to act';
+    }
+  } else if (!u.approvalRequired){
+    document.getElementById('approveBtn').disabled=true;
+    document.getElementById('approveBtn').title='No approval gate on this unit';
+  }
+}
+function closeDossier(){ document.getElementById('dossier').classList.remove('open'); selected=null; blast.clear(); }
+
+async function steer(){
+  const instr=document.getElementById('instr').value.trim();
+  if (!instr || STATIC) return;
+  const btn=document.getElementById('steerBtn'), status=document.getElementById('status');
+  btn.disabled=true; status.textContent='steering — the workload is editing…';
+  const {status:code, data} = await api('POST', `/api/node/${selected}/edit`, {instruction:instr});
+  btn.disabled=false;
+  if (code!==200){ status.textContent=''; document.getElementById('outcome').innerHTML =
+    `<div class="inv" style="border-color:var(--amber)">${esc(data.error||'error')}</div>`; return; }
+  const o=data.outcome, col=cvar(HEALTH_COLOUR[({GREEN:'green',RED:'red'})[o.verdict]]||'--amber');
+  const v=document.getElementById('verdict'); v.textContent=o.verdict; v.style.background=col;
+  status.textContent = data.summary||'';
+  const rej = data.rejected&&data.rejected.length ? `<div class="inv" style="border-color:var(--amber)">rejected (outside claims): ${esc(data.rejected.join(', '))}</div>`:'';
+  document.getElementById('outcome').innerHTML =
+    `<div class="edge"><span class="pill">${esc(o.status)}</span> blast: ${(o.blast?.dependents||[]).length} dependent(s)</div>${rej}`;
+  await refresh(selected);
+}
+async function revert(){
+  if (STATIC) return;
+  const {data}=await api('POST', `/api/node/${selected}/revert`, {});
+  document.getElementById('status').textContent = data.restored?`reverted ${data.restored.length} file(s)`:(data.error||'');
+  await refresh(selected);
+}
+function approve(){
+  const s=document.getElementById('status');
+  s.textContent = 'Approval sign-off is wired by the Bridge (Phase C) — steer/revert are live now.';
+}
+async function refresh(id){                            // re-pull live verdicts after an action
+  if (STATIC) return;
+  view = (await api('GET','/api/graph')).data;
+  buildLayout(); if (id) select(id);
+}
+
+boot();
+</script>
+</body>
+</html>
