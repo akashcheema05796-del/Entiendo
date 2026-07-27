@@ -2,6 +2,12 @@ apiVersion: entiendo/v1
 kind: Node
 id: refundly.gateway
 name: Refund Gateway
+task: Actually issue the refund through the external payment provider.
+description: >
+  The hand on the money. A third-party payment API the team does not control,
+  and the one irreversible step in the pipeline — once a refund is sent it cannot
+  be unsent. Edits here require human approval before they merge, and its cost
+  budget is deliberately tight so the cost overlay has something to flag.
 nodeKind: external
 group: refundly
 owner: mehar
@@ -14,6 +20,9 @@ contract:
 evals:
   tier0:
     - type: invariant_check
+budgets:
+  costPerCallUsd: 0.01
+  p95LatencyMs: 400
 approval:
   required: true
 observability:

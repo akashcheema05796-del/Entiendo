@@ -1,0 +1,26 @@
+apiVersion: entiendo/v1
+kind: Node
+id: refundly.parse_email
+name: Email Parser
+task: Pull the order id and reason out of a customer's refund email.
+description: >
+  The front door of the refund flow. Reads a support email and extracts the
+  order id and a stated reason, so the rest of the pipeline has structured input
+  instead of prose. Deterministic string handling — no model, no I/O.
+nodeKind: compute
+group: refundly
+owner: mehar
+status: experimental
+claims:
+  - src/parse_email/parser.py
+contract:
+  entrypoint: src/parse_email/parser.py::parse
+  invariants:
+    - "'orderId' in output"
+  sideEffects: none
+evals:
+  tier0:
+    - type: invariant_check
+    - {type: smoke, fixture: evals/refundly.parse_email/smoke.jsonl}
+observability:
+  spanName: refundly.parse_email

@@ -32,8 +32,9 @@ REFUNDLY = REPO_ROOT / "examples" / "refundly"
 def test_interior_reaches_the_view() -> None:
     decide = next(n for n in build_view(REFUNDLY)["nodes"] if n["id"] == "refundly.decide")
     assert "interior" in decide
-    assert {t["name"] for t in decide["interior"]["tools"]} == {"order_lookup", "issue_refund"}
-    assert decide["interior"]["tools"][0]["crosses"]        # crossing target present
+    names = {t["name"] for t in decide["interior"]["tools"]}
+    assert {"order_lookup", "issue_refund"} <= names        # the core tools are present
+    assert all(t.get("crosses") for t in decide["interior"]["tools"])  # each declares a crossing
 
 
 def test_trajectory_verdict_in_view() -> None:

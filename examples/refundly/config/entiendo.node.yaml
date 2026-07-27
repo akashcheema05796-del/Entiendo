@@ -1,0 +1,24 @@
+apiVersion: entiendo/v1
+kind: Node
+id: refundly.policy
+name: Refund Policy
+task: Hold the refund policy thresholds the decider reads.
+description: >
+  The company's refund rules as configuration, not code: the maximum order age
+  and amount eligible for an automatic refund. Changing policy is a config
+  change with its own fingerprint dimension — visible on the timeline, never a
+  silent edit buried in logic.
+nodeKind: config
+group: refundly
+owner: mehar
+status: experimental
+claims:
+  - config/policy.yaml
+contract:
+  invariants: []
+  sideEffects: none
+evals:
+  tier0:
+    - type: invariant_check
+observability:
+  spanName: refundly.policy

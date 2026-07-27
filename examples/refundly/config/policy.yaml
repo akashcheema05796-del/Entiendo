@@ -1,0 +1,4 @@
+# refundly.policy — the refund policy surface (config unit; values, not secrets).
+maxDays: 90
+maxAmountUsd: 100
+autoApproveUnderUsd: 20

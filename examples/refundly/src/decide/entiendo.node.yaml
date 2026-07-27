@@ -2,6 +2,13 @@ apiVersion: entiendo/v1
 kind: Node
 id: refundly.decide
 name: Refund Decider
+task: Decide whether to refund an order, and if so issue it and log the case.
+description: >
+  The brain of the pipeline: an agent that parses the request, looks up the
+  order, reads policy, decides refund vs deny, issues the refund when it should,
+  and records the case. Its interior tools cross to the other units; the *order*
+  of those calls is checked, so a refund issued before the order was verified is
+  caught even when the amount is right.
 nodeKind: compute
 group: refundly
 owner: mehar
@@ -15,28 +22,35 @@ contract:
     - "output.amount >= 0"
   sideEffects: none
 dependencies:
-  calls: [refundly.orders, refundly.gateway]
-# The interior is private (agentic). Tools cross borders; the reconciler checks
-# each `crosses` against a declared edge, so the registry cannot lie.
+  calls: [refundly.parse_email, refundly.orders, refundly.gateway]
+  writes: [refundly.ledger]
+  config: [refundly.policy]
 interior:
   process: >
-    Look up the order, decide refund/deny against policy, then (on refund) issue
-    it. Tool calls are gated by the registry and ordered by a trajectory eval.
+    Parse the email, look up the order, read policy, decide refund/deny, issue
+    the refund on approval, then write the case. Tool calls are gated + ordered.
   tools:
-    - name: order_lookup
-      crosses: refundly.orders
-    - name: issue_refund
-      crosses: refundly.gateway
+    - {name: parse, crosses: refundly.parse_email}
+    - {name: order_lookup, crosses: refundly.orders}
+    - {name: read_policy, crosses: refundly.policy}
+    - {name: issue_refund, crosses: refundly.gateway}
+    - {name: write_ledger, crosses: refundly.ledger}
   maxSteps: 8
 evals:
   tier0:
     - type: invariant_check
     - {type: smoke, fixture: evals/refundly.decide/smoke.jsonl}
-    # trajectory: the PATH must be right even when the answer is (§14.2)
     - type: trajectory
       fixture: evals/refundly.decide/trajectory.jsonl
-      order: ["order_lookup before issue_refund"]
+      order:
+        - "parse before order_lookup"
+        - "order_lookup before issue_refund"
+        - "issue_refund before write_ledger"
       maxSteps: 8
       registryOnly: true
+budgets:
+  p95LatencyMs: 500
+  costPerCallUsd: 0.02
+  tokensPerCall: 2000
 observability:
   spanName: refundly.decide

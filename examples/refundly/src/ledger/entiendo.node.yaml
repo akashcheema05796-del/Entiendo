@@ -1,0 +1,23 @@
+apiVersion: entiendo/v1
+kind: Node
+id: refundly.ledger
+name: Case Ledger
+task: Record every refund decision as an auditable case.
+description: >
+  The audit trail. Every decision — refunded or denied — is written here as a
+  case, so there is a durable record of what the agent did and why. State that
+  is written to (sideEffects on the edge into it), not just read.
+nodeKind: state
+group: refundly
+owner: mehar
+status: experimental
+claims:
+  - src/ledger/store.py
+contract:
+  invariants: []
+  sideEffects: writes
+evals:
+  tier0:
+    - type: invariant_check
+observability:
+  spanName: refundly.ledger
