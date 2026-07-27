@@ -24,7 +24,7 @@ component with a contract, a composite version, tiered evals, and history.
 
 ## Eval authorship (the bootstrapping trap)
 
-- You may author **tier0** evals freely (schema / invariant / smoke).
+- You may author **tier0** evals freely (schema / invariant / smoke / trajectory).
 - You may **propose** tier1 golden rows; only a human sets `humanBlessed: true`
   (`ent bless`). Never bless your own data.
 - tier2 rubrics are human-owned; refine only on request.

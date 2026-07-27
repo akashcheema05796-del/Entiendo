@@ -1,0 +1,18 @@
+apiVersion: entiendo/v1
+kind: Node
+id: refundly.orders
+name: Order Store
+nodeKind: state
+group: refundly
+owner: mehar
+status: experimental
+claims:
+  - src/orders/store.py
+contract:
+  invariants: []
+  sideEffects: none
+evals:
+  tier0:
+    - type: invariant_check
+observability:
+  spanName: refundly.orders

@@ -115,6 +115,13 @@ What **is** real today:
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
   project laid out the Entiendo way. Full loop:
   `cd examples/greenfield && ent validate && ent extract && ent snapshot && ent render && ent edit retrieval.chunk_ranker`.
+- **[`examples/refundly/`](./examples/refundly/)** — the v3 reference project: a
+  support-refund agent whose `refundly.decide` is an **agentic unit** with an
+  `interior` (a tool registry + `maxSteps`) and a **trajectory invariant** — a
+  reflex check that the *path* is right (`order_lookup` before `issue_refund`, no
+  tool outside the registry), not just the answer. Border-crossing tools are
+  reconciled against declared edges (`ent.guard` enforces the registry at
+  runtime); `refundly.gateway` is `irreversible` + approval-gated. See SPEC §14.
 - **`src/ent/`** — the package: CLI, one module per layer.
 
 ---

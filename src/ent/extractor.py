@@ -247,6 +247,27 @@ def _build_edges(
                 if not e["declared"]:
                     e["kinds"].add("calls")
 
+    # Interior tool registry (Phase D §14.3): a tool that crosses a border must
+    # have a matching DECLARED edge. An edge-crossing tool with no edge = drift.
+    for node in nodes:
+        for tool in (node.raw.get("interior", {}) or {}).get("tools", []) or []:
+            crosses = tool.get("crosses")
+            if not crosses:
+                continue
+            name = tool.get("name")
+            if crosses not in node_ids:
+                errors.append(
+                    f"{node.id}: interior tool '{name}' crosses to unknown node '{crosses}'"
+                )
+                continue
+            e = pairs.get((node.id, crosses))
+            if e is None or not e["declared"]:
+                errors.append(
+                    f"drift: interior tool '{name}' of {node.id} crosses to {crosses} but "
+                    f"no dependency edge is declared — add {crosses} to {node.id}'s "
+                    f"dependencies, or remove the tool from the registry"
+                )
+
     # Undeclared (drift) → hard failure.
     for (frm, to), e in sorted(pairs.items()):
         if e["verified"] and not e["declared"]:
