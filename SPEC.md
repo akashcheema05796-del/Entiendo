@@ -1,10 +1,54 @@
-# Entiendo — Specification v2
+# Entiendo — Specification v3
 
-> **Thesis:** When AI writes the code, the file tree stops being the right interface. The unit of work becomes the *node* — a declared component with a contract, a version, an eval, and a history. Entiendo makes that node the surface a human steers through *and* the retrieval unit an AI edits through.
->
-> **Instrumentation at build time, not forensics after breakage.** Sensors go in while you build, so "which part broke" is already answered when something turns red.
+> **Entiendo is the control plane for AI-built software.** Manifests hold the
+> declared desired state (units, contracts, edges); a reconciler continuously
+> verifies reality against it; evals are the health probes; fingerprints are the
+> versioned identities; and the Universe is the surface through which humans
+> steer and agents edit. **Human = operator, coding agent = workload, Entiendo =
+> control plane.** It is *not* a visualization layer (it defines the truth, not
+> just renders it) and *not* an IDE (humans never manipulate text here). It works
+> *with* your IDE and your agent — it is the plane they operate under.
 
-**Name note:** *entiendo* is Spanish for "I understand" (first person). *entendimiento* is the noun "understanding." The first-person reading is arguably better — the tool's whole claim is that the human *and* the model can say "I understand this system." CLI binary: `ent`.
+**The law (v3's one axiom).** A boundary is a valid **Logical Unit** *iff it can
+be evaluated independently on given data* — from its own artifacts plus its
+neighbours' contracts, never their interiors. Not evaluable alone → not a unit →
+boundary error. This single test decides every boundary in the system.
+
+> **Instrumentation at build time, not forensics after breakage.** Sensors go in
+> while you build, so "which part broke" is already answered when something turns
+> red. Entiendo is a read-only observer — never in the request path.
+
+**Vocabulary.** v3 speaks of **units** (v2: nodes), **fingerprints** (v2:
+versions), and **reflex / golden / judge** evals (v2: tier0 / tier1 / tier2). The
+full glossary is **[LEXICON.md](./LEXICON.md)**; the roadmap is
+**[PLAN_v3.md](./PLAN_v3.md)**. The *format* is unchanged — manifest filename,
+`claims:` key, and `apiVersion: entiendo/v1` all stay (see LEXICON → Compatibility).
+
+### Why the unit, not the file
+
+Five independent lines of reasoning converge on the same primitive:
+
+1. **Files are a human-production artifact.** Directory trees optimize for a
+   person typing and remembering — not for how behaviour decomposes. When the
+   agent writes the code, that ergonomic constraint is gone: the unit of *change*
+   should be the unit of *behaviour*.
+2. **LLM context economics.** An agent that swallows the whole repo to make one
+   change pays for irrelevance in tokens, latency, and blast radius. A unit —
+   claims plus neighbours' contracts — is the minimal correct retrieval set.
+3. **Verification beats review.** Reading a diff tells you it *looks* right;
+   re-running the unit's evals tells you it *is* right. The unit is the smallest
+   thing you can independently re-verify — which is exactly the law.
+4. **Fingerprint dimensionality.** Behaviour moves along code, prompt, config,
+   and model. A file hash sees one dimension; a unit's composite fingerprint sees
+   all four, so "what moved" has an answer.
+5. **Precedent: RTL → netlist.** Hardware crossed this bridge decades ago — you
+   describe intent (RTL) and a tool compiles and *verifies* it against a
+   contract; nobody hand-places transistors. AI-built software is making the same
+   move, and the verified unit is its netlist cell.
+
+**Name note:** *entiendo* is Spanish for "I understand" (first person). The whole
+claim of the tool is that the human *and* the model can say "I understand this
+system." CLI binary: `ent`.
 
 ---
 
@@ -324,3 +368,106 @@ If that doesn't already feel useful, the full version won't either. Everything a
 - Language/stack: pick one runtime for the instrumentation decorator first (Python suggested, given the target project), and treat multi-language extraction as a later concern.
 - The manifest schema is the contract for the entire system. Change it only deliberately and version it (`apiVersion: entiendo/v1`).
 - Prefer boring, inspectable storage (Parquet/DuckDB, JSON, git) over a database service. The tool must be trivially recoverable.
+
+---
+
+## 13. Boundary stress cases — the law, applied
+
+The law ("evaluable alone → unit") resolves the cases where directory grouping
+guesses wrong. Test every proposed boundary against it:
+
+- **A RAG bot as one file.** `bot.py` parses the query, retrieves, ranks, calls
+  the LLM, and formats. One file, but *not* one unit: you cannot evaluate
+  "ranking" without also exercising retrieval and generation. Split until each
+  piece has a contract you can grade on given data — ranker (chunks → order),
+  retriever (query → chunks), generator (context → answer).
+- **A prompt + its renderer + its defaults, across three directories.** One
+  behaviour smeared across the tree. It *is* one unit: the claims are "everything
+  that can change this behaviour," which is also what the fingerprint hashes.
+  Merge them.
+- **Two responsibilities in one directory** (auth + rate-limiting in
+  `middleware/`). Two units: each is independently evaluable, so the directory is
+  the wrong seam.
+- **A pure DTO / schema with no behaviour.** Evaluable only as a shape → a
+  `schema` unit whose contract is the shape + its migrations, not a `compute`.
+- **Untestable glue** (a 5-line adapter with no defensible "correct"). Not a unit
+  — leave it explicitly *unclaimed* (Invariant 4). Unclaimed is visible, not a
+  failure; it is the finding "this glue has no contract."
+
+---
+
+## 14. Agentic units — interiors, tools, trajectory contracts
+
+A `compute` unit whose interior is an agent (a multi-step loop that chooses
+tools) needs more than an input/output contract: the *path* matters, and the path
+can be wrong even when the answer is right.
+
+### 14.1 The interior block
+
+```yaml
+interior:
+  process: >                      # human-readable description of the loop
+    Classify intent, look up the order, decide, then act.
+  tools:                          # the ONLY tools this unit may call
+    - name: order_lookup
+      crosses: retrieval.orders   # the edge this tool traverses (reconciled!)
+    - name: issue_refund
+      crosses: payments.gateway
+  maxSteps: 8
+```
+
+### 14.2 Trajectory invariants (a reflex-tier eval)
+
+```yaml
+evals:
+  tier0:
+    - type: trajectory
+      order: [order_lookup_before_issue_refund]   # a must precede b
+      maxSteps: 8
+      registryOnly: true                           # no tool outside interior.tools
+```
+
+Evaluated against recorded spans or a run-log fixture (JSONL of tool calls) —
+deterministic, <1s. A right answer reached by a forbidden order is **RED**.
+
+### 14.3 Reconciled tools
+
+Every `interior.tools[].crosses` must have a matching declared edge. A tool that
+crosses a border with no edge is drift — `ent extract --check` fails, naming the
+unit and the tool. Runtime guard: `ent.guard(registry)` raises on an
+out-of-registry call, so the border holds in production too (still read-only — it
+guards the workload, it is not the workload).
+
+---
+
+## 15. Competitive positioning — verified spec-driven development
+
+Spec-driven development (Spec Kit, Kiro, Tessl) turns a written spec into code.
+Entiendo's difference is one word: **verified**. A spec is a promise; a unit is a
+promise *plus a continuously-checked proof* (its evals) *plus a reconciler* that
+fails the build when code drifts from the declaration. The others generate and
+trust; Entiendo generates and **verifies**, forever, as a control loop.
+
+| | Spec-driven tools | Entiendo |
+|---|---|---|
+| Artifact | a spec that produces code | a unit: contract + evals + fingerprint |
+| After generation | spec and code drift silently | reconciler fails the build on drift |
+| "Correct" means | matches the prose | passes the health probes on given data |
+| Human role | author the spec | operate the plane (steer / approve / bless) |
+| Agent role | one-shot author | continuous workload under the plane |
+
+Not an IDE (humans don't edit text here) and not a visualizer (it defines the
+truth, not just renders it). It **works with** your IDE and your agent — it is
+the plane they operate under.
+
+---
+
+## 16. Reference project — refundly
+
+`examples/refundly/` is the v3 reference project: a support agent that parses an
+email → looks up the order (retrieval) → reads policy (`config`) → **decides** (an
+agentic unit with interior tools + trajectory invariants) → executes the refund
+(`external`, `irreversible`, `approval.required: true`) → writes a case ledger
+(`state`). It exercises every v3 feature — the law, agentic units, the approval
+gate, and fingerprint replay — and grows phase by phase alongside the build, each
+phase's acceptance running against it.

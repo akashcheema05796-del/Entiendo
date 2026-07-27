@@ -1,20 +1,36 @@
-# Entiendo
+# Entiendo — steer your codebase like mission control
 
 [![CI](https://github.com/akashdatageek/Entiendo/actions/workflows/ci.yml/badge.svg)](https://github.com/akashdatageek/Entiendo/actions/workflows/ci.yml)
 
-> *entiendo* — Spanish for "I understand." The whole claim of the tool is that
-> the human **and** the model can say "I understand this system." CLI binary: `ent`.
+> **The control plane for AI-built software.** Manifests hold the declared desired
+> state; a reconciler continuously verifies reality against it; evals are the
+> health probes; fingerprints are the versioned identities; and the Universe is
+> the surface you steer through. **Human = operator, coding agent = workload,
+> Entiendo = control plane.** Works *with* your IDE and your agent — it is the
+> plane they operate under.
 
 **When AI writes the code, the file tree stops being the right interface.** The
-unit of work becomes the **node** — a declared component with a contract, a
-version, an eval, and a history. Entiendo makes that node the surface a human
-steers through *and* the retrieval unit an AI edits through.
+unit of work becomes the **unit** — a declared component with a task, a contract,
+an eval, a **fingerprint**, and a history. Entiendo makes that unit the surface a
+human steers through *and* the retrieval unit an AI edits through.
+
+> **The law:** a boundary is a valid unit *iff it can be evaluated independently
+> on given data.* Not evaluable alone → not a unit → boundary error. That single
+> test is what makes this *control*, not decoration.
 
 > Instrumentation at **build time**, not forensics after breakage. Sensors go in
-> while you build, so "which part broke" is already answered when something turns red.
+> while you build, so "which part broke" is already answered when something turns
+> red. Entiendo is a read-only observer — never in the request path.
 
-The full specification is **[SPEC.md](./SPEC.md)** — it is the source of truth.
-This README is the map to the scaffold.
+The full specification is **[SPEC.md](./SPEC.md)** (the source of truth), the
+vocabulary is **[LEXICON.md](./LEXICON.md)**, and the v3 roadmap is
+**[PLAN_v3.md](./PLAN_v3.md)**. This README is the map to the scaffold.
+
+> **Naming:** v3 speaks of *units*, *fingerprints*, and *reflex / golden / judge*
+> evals; the older *node* / *version* / *tier0–2* names still appear in code and
+> some docs and mean the same things (the mechanical rename is a later phase). The
+> manifest format — `entiendo.node.yaml`, `claims:`, `apiVersion: entiendo/v1` —
+> is unchanged.
 
 ---
 
