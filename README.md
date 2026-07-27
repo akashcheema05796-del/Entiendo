@@ -51,8 +51,10 @@ $ ent baseline accept <n> # promote a pending baseline
 $ ent snapshot            # record composite versions + verdicts to append-only history
 $ ent render              # self-contained HTML map: six lenses + "executable N/M"
 $ ent edit <node>         # scoped edit loop: context + boundary + verdict + approval
+$ ent pin <n> model=<id>  # pin a fingerprint dimension; the fingerprint moves onto the Timeline
+$ ent replay <n> --against <fp>  # golden metric now vs an old fingerprint, delta attributed by dimension
 $ ent retrofit <root>     # infer nodes in an unmanaged repo → staged manifest proposals
-$ ent serve               # interactive web app: click a node, ask an AI to change it, watch tier0
+$ ent serve               # the Universe: click a unit, steer it via Claude Code, watch reflex
 ```
 
 > **The one-line test (Phase 7 §15):** break `ranker.py` and run

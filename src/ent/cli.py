@@ -35,6 +35,8 @@ from .commands import baseline as baseline_cmd
 from .commands import retrofit as retrofit_cmd
 from .commands import serve as serve_cmd
 from .commands import mcp as mcp_cmd
+from .commands import pin as pin_cmd
+from .commands import replay as replay_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -61,6 +63,8 @@ def _build_parser() -> argparse.ArgumentParser:
     retrofit_cmd.register(sub)
     serve_cmd.register(sub)
     mcp_cmd.register(sub)
+    pin_cmd.register(sub)
+    replay_cmd.register(sub)
 
     return parser
 

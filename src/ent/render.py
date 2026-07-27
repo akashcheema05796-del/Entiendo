@@ -18,7 +18,7 @@ from . import gitinfo, history, verdicts
 from .evals.runner import run_tier0
 from .extractor import extract
 from .manifest import Node, discover, load
-from .version import compute_version
+from .version import VERSION_DIMENSIONS, compute_version
 
 
 def build_view(root: Path) -> dict[str, Any]:
@@ -47,6 +47,7 @@ def build_view(root: Path) -> dict[str, Any]:
         })
 
     timelines = {n.id: history.timeline(root, n.id) for n in nodes}
+    _annotate_fingerprint_deltas(timelines)
 
     # Trace data (lens 3) + per-node traffic (lens 2 volume).
     trace_events = history.traces(root)
@@ -68,6 +69,20 @@ def build_view(root: Path) -> dict[str, Any]:
         "traces": trace_events,
         "traffic": traffic,
     }
+
+
+def _annotate_fingerprint_deltas(timelines: dict[str, list[dict[str, Any]]]) -> None:
+    """Timeline lens (Phase E): tag each version tick with the fingerprint
+    dimensions that changed from the previous tick (code/prompt/config/model)."""
+    for events in timelines.values():
+        prev: dict[str, Any] | None = None
+        for e in events:
+            if e.get("kind") != "version":
+                continue
+            cur = e.get("version", {}) or {}
+            e["changed"] = ([d for d in VERSION_DIMENSIONS if prev.get(d) != cur.get(d)]
+                            if prev is not None else [])
+            prev = cur
 
 
 def blast_radius(view: dict[str, Any], node_id: str) -> dict[str, Any]:
