@@ -2,6 +2,11 @@ apiVersion: entiendo/v1
 kind: Node
 id: refundly.orders
 name: Order Store
+task: Look up an order's amount and age by id.
+description: >
+  The system of record for orders. Given an order id it returns the amount and
+  how old the order is — the facts the decider weighs against policy. Read-only
+  state from the pipeline's point of view.
 nodeKind: state
 group: refundly
 owner: mehar

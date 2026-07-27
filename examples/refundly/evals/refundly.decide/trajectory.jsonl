@@ -1,2 +1,5 @@
-{"tool": "order_lookup", "note": "recorded good run — look up before acting"}
-{"tool": "issue_refund", "note": "refund issued only after the lookup"}
+{"tool": "parse", "note": "structured the email first"}
+{"tool": "order_lookup", "note": "verified the order before acting"}
+{"tool": "read_policy"}
+{"tool": "issue_refund", "note": "refund only after lookup"}
+{"tool": "write_ledger", "note": "recorded the case last"}

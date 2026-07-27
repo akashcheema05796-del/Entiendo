@@ -2,7 +2,10 @@
 /entiendo/graph.json
 /entiendo/coverage.json
 /entiendo/render.html
-/entiendo/history/
+/entiendo/history/evals.jsonl
 /entiendo/baselines/
 /entiendo/.edit-backups/
 /entiendo/steering/
+
+# entiendo/history/events.jsonl IS tracked here — it ships the synthetic traces
+# that Flow / Trace / cost-vs-budget render against (H1 reference data).

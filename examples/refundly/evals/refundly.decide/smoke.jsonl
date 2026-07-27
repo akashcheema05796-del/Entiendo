@@ -1,2 +1,2 @@
-{"name": "within-policy", "input": {"orderId": "o1", "policyMax": 100}}
-{"name": "over-policy", "input": {"orderId": "o2", "policyMax": 10}}
+{"name": "within-policy", "input": {"email": "please refund order o1"}}
+{"name": "over-amount", "input": {"email": "please refund order o2"}}
