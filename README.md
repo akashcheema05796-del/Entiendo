@@ -43,6 +43,7 @@ full loop works end to end: declare nodes → reconcile the graph → instrument
 ```
 $ ent validate            # schema + semantic checks (incl. restricted invariants)
 $ ent init                # scaffolds entiendo/ (+ a starter manifest)
+$ ent new <id> --task ... --fixture ... --expect ...   # fixture-first unit birth; refuses without the pair (the law)
 $ ent extract             # graph.json + coverage.json; fails on drift; proposes entrypoints
 $ ent eval <node>         # tier0 EXECUTES the node → GREEN/RED/UNTESTED/ERROR
 $ ent eval --all --tier 1 # golden: minRuns + significance + budgets (the pre-merge gate)

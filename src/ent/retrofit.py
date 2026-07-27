@@ -160,10 +160,16 @@ def propose(root: Path) -> list[Proposal]:
         confidence = "high" if (kind_conf == "high" and (entrypoint or kind != "compute")) else \
                      "low" if kind_conf == "low" else "medium"
         notes.append("owner, contract, and evals are stubs — review before accepting")
+        # A unit is only valid if it can be evaluated on given data (the law).
+        # Retrofit cannot author that data, so every proposal is boundary-uncertain
+        # until a human supplies a fixture -> expected verdict (see `ent new`).
+        notes.append("boundary-uncertain: no candidate fixture -> expected verdict yet; "
+                     "supply one before accepting (the law)")
 
+        task = f"TODO: state in one sentence what {node_id} is for (retrofit inferred this boundary)"
         manifest = {
             "apiVersion": "entiendo/v1", "kind": "Node",
-            "id": node_id, "name": key[-1], "nodeKind": kind, "group": app,
+            "id": node_id, "name": key[-1], "task": task, "nodeKind": kind, "group": app,
             "owner": "TODO", "status": "experimental",
             "claims": claims,
             "contract": contract,

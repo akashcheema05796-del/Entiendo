@@ -42,29 +42,37 @@ written into the real tree until the human accepts a proposal. Never bulk-accept
    - `external` — third-party API the team doesn't control
    - `pipeline` — a composite group with its own end-to-end contract
 
-4. **Every node gets a contract.** No node without a contract; no contract
+4. **Phrase every proposal as a task, with a fixture → verdict.** Each proposal
+   gets a one-sentence **`task`** ("what is this unit for?") and a **candidate
+   fixture → expected verdict** — one input and the output that would make it
+   pass. A unit is only valid if it can be evaluated on given data (the law); if
+   you cannot supply that pair, mark the proposal **boundary-uncertain** and say
+   why. That is a finding, not a failure — never accept a boundary-uncertain
+   proposal until a human supplies the fixture pair (`ent new` is the same gate
+   for greenfield units).
+
+5. **Every node gets a contract.** No node without a contract; no contract
    without a tier-0 eval (Invariant 3). At minimum: input/output shape (JSON
    Schema, even loose), one or two invariants you can defend from the code, and
-   `sideEffects` (none | writes | external | irreversible). If you cannot state
-   what "correct" means for a node, say so — that is a finding, not a failure.
+   `sideEffects` (none | writes | external | irreversible).
 
-5. **Declare dependencies you can point to.** `calls` / `reads` / `writes` /
+6. **Declare dependencies you can point to.** `calls` / `reads` / `writes` /
    `config` edges must correspond to actual imports, calls, or I/O you saw.
    The extractor VERIFIES declarations against reality and fails the build on
    divergence (Invariant 5) — do not guess edges into existence.
 
-6. **Propose evals with correct authorship:**
+7. **Propose evals with correct authorship:**
    - tier0 (schema/invariant/smoke) — you may author these freely; mechanical.
    - tier1 golden datasets — you may PROPOSE rows, but `humanBlessed: true`
      requires the human to approve expected outputs. Never set it yourself.
    - tier2 rubrics — draft only if asked; the human owns them.
 
-7. **Present one node at a time.** For each: id, kind, claimed files, the
+8. **Present one node at a time.** For each: id, kind, claimed files, the
    contract in one or two sentences, edges with your evidence, and your
    confidence. Ask the human to accept, amend, or reject. On accept, call
    `retrofit_accept` for that id only.
 
-8. **Finish with coverage.** Run `validate_manifests` and the extractor. Report
+9. **Finish with coverage.** Run `validate_manifests` and the extractor. Report
    the coverage number and list unclaimed files explicitly — unclaimed is
    visible, not hidden (Invariant 4). Ask whether the leftovers should become
    nodes, be acknowledged, or be flagged as glue debt.

@@ -25,6 +25,10 @@
       "type": "string",
       "minLength": 1
     },
+    "task": {
+      "description": "One sentence: what this unit is for. `ent new` refuses to scaffold a unit without one (plus a fixture -> expected verdict). Shown first in the dossier (logic before artifacts).",
+      "type": "string"
+    },
     "nodeKind": {
       "description": "What kind of thing this node is. Drives how it is drawn on the map.",
       "type": "string",

@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip("yaml")
 pytest.importorskip("jsonschema")
 
-from ent import retrofit  # noqa: E402
+from ent import cli, retrofit  # noqa: E402
 from ent.validation import validate_root  # noqa: E402
 from ent.extractor import extract  # noqa: E402
 
@@ -43,6 +43,22 @@ def test_coverage_is_full() -> None:
     cov = retrofit.coverage(LEGACY, proposals)
     assert cov["coverage"] == 1.0
     assert cov["nodes"] == 4
+
+
+# --- Phase F (retrofit v2): task-phrased + boundary-uncertain, no bulk accept ---
+
+def test_proposals_are_task_phrased() -> None:
+    for p in retrofit.propose(LEGACY):
+        assert p.manifest["task"]                       # every proposal has a task
+        assert "boundary-uncertain" in " ".join(p.notes)  # marked until a fixture pair exists
+
+
+def test_no_accept_all_flag(tmp_path: Path) -> None:
+    """`--accept-all` is gone — bulk-accepting a boundary you haven't reviewed
+    is the tautology the tool exists to prevent (§5.2)."""
+    root = _copy_legacy(tmp_path)
+    with pytest.raises(SystemExit):                     # argparse rejects the unknown flag
+        cli.main(["retrofit", str(root), "--accept-all"])
 
 
 def _copy_legacy(tmp_path: Path) -> Path:
