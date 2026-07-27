@@ -29,6 +29,10 @@
       "description": "One sentence: what this unit is for. `ent new` refuses to scaffold a unit without one (plus a fixture -> expected verdict). Shown first in the dossier (logic before artifacts).",
       "type": "string"
     },
+    "description": {
+      "description": "One plain-English paragraph: what this unit does, for a non-engineer. Distinct from `task` (one line). Authored by the AI at unit birth; the reconciler does not verify prose. Shown at the top of the dossier.",
+      "type": "string"
+    },
     "nodeKind": {
       "description": "What kind of thing this node is. Drives how it is drawn on the map.",
       "type": "string",

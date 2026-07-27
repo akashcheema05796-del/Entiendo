@@ -27,34 +27,45 @@ def build_view(root: Path) -> dict[str, Any]:
     nodes = [Node.from_manifest(load(p), p) for p in discover(root)]
     result = extract(root)
 
-    by_id = {n.id: n for n in nodes}
-    node_views = []
-    executable = 0
-    for gnode in result.graph["nodes"]:
-        node = by_id.get(gnode["id"])
-        health = run_tier0(node, root).verdict if node else verdicts.ERROR
-        if health != verdicts.UNTESTED:
-            executable += 1
-        version = compute_version(node, root) if node else {}
-        raw = node.raw if node else {}
-        contract = raw.get("contract", {}) or {}
-        node_views.append({
-            **gnode, "health": health,
-            "healthColour": verdicts.colour(health), "version": version,
-            # dossier fields (logic-first): task + contract, artifacts already in `claims`
-            "task": raw.get("task") or raw.get("name") or gnode["id"],
-            "invariants": list(contract.get("invariants", []) or []),
-        })
-
-    timelines = {n.id: history.timeline(root, n.id) for n in nodes}
-    _annotate_fingerprint_deltas(timelines)
-
-    # Trace data (lens 3) + per-node traffic (lens 2 volume).
+    # Trace data first (H0.1): the UI plays traces back and shows measured budgets.
     trace_events = history.traces(root)
     traffic: dict[str, int] = {}
     for trace in trace_events:
         for hop in trace.get("hops", []):
             traffic[hop["node"]] = traffic.get(hop["node"], 0) + 1
+    measured = _measured_budgets(trace_events)
+
+    by_id = {n.id: n for n in nodes}
+    node_views = []
+    executable = 0
+    for gnode in result.graph["nodes"]:
+        node = by_id.get(gnode["id"])
+        result0 = run_tier0(node, root) if node else None
+        health = result0.verdict if result0 else verdicts.ERROR
+        if health != verdicts.UNTESTED:
+            executable += 1
+        version = compute_version(node, root) if node else {}
+        raw = node.raw if node else {}
+        contract = raw.get("contract", {}) or {}
+        declared_budgets = raw.get("budgets", {}) or {}
+        view = {
+            **gnode, "health": health,
+            "healthColour": verdicts.colour(health), "version": version,
+            # dossier, logic-first: description (paragraph) → task (line) → contract
+            "description": raw.get("description"),
+            "task": raw.get("task") or raw.get("name") or gnode["id"],
+            "invariants": list(contract.get("invariants", []) or []),
+            # budgets: declared + measured-from-traces (H0.1 / audit finding 2)
+            "budgets": {**declared_budgets, "measured": measured.get(gnode["id"])},
+            "trajectoryVerdict": _trajectory_verdict(result0),
+        }
+        interior = raw.get("interior")
+        if interior:                         # agentic units only (audit finding 1)
+            view["interior"] = interior
+        node_views.append(view)
+
+    timelines = {n.id: history.timeline(root, n.id) for n in nodes}
+    _annotate_fingerprint_deltas(timelines)
 
     return {
         "apiVersion": "entiendo/v1",
@@ -66,8 +77,70 @@ def build_view(root: Path) -> dict[str, Any]:
         "executable": executable,
         "nodeCount": len(node_views),
         "timelines": timelines,
-        "traces": trace_events,
+        "traces": [_trace_view(t) for t in trace_events],
         "traffic": traffic,
+    }
+
+
+def _percentile(xs: list[float], p: int) -> float:
+    if not xs:
+        return 0.0
+    s = sorted(xs)
+    k = (len(s) - 1) * p / 100
+    lo = int(k)
+    hi = min(lo + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * (k - lo)
+
+
+def _measured_budgets(traces: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Per-unit measured latency/cost derived from recorded trace hops (H0.1)."""
+    agg: dict[str, dict[str, list[float]]] = {}
+    for tr in traces:
+        for hop in tr.get("hops", []):
+            nid = hop.get("node")
+            if nid is None:
+                continue
+            a = agg.setdefault(nid, {"lat": [], "cost": []})
+            if hop.get("duration_ms") is not None:
+                a["lat"].append(hop["duration_ms"])
+            if hop.get("cost_usd") is not None:
+                a["cost"].append(hop["cost_usd"])
+    out: dict[str, dict[str, Any]] = {}
+    for nid, a in agg.items():
+        lat, cost = a["lat"], a["cost"]
+        out[nid] = {
+            "calls": len(lat),
+            "avgLatencyMs": round(sum(lat) / len(lat), 3) if lat else None,
+            "p95LatencyMs": round(_percentile(lat, 95), 3) if lat else None,
+            "avgCostUsd": round(sum(cost) / len(cost), 6) if cost else None,
+            "totalCostUsd": round(sum(cost), 6) if cost else None,
+        }
+    return out
+
+
+def _trajectory_verdict(result0: Any) -> dict[str, Any] | None:
+    """The last trajectory-eval outcome + the rule detail on RED (H0.1)."""
+    if result0 is None:
+        return None
+    traj = [c for c in result0.checks if c.type == "trajectory"]
+    if not traj:
+        return None
+    failed = next((c for c in traj if c.status == "fail"), None)
+    if failed is not None:
+        return {"verdict": verdicts.RED, "failedRule": failed.detail}
+    return {"verdict": verdicts.GREEN, "detail": traj[-1].detail}
+
+
+def _trace_view(t: dict[str, Any]) -> dict[str, Any]:
+    """Expose a trace for playback: id, ordered hops, total latency + cost (H0.1)."""
+    hops = t.get("hops", [])
+    return {
+        "id": t.get("traceId"),
+        "hops": hops,
+        "totalMs": t.get("totalMs"),
+        "totalCostUsd": round(sum(h.get("cost_usd") or 0.0 for h in hops), 6),
+        "commit": t.get("commit"),
+        "ts": t.get("ts"),
     }
 
 

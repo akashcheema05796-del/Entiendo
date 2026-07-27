@@ -43,7 +43,23 @@ is noted in the plan, not built).
   a result for its request id appears, updates the verdict and flashes the unit.
 - **MCP `await_steering(timeout_s)`** → the next pending request (bounded, so the
   call returns; the workload just loops).
-- **MCP `post_verdict(request_id, outcome)`** → writes `results/<id>.json`.
+- **MCP `post_verdict(request_id, outcome)`** → writes `results/<id>.json`. The
+  outcome now carries a **real diff** (per-file unified diff), the **before/after
+  verdict**, and — when golden fixtures exist — the **behaviour delta** (spec §6).
+
+## Approval, for real (H0.3)
+
+An edit to a unit whose `approval.required` is set is not applied live. The
+operator calls `post_verdict(request_id, outcome, proposal=true)`; the diff is
+captured, the working tree reverts to *before*, and the change waits under
+`entiendo/steering/proposals/<id>.json`:
+
+- **`GET /api/proposals`** → the open proposals (diff + behaviour delta + verdict).
+- **`POST /api/proposals/<id>/approve`** → applies the stored `after` to the tree.
+- **`POST /api/proposals/<id>/reject`** → discards it (the tree is already at *before*).
+
+Both approve and reject write a history event. It is a boring stored-diff apply —
+no live-tree magic, no git stash.
 
 All are pure functions over `root` (`src/ent/steering.py`), unit-tested without a
 transport (`tests/test_steering.py`), including a scripted-agent dry-run of the

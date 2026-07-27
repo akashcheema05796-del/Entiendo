@@ -19,12 +19,13 @@ gate decides whether it can merge or must await human sign-off.
 
 from __future__ import annotations
 
+import difflib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from . import history
-from .evals.runner import run_tier0
+from . import history, verdicts
+from .evals.runner import run_tier0, run_tier1
 from .extractor import extract
 from .manifest import Node, discover, find_node, load
 from .render import blast_radius, build_view
@@ -203,3 +204,34 @@ def review_edit(root: Path, node_id: str, changed_paths: list[str]) -> EditOutco
         approval_required=approval_required,
         status=status,
     )
+
+
+# --------------------------------------------------------------------------- #
+# H0.2 — diff + behaviour capture for the steer/approve review surface
+# --------------------------------------------------------------------------- #
+
+def unified_diff(path: str, before: str, after: str) -> str:
+    """A unified diff for one claimed file (bounded — claims are small)."""
+    return "".join(difflib.unified_diff(
+        before.splitlines(keepends=True), after.splitlines(keepends=True),
+        fromfile=f"a/{path}", tofile=f"b/{path}", n=3))
+
+
+def golden_mean(node: Node, root: Path) -> dict[str, Any] | None:
+    """The unit's current golden metric mean, or None if it has no runnable golden."""
+    res = run_tier1(node, root)
+    if res.verdict == verdicts.UNTESTED or not res.stats:
+        return None
+    return {"metric": res.stats.get("metric"), "mean": res.stats.get("mean")}
+
+
+def behaviour_delta(before: dict[str, Any] | None, after: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The spec §6 before/after behaviour diff: golden metric moved by how much."""
+    if not before or not after or before.get("mean") is None or after.get("mean") is None:
+        return None
+    d = round(after["mean"] - before["mean"], 4)
+    return {
+        "metric": after.get("metric") or before.get("metric"),
+        "before": before["mean"], "after": after["mean"], "delta": d,
+        "verdict": "IMPROVED" if d > 0 else "REGRESSED" if d < 0 else "WITHIN_BAND",
+    }

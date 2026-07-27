@@ -55,6 +55,20 @@ def handle_api(root: Path, method: str, path: str, body: dict[str, Any] | None,
         if parts == ["api", "steering"] and method == "GET":
             return 200, steering.poll(root)
 
+        # --- approval, for real (H0.3): gated edits land as proposals ---
+        if parts == ["api", "proposals"] and method == "GET":
+            return 200, {"proposals": steering.proposals(root)}
+
+        if len(parts) == 4 and parts[:2] == ["api", "proposals"] and method == "POST":
+            pid, action = parts[2], parts[3]
+            if action == "approve":
+                result = steering.approve(root, pid)
+            elif action == "reject":
+                result = steering.reject(root, pid)
+            else:
+                return 404, {"error": "not found"}
+            return (404 if "error" in result else 200), result
+
         if len(parts) >= 3 and parts[:2] == ["api", "node"]:
             node_id = parts[2]
             action = parts[3] if len(parts) > 3 else None
