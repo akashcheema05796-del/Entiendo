@@ -1,4 +1,4 @@
-"""`ent init` — L0. Scaffold entiendo/ and (optionally) a first node manifest.
+"""`ent init` — L0. Scaffold entiendo/ and (optionally) a first unit manifest.
 
 Idempotent and non-destructive: it creates what's missing and never overwrites a
 file that already exists. Generated artifacts (graph.json / coverage.json) are
@@ -6,7 +6,7 @@ NOT written here — those come from `ent extract` (L1).
 
 Usage:
   ent init                                  # scaffold entiendo/ only
-  ent init --node-id retrieval.ranker --at src/retrieval
+  ent init --unit-id retrieval.ranker --at src/retrieval
                                             # + a starter manifest at that module
 """
 
@@ -24,9 +24,9 @@ Everything here is **generated, never hand-edited** (SPEC.md §12).
 
 | File / dir | Written by | Contents |
 |---|---|---|
-| `graph.json` | `ent extract` (L1) | Node topology + verified edges |
+| `graph.json` | `ent extract` (L1) | Unit topology + verified edges |
 | `coverage.json` | `ent extract` (L1) | Claimed vs unclaimed files |
-| `baselines/` | `ent eval` (L2/L3) | Eval baselines per node version |
+| `baselines/` | `ent eval` (L2/L3) | Eval baselines per unit fingerprint |
 | `history/` | history store (L3) | Append-only version + eval event log |
 
 Never resolve a merge conflict inside graph.json / coverage.json by hand —
@@ -47,11 +47,11 @@ group: {group}
 owner: TODO                         # human accountable, not the AI
 status: active
 
-# What this node owns. Every claimed file must exist (drives coverage).
+# What this unit owns. Every claimed file must exist (drives coverage).
 claims:
   - TODO/path/to/source.py
 
-# The contract: what "correct" means for THIS node alone.
+# The contract: what "correct" means for THIS unit alone.
 contract:
   invariants: []
   sideEffects: none                 # none | writes | external | irreversible
@@ -63,7 +63,7 @@ dependencies:
   writes: []
   config: []
 
-# No node without a tier-0 eval (Invariant 3).
+# No unit without a reflex (tier-0) eval (Invariant 3).
 evals:
   tier0:
     - type: schema_validation
@@ -80,7 +80,7 @@ approval:
 def register(subparsers: "argparse._SubParsersAction") -> None:
     p = subparsers.add_parser(
         "init",
-        help="[L0] scaffold entiendo/ + a first node manifest",
+        help="[L0] scaffold entiendo/ + a first unit manifest",
         description="Scaffold the entiendo/ layout and, optionally, a first manifest.",
     )
     p.add_argument(
@@ -89,12 +89,13 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
         help="project root to initialise (default: current directory)",
     )
     p.add_argument(
-        "--node-id",
+        "--unit-id", "--node-id",           # --node-id kept as a deprecated alias
+        dest="node_id",
         help="id for a starter manifest, e.g. retrieval.chunk_ranker",
     )
     p.add_argument(
         "--at",
-        help="module directory to write the starter manifest into (with --node-id)",
+        help="module directory to write the starter manifest into (with --unit-id)",
     )
     p.set_defaults(handler=_run)
 
@@ -126,7 +127,7 @@ def _run(args: argparse.Namespace) -> int:
         target = root / args.at / MANIFEST_FILENAME
         _write_if_absent(target, _starter_manifest(args.node_id), created, skipped)
     elif args.node_id or args.at:
-        print("ent init: --node-id and --at must be given together; skipping manifest.\n")
+        print("ent init: --unit-id and --at must be given together; skipping manifest.\n")
 
     # --- report ---
     for c in created:
@@ -137,7 +138,7 @@ def _run(args: argparse.Namespace) -> int:
     print()
     print(f"✓ initialised entiendo/ at {root}")
     if not (args.node_id and args.at):
-        print("  next: `ent init --node-id <id> --at <module-dir>` to add a node,")
+        print("  next: `ent init --unit-id <id> --at <module-dir>` to add a unit,")
         print("        then `ent validate` to check it.")
     else:
         print("  next: fill in the TODOs, then `ent validate`.")

@@ -24,7 +24,7 @@ from ..version import compute_version
 def register(subparsers: "argparse._SubParsersAction") -> None:
     p = subparsers.add_parser(
         "snapshot",
-        help="[L3] record node versions + eval verdicts to history",
+        help="[L3] record unit fingerprints + eval verdicts to history",
         description="Append current versions and tier0 verdicts to the history log.",
     )
     p.add_argument("--root", default=".", help="project root (default: current directory)")
@@ -59,6 +59,6 @@ def _run(args: argparse.Namespace) -> int:
         print(f"  {mark} {node.id:26} {version['composite']}  {result.verdict}")
 
     print()
-    print(f"✓ snapshot recorded for {len(nodes)} node(s), "
+    print(f"✓ snapshot recorded for {len(nodes)} unit(s), "
           f"{changed} version change(s)" + (f" @ {commit}" if commit else ""))
     return 0

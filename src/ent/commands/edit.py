@@ -27,15 +27,15 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
     p = subparsers.add_parser(
         "edit",
         help="[L5] scoped edit loop: context + boundary + verdict + approval",
-        description="Assemble a node's scoped edit context, or review a proposed edit.",
+        description="Assemble a unit's scoped edit context, or review a proposed edit.",
     )
-    p.add_argument("node", help="node id, e.g. retrieval.chunk_ranker")
+    p.add_argument("node", metavar="unit", help="unit id, e.g. retrieval.chunk_ranker")
     p.add_argument("--root", default=".", help="project root (default: current directory)")
     p.add_argument(
         "--changed",
         nargs="*",
         metavar="PATH",
-        help="paths edited in this change — review them against the node boundary",
+        help="paths edited in this change — review them against the unit boundary",
     )
     p.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     p.set_defaults(handler=_run)
