@@ -2,81 +2,131 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Entiendo — the Universe</title>
 <style>
+  /* Celestial cartography (PLAN_v4 H2.1): a star chart you operate. Deep field,
+     ivory ink, constellation hairlines, plate-gold callouts. Fonts are named but
+     self-contained — they degrade to system serif/sans/mono (no external requests). */
   :root {
-    --field:#0b0f2a; --field2:#131a3f; --ink:#e9ecff; --muted:#9aa0c8;
-    --panel:#151a38ee; --line:#2a3160; --accent:#7c8cff;
-    --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --grey:#8890b8; --gold:#f2c14e;
-    --compute:#7c8cff; --state:#c084fc; --schema:#a855f7; --config:#64748b;
-    --external:#f2c14e; --pipeline:#38bdf8;
+    --field:#080B14; --field2:#0d1526; --starlight:#F2EFE6; --hairline:#2A3244;
+    --annotation:#C9A961; --gold:var(--annotation);
+    --muted:#8A93AD; --panel:#0c1220f2;
+    --signal-green:#3FBF7F; --signal-amber:#E0A83C; --signal-red:#E05252;
+    --green:var(--signal-green); --amber:var(--signal-amber); --red:var(--signal-red);
+    --grey:#6E7690; --accent:#8FA0C8;
+    --compute:#8FA0C8; --state:#B48FD8; --schema:#9B7FD0; --config:#6B7488;
+    --external:var(--annotation); --pipeline:#6FA8C0;
+    --font-display:'Fraunces','Iowan Old Style','Georgia',serif;
+    --font-body:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
   }
   * { box-sizing:border-box; }
-  html,body { margin:0; height:100%; }
-  body { font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    color:var(--ink); background:radial-gradient(1200px 800px at 30% 20%, var(--field2), var(--field) 70%);
-    overflow:hidden; }
+  html,body { margin:0; height:100%; overflow:hidden; }
+  body { font:400 13.5px/1.5 var(--font-body); color:var(--starlight);
+    background:radial-gradient(1400px 900px at 32% 18%, var(--field2), var(--field) 72%);
+    touch-action:none; -webkit-user-select:none; user-select:none; }
   #universe { position:fixed; inset:0; display:block; }
-  header { position:fixed; top:0; left:0; right:0; z-index:5; display:flex; gap:14px;
-    align-items:center; padding:12px 18px; pointer-events:none; }
-  header .brand { font-weight:700; letter-spacing:.2px; }
-  header .brand small { color:var(--muted); font-weight:400; }
-  #summary { color:var(--muted); font-size:12px; }
-  #lenses { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:6;
-    display:flex; gap:6px; background:var(--panel); border:1px solid var(--line);
-    border-radius:999px; padding:5px; backdrop-filter:blur(6px); }
-  .lens { border:0; background:transparent; color:var(--muted); border-radius:999px;
-    padding:6px 12px; cursor:pointer; font-size:12.5px; white-space:nowrap; }
-  .lens.active { background:var(--accent); color:#0b0f2a; font-weight:600; }
-  #legend { position:fixed; left:16px; bottom:14px; z-index:5; display:flex; flex-direction:column;
-    gap:4px; background:var(--panel); border:1px solid var(--line); border-radius:12px;
-    padding:10px 12px; font-size:11.5px; color:var(--muted); backdrop-filter:blur(6px); }
-  #legend b { color:var(--ink); font-size:11px; text-transform:uppercase; letter-spacing:.6px; }
-  #legend .row { display:flex; align-items:center; gap:7px; }
-  #legend .g { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  #universe:focus-visible { outline:none; }
 
-  #dossier { position:fixed; top:0; right:0; height:100%; width:390px; max-width:92vw; z-index:8;
-    background:var(--panel); border-left:1px solid var(--line); backdrop-filter:blur(10px);
-    transform:translateX(100%); transition:transform .22s ease; overflow:auto; padding:20px 20px 40px; }
+  header { position:fixed; top:0; left:0; right:0; z-index:5; display:flex; gap:16px;
+    align-items:baseline; padding:14px 20px; pointer-events:none; }
+  header .brand { font-family:var(--font-display); font-weight:600; font-size:22px;
+    letter-spacing:.3px; color:var(--starlight); }
+  header .brand small { font-family:var(--font-body); font-size:11.5px; color:var(--muted);
+    letter-spacing:.4px; font-weight:400; }
+  #summary { color:var(--muted); font-size:11.5px; font-family:var(--font-mono); }
+
+  #lenses { position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:6;
+    display:flex; gap:4px; background:var(--panel); border:1px solid var(--hairline);
+    border-radius:999px; padding:4px; backdrop-filter:blur(8px); }
+  .lens { border:0; background:transparent; color:var(--muted); border-radius:999px;
+    padding:6px 13px; cursor:pointer; font-size:12px; white-space:nowrap; font-family:var(--font-body); }
+  .lens.active { background:var(--annotation); color:var(--field); font-weight:600; }
+
+  /* right-side instrument cluster */
+  #tools { position:fixed; top:12px; right:16px; z-index:6; display:flex; gap:6px; }
+  #tools button, #recollapse { background:var(--panel); border:1px solid var(--hairline);
+    color:var(--muted); border-radius:9px; padding:7px 10px; cursor:pointer; font-size:12px;
+    backdrop-filter:blur(8px); font-family:var(--font-body); }
+  #tools button:hover { color:var(--starlight); border-color:var(--annotation); }
+
+  #search { position:fixed; top:56px; left:50%; transform:translateX(-50%); z-index:9;
+    display:none; width:min(460px,86vw); background:var(--panel); border:1px solid var(--annotation);
+    border-radius:12px; padding:8px; backdrop-filter:blur(10px); }
+  #search.open { display:block; }
+  #search input { width:100%; background:transparent; border:0; outline:none; color:var(--starlight);
+    font:15px var(--font-body); padding:6px 8px; }
+  #results { max-height:44vh; overflow:auto; margin-top:4px; }
+  #results .hit { padding:7px 9px; border-radius:8px; cursor:pointer; display:flex; gap:10px; align-items:baseline; }
+  #results .hit.sel, #results .hit:hover { background:#ffffff12; }
+  #results .hit .nm { font-family:var(--font-display); font-size:14px; }
+  #results .hit .id { font-family:var(--font-mono); font-size:11px; color:var(--muted); }
+
+  #legend { position:fixed; left:18px; bottom:16px; z-index:5; display:flex; flex-direction:column;
+    gap:5px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px;
+    padding:11px 13px; font-size:11.5px; color:var(--muted); backdrop-filter:blur(8px); }
+  #legend b { color:var(--starlight); font-size:10.5px; text-transform:uppercase; letter-spacing:.8px;
+    font-family:var(--font-body); }
+  #legend .row { display:flex; align-items:center; gap:8px; }
+  #legend .g { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  #hint { position:fixed; right:16px; bottom:16px; z-index:5; font-size:11px; color:var(--muted);
+    font-family:var(--font-mono); background:var(--panel); border:1px solid var(--hairline);
+    border-radius:10px; padding:7px 10px; backdrop-filter:blur(8px); }
+
+  #minimap { position:fixed; right:16px; bottom:56px; z-index:5; width:160px; height:110px;
+    border:1px solid var(--hairline); border-radius:8px; background:#05070ecc; display:none; }
+  #minimap.on { display:block; }
+
+  /* dossier — logic first, hashes last */
+  #dossier { position:fixed; top:0; right:0; height:100%; width:410px; max-width:94vw; z-index:8;
+    background:var(--panel); border-left:1px solid var(--hairline); backdrop-filter:blur(12px);
+    transform:translateX(100%); transition:transform .24s ease; overflow:auto; padding:22px 22px 44px; }
   #dossier.open { transform:none; }
-  #dossier h2 { margin:2px 0 2px; font-size:17px; word-break:break-all; }
-  #dossier .kindline { color:var(--muted); font-size:12px; margin-bottom:12px; }
-  .verdict { display:inline-block; font-weight:700; padding:2px 9px; border-radius:6px; color:#0b0f2a; font-size:12px; }
-  .sect { border-top:1px solid var(--line); padding:12px 0 4px; }
-  .sect h3 { margin:0 0 6px; font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); }
-  .task { font-size:14px; }
-  .inv { font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--ink);
-    background:#0b0f2a55; border:1px solid var(--line); border-radius:6px; padding:4px 7px; margin:3px 0; }
+  #dossier h2 { font-family:var(--font-display); font-weight:600; margin:2px 0; font-size:22px; word-break:break-word; }
+  #dossier .kindline { color:var(--muted); font-size:11.5px; margin-bottom:14px; font-family:var(--font-mono); }
+  .verdict { display:inline-block; font-weight:700; padding:2px 9px; border-radius:6px; color:var(--field); font-size:12px; }
+  .sect { border-top:1px solid var(--hairline); padding:13px 0 4px; }
+  .sect h3 { margin:0 0 6px; font-size:10.5px; text-transform:uppercase; letter-spacing:.9px; color:var(--muted);
+    font-family:var(--font-body); }
+  .describe { font-size:14px; line-height:1.55; color:var(--starlight); }
+  .task { font-size:13.5px; color:var(--starlight); }
+  .inv { font-family:var(--font-mono); font-size:12px; color:var(--starlight);
+    background:#0b0f2a66; border:1px solid var(--hairline); border-radius:6px; padding:4px 7px; margin:3px 0; }
   .fp { display:grid; grid-template-columns:auto 1fr; gap:2px 10px; font-size:12px; }
-  .fp code { font-family:ui-monospace,Menlo,monospace; color:var(--muted); word-break:break-all; }
+  .fp code { font-family:var(--font-mono); color:var(--muted); word-break:break-all; }
   .edge { font-size:12px; margin:2px 0; }
-  .edge .k { color:var(--accent); font-weight:600; } .edge .v { color:var(--green); }
+  .edge .k { color:var(--annotation); font-weight:600; } .edge .v { color:var(--signal-green); }
   .pill { display:inline-block; font-size:11px; padding:1px 8px; border-radius:999px;
-    border:1px solid var(--line); color:var(--muted); margin:2px 4px 2px 0; }
-  details.artifacts summary { cursor:pointer; color:var(--muted); font-size:11px;
-    text-transform:uppercase; letter-spacing:.7px; }
-  details.artifacts li { font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+    border:1px solid var(--hairline); color:var(--muted); margin:2px 4px 2px 0; }
+  details.artifacts summary { cursor:pointer; color:var(--muted); font-size:10.5px;
+    text-transform:uppercase; letter-spacing:.8px; }
+  details.artifacts li { font-family:var(--font-mono); font-size:12px; }
   .actions { position:sticky; bottom:0; background:linear-gradient(transparent, var(--panel) 30%);
     padding-top:14px; margin-top:10px; }
-  textarea { width:100%; min-height:58px; border:1px solid var(--line); border-radius:8px;
-    background:#0b0f2a99; color:var(--ink); padding:8px; font:13px/1.4 inherit; resize:vertical; }
+  textarea { width:100%; min-height:58px; border:1px solid var(--hairline); border-radius:8px;
+    background:#05070e99; color:var(--starlight); padding:8px; font:13px/1.4 var(--font-body); resize:vertical; }
   .btns { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
-  button.act { border:1px solid var(--line); background:#0b0f2a99; color:var(--ink);
-    border-radius:8px; padding:8px 13px; cursor:pointer; font-size:13px; }
-  button.act.primary { background:var(--accent); color:#0b0f2a; border-color:var(--accent); font-weight:600; }
+  button.act { border:1px solid var(--hairline); background:#05070e99; color:var(--starlight);
+    border-radius:8px; padding:8px 13px; cursor:pointer; font-size:13px; font-family:var(--font-body); }
+  button.act.primary { background:var(--annotation); color:var(--field); border-color:var(--annotation); font-weight:600; }
   button.act:disabled { opacity:.45; cursor:not-allowed; }
   #status { font-size:12px; color:var(--muted); margin-top:6px; min-height:16px; }
   #outcome { margin-top:8px; }
-  #snapshot-note { position:fixed; right:16px; bottom:14px; z-index:5; font-size:11.5px;
-    color:var(--muted); background:var(--panel); border:1px solid var(--line);
-    border-radius:10px; padding:8px 11px; max-width:300px; display:none; }
-  .close { position:absolute; top:12px; right:14px; cursor:pointer; color:var(--muted);
-    border:0; background:transparent; font-size:20px; line-height:1; }
+  #snapshot-note { position:fixed; left:18px; top:56px; z-index:5; font-size:11px; color:var(--muted);
+    background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:8px 11px;
+    max-width:300px; display:none; font-family:var(--font-mono); }
+  #empty { position:fixed; inset:0; display:none; place-items:center; z-index:4; text-align:center; }
+  #empty div { max-width:420px; }
+  #empty h1 { font-family:var(--font-display); font-size:26px; margin:0 0 8px; }
+  #empty p { color:var(--muted); }
+  #empty code { font-family:var(--font-mono); color:var(--annotation); }
+  .close { position:absolute; top:14px; right:16px; cursor:pointer; color:var(--muted);
+    border:0; background:transparent; font-size:22px; line-height:1; }
 </style>
 </head>
 <body>
-<canvas id="universe"></canvas>
+<canvas id="universe" tabindex="0" aria-label="Entiendo Universe — units as a star chart"></canvas>
 
 <header>
   <span class="brand">Entiendo <small>· the Universe · steer your codebase like mission control</small></span>
@@ -92,10 +142,21 @@
   <button class="lens" data-lens="blast">Blast radius</button>
 </div>
 
-<div id="legend"></div>
-<div id="snapshot-note">Static snapshot. Run <code>ent serve</code> to steer, re-eval, and revert live.</div>
+<div id="tools">
+  <button id="btn-search" title="Search (/)">⌕ search</button>
+  <button id="btn-fit" title="Fit to view (0)">⊡ fit</button>
+  <button id="recollapse" title="Collapse all groups">⊟ groups</button>
+</div>
 
-<aside id="dossier"><button class="close" title="close" onclick="closeDossier()">×</button><div id="dossier-body"></div></aside>
+<div id="search"><input id="search-input" placeholder="Jump to a unit — id, name, or task…" autocomplete="off"><div id="results"></div></div>
+
+<div id="legend"></div>
+<canvas id="minimap" width="160" height="110"></canvas>
+<div id="hint">scroll / pinch = zoom · drag field = pan · / = search · tab = cycle · ? nav</div>
+<div id="snapshot-note">Static snapshot. Run <code>ent serve</code> to steer, re-eval, and revert live.</div>
+<div id="empty"><div><h1>An empty Universe</h1><p>No units are declared yet. Run <code>ent init</code> and <code>ent new</code> to bring the first unit under the plane, then <code>ent render</code>.</p></div></div>
+
+<aside id="dossier"><button class="close" title="close (esc)" onclick="closeDossier()">×</button><div id="dossier-body"></div></aside>
 
 <script id="view" type="application/json">__DATA__</script>
 <script>
@@ -104,36 +165,54 @@
 // Bootstrap: embedded view (static `ent render`) or live fetch (`ent serve`).
 // --------------------------------------------------------------------------- //
 const EMBEDDED = JSON.parse(document.getElementById('view').textContent);
-const STATIC = EMBEDDED !== null;              // no backend behind a static file
+const STATIC = EMBEDDED !== null;
 const RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const COLLAPSE_THRESHOLD = 12;                 // >12 units → collapse groups to containers
+const COLLAPSE_THRESHOLD = 12;
 
 const KIND_FORM = { compute:'orb', state:'ring', schema:'ring2', config:'dashed',
                     external:'diamond', pipeline:'container' };   // gold diamond = external
 const KIND_COLOUR = { compute:'--compute', state:'--state', schema:'--schema',
                       config:'--config', external:'--external', pipeline:'--pipeline' };
-const HEALTH_COLOUR = { green:'--green', red:'--red', amber:'--amber', degraded:'--amber',
-                        grey:'--grey' };
-const cvar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+const HEALTH_COLOUR = { green:'--green', red:'--red', amber:'--amber', degraded:'--amber', grey:'--grey' };
+const cvar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#889';
 const esc = s => (s??'').toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
 const canvas = document.getElementById('universe');
 const ctx = canvas.getContext('2d');
+const mini = document.getElementById('minimap');
+const mctx = mini.getContext('2d');
 let DPR = Math.min(window.devicePixelRatio||1, 2);
 let W=0, H=0;
-function resize(){ W=canvas.clientWidth; H=canvas.clientHeight;
-  canvas.width=W*DPR; canvas.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
-window.addEventListener('resize', resize);
+function resize(){ W=canvas.clientWidth; H=canvas.clientHeight; canvas.width=W*DPR; canvas.height=H*DPR; }
+window.addEventListener('resize', ()=>{ resize(); });
 
-let view=null;                 // raw build_view model
-let units=[], edges=[];        // physics bodies + edges between visible items
-let byId={};                   // id -> unit body
-let expanded=new Set();        // group names the operator expanded
-let lens='structure';
-let hover=null, selected=null, dragging=null, dragMoved=false;
-let blast=new Set();           // downstream dependents of selected
-let particles=[];              // flow particles
-let t=0, fps=0, frames=0, lastFpsT=0;
+// Camera — world→screen: screen = world*scale + offset. Physics stays in world.
+const cam = { x:0, y:0, scale:1, flight:null };
+function screenToWorld(sx,sy){ return [(sx-cam.x)/cam.scale, (sy-cam.y)/cam.scale]; }
+function clampScale(s){ return Math.max(0.25, Math.min(4, s)); }
+function zoomAt(sx, sy, factor){
+  const [wx,wy] = screenToWorld(sx,sy);
+  cam.scale = clampScale(cam.scale*factor);
+  cam.x = sx - wx*cam.scale; cam.y = sy - wy*cam.scale; cam.flight=null;
+}
+function flyTo(wx, wy, scale){
+  const target = { x: W/2 - wx*scale, y: H/2 - wy*scale, scale };
+  if (RM){ Object.assign(cam, target); cam.flight=null; }
+  else cam.flight = target;
+}
+function fitToView(){
+  if (!units.length) return;
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for (const u of units){ minx=Math.min(minx,u.x-u.r); miny=Math.min(miny,u.y-u.r);
+    maxx=Math.max(maxx,u.x+u.r); maxy=Math.max(maxy,u.y+u.r); }
+  const w=maxx-minx||1, h=maxy-miny||1;
+  const s=clampScale(Math.min((W-140)/w, (H-160)/h, 1.4));
+  flyTo((minx+maxx)/2, (miny+maxy)/2, s);
+}
+
+let view=null, units=[], edges=[], byId={}, expanded=new Set();
+let lens='structure', hover=null, selected=null, focusIdx=-1;
+let particles=[], t=0;
 
 async function api(method, path, body){
   const r = await fetch(path, {method, headers:{'Content-Type':'application/json'},
@@ -145,51 +224,44 @@ async function boot(){
   resize();
   view = STATIC ? EMBEDDED : (await api('GET','/api/graph')).data;
   document.getElementById('snapshot-note').style.display = STATIC ? 'block' : 'none';
+  if (!view.nodes.length){ document.getElementById('empty').style.display='grid'; return; }
   const c = view.coverage||{};
   document.getElementById('summary').textContent =
     `${view.nodes.length} units · coverage ${Math.round((c.coverage||0)*100)}% · `
     + `executable ${view.executable}/${view.nodeCount} · ${view.reconciled?'reconciled ✓':'drift ✗'}`
     + (view.commit?` · @${view.commit}`:'');
-  // auto-collapse groups when the field is crowded
-  if (view.nodes.length > COLLAPSE_THRESHOLD) expanded = new Set();
-  else expanded = new Set(groupsOf(view.nodes));
+  expanded = view.nodes.length > COLLAPSE_THRESHOLD ? new Set() : new Set(groupsOf(view.nodes));
   buildLayout();
   drawLegend();
+  fitToView();
+  applyUrlState();
   requestAnimationFrame(loop);
 }
 
 function groupsOf(nodes){ return [...new Set(nodes.map(n => n.group||'(ungrouped)'))]; }
 
 // --------------------------------------------------------------------------- //
-// Group-collapse: build the set of VISIBLE items (units or group containers)
-// and the aggregated edges between them.
+// Group-collapse (two-way): visible items = units or group containers.
 // --------------------------------------------------------------------------- //
 function buildLayout(){
   const nodes = view.nodes;
   const collapsing = nodes.length > COLLAPSE_THRESHOLD;
-  const prev = {}; units.forEach(u => prev[u.id] = u);   // keep positions across relayout
-
-  const items = [];          // {id, kind, group, container?, members?}
-  const itemOf = {};         // node id -> visible item id
-  const groups = {};
+  const prev = {}; units.forEach(u => prev[u.id]=u);
+  const items=[], itemOf={}, groups={};
   nodes.forEach(n => { (groups[n.group||'(ungrouped)'] ??= []).push(n); });
 
   for (const [g, members] of Object.entries(groups)){
     const showMembers = !collapsing || expanded.has(g) || g==='(ungrouped)';
-    if (showMembers){
-      members.forEach(n => { items.push(unitItem(n)); itemOf[n.id]=n.id; });
-    } else {
-      const cid = 'group:'+g;
-      const worst = members.map(m=>m.health).reduce(worstHealth, 'GREEN');
+    if (showMembers){ members.forEach(n => { items.push(unitItem(n)); itemOf[n.id]=n.id; }); }
+    else {
+      const cid='group:'+g;
       items.push({ id:cid, container:true, group:g, name:g, nodeKind:'pipeline',
-        health:worst, healthColour: worstColour(members), members:members.map(m=>m.id),
-        count:members.length });
+        health: members.map(m=>m.health).reduce(worstHealth,'GREEN'),
+        healthColour: worstColour(members), members:members.map(m=>m.id), count:members.length });
       members.forEach(n => { itemOf[n.id]=cid; });
     }
   }
-
-  // aggregate edges between visible items (dedupe, OR the verified flag)
-  const emap = {};
+  const emap={};
   for (const e of view.edges){
     const a=itemOf[e.from], b=itemOf[e.to];
     if (!a||!b||a===b) continue;
@@ -200,318 +272,367 @@ function buildLayout(){
   }
   edges = Object.values(emap).map(e=>({from:e.from,to:e.to,kinds:[...e.kinds],verified:e.verified}));
 
-  // physics bodies — reuse prior positions, else seed on a ring
-  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.32;
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.30;
   units = items.map((it,i)=>{
-    const p = prev[it.id];
-    const a = (i/items.length)*Math.PI*2;
+    const p=prev[it.id]; const a=(i/items.length)*Math.PI*2;
     return Object.assign(it, {
-      x: p? p.x : cx + Math.cos(a)*R + (i%3-1)*8,
-      y: p? p.y : cy + Math.sin(a)*R + (i%2)*8,
-      vx:0, vy:0, r: it.container ? 30+Math.min(it.count,10)*2 : 18,
-    });
+      x: p? p.x : cx+Math.cos(a)*R+(i%3-1)*8, y: p? p.y : cy+Math.sin(a)*R+(i%2)*8,
+      vx:0, vy:0, r: it.container ? 30+Math.min(it.count,10)*2 : 19 });
   });
-  byId = {}; units.forEach(u=>byId[u.id]=u);
+  byId={}; units.forEach(u=>byId[u.id]=u);
   seedParticles();
 }
 
 function unitItem(n){
   return { id:n.id, name:n.name||n.id, nodeKind:n.nodeKind, group:n.group||'(ungrouped)',
     health:n.health, healthColour:n.healthColour, owner:n.owner, approvalRequired:n.approvalRequired,
-    task:n.task, invariants:n.invariants||[], claims:n.claims||[], sideEffects:n.sideEffects,
-    version:n.version||{}, traffic:(view.traffic||{})[n.id]||0,
-    timeline:(view.timelines||{})[n.id]||[] };
+    task:n.task, description:n.description, invariants:n.invariants||[], claims:n.claims||[],
+    sideEffects:n.sideEffects, version:n.version||{}, interior:n.interior,
+    budgets:n.budgets||{}, trajectoryVerdict:n.trajectoryVerdict,
+    traffic:(view.traffic||{})[n.id]||0, timeline:(view.timelines||{})[n.id]||[] };
 }
+const RANK={GREEN:0,IMPROVED:0,WITHIN_BAND:1,UNTESTED:2,DEGRADED:3,UNSTABLE:3,AMBER:3,ERROR:4,REGRESSED:5,RED:6};
+function worstHealth(a,b){ return (RANK[b]??2)>(RANK[a]??2)?b:a; }
+function worstColour(members){ return members.map(m=>m.health).reduce(worstHealth,'GREEN'); }
+function healthHex(item){ return cvar(HEALTH_COLOUR[item.healthColour]||'--grey'); }
+function kindHex(item){ return cvar(KIND_COLOUR[item.nodeKind]||'--compute'); }
 
-const RANK = {GREEN:0, IMPROVED:0, WITHIN_BAND:1, UNTESTED:2, DEGRADED:3, UNSTABLE:3, AMBER:3, ERROR:4, REGRESSED:5, RED:6};
-function worstHealth(a,b){ return (RANK[b]??2) > (RANK[a]??2) ? b : a; }
-function worstColour(members){
-  const w = members.map(m=>m.health).reduce(worstHealth,'GREEN');
-  return HEALTH_COLOUR[({GREEN:'green',RED:'red',UNTESTED:'grey'})[w]] ? w : w;
+// budget-burn: measured/declared cost or latency; >1 = over (amber), regardless of eval.
+function budgetBurn(u){
+  const b=u.budgets||{}, m=b.measured;
+  if (!m) return null;
+  let burn=null;
+  if (b.costPerCallUsd && m.avgCostUsd!=null) burn=Math.max(burn??0, m.avgCostUsd/b.costPerCallUsd);
+  if (b.p95LatencyMs && m.p95LatencyMs!=null) burn=Math.max(burn??0, m.p95LatencyMs/b.p95LatencyMs);
+  return burn;
 }
-function healthHex(item){ return cvar(HEALTH_COLOUR[item.healthColour] || '--grey'); }
-function kindHex(item){ return cvar(KIND_COLOUR[item.nodeKind] || '--compute'); }
 
 // --------------------------------------------------------------------------- //
-// Physics — light force-directed layout; runs every frame with damping.
+// Physics (world coords)
 // --------------------------------------------------------------------------- //
 function step(){
   const cx=W/2, cy=H/2;
   for (const u of units){
     if (u===dragging) continue;
-    let fx=(cx-u.x)*0.0016, fy=(cy-u.y)*0.0016;          // gravity to centre
-    for (const v of units){
-      if (u===v) continue;
+    let fx=(cx-u.x)*0.0016, fy=(cy-u.y)*0.0016;
+    for (const v of units){ if (u===v) continue;
       let dx=u.x-v.x, dy=u.y-v.y, d2=dx*dx+dy*dy||0.01, d=Math.sqrt(d2);
-      const rep=(u.r+v.r)*(u.r+v.r)*1.6/d2;              // repulsion
-      fx+=dx/d*rep; fy+=dy/d*rep;
-    }
+      const rep=(u.r+v.r)*(u.r+v.r)*1.6/d2; fx+=dx/d*rep; fy+=dy/d*rep; }
     u.vx=(u.vx+fx)*0.86; u.vy=(u.vy+fy)*0.86;
   }
-  for (const e of edges){
-    const a=byId[e.from], b=byId[e.to]; if(!a||!b) continue;
+  for (const e of edges){ const a=byId[e.from], b=byId[e.to]; if(!a||!b) continue;
     let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.01;
-    const target=90+a.r+b.r, k=(d-target)*0.012;
-    const ux=dx/d, uy=dy/d;
+    const target=100+a.r+b.r, k=(d-target)*0.012, ux=dx/d, uy=dy/d;
     if (a!==dragging){ a.vx+=ux*k; a.vy+=uy*k; }
     if (b!==dragging){ b.vx-=ux*k; b.vy-=uy*k; }
   }
-  for (const u of units){
-    if (u===dragging) continue;
-    u.x=Math.max(u.r+6, Math.min(W-u.r-6, u.x+u.vx));
-    u.y=Math.max(u.r+52, Math.min(H-u.r-6, u.y+u.vy));
-  }
+  for (const u of units){ if (u===dragging) continue; u.x+=u.vx; u.y+=u.vy; }
 }
 
-// --------------------------------------------------------------------------- //
-// Flow particles — bright/fast on verified edges, dim/dashed on declared ones.
-// --------------------------------------------------------------------------- //
-function seedParticles(){
-  particles = [];
-  if (RM) return;                                   // reduced motion → no particles
-  for (const e of edges){
-    const n = e.verified ? 3 : 2;
-    for (let i=0;i<n;i++) particles.push({e, p:i/n, speed:e.verified?0.008:0.0035});
-  }
-}
-function drawParticles(){
-  if (RM) return;
-  for (const pt of particles){
-    const a=byId[pt.e.from], b=byId[pt.e.to]; if(!a||!b) continue;
-    pt.p += pt.speed; if (pt.p>1) pt.p-=1;
-    if (isDimmed(pt.e)) continue;
+function seedParticles(){ particles=[]; if (RM) return;
+  for (const e of edges){ const n=e.verified?3:2;
+    for (let i=0;i<n;i++) particles.push({e, p:i/n, speed:e.verified?0.008:0.0035}); } }
+function drawParticles(){ if (RM) return;
+  for (const pt of particles){ const a=byId[pt.e.from], b=byId[pt.e.to]; if(!a||!b) continue;
+    pt.p+=pt.speed; if (pt.p>1) pt.p-=1; if (isDimmed(pt.e)) continue;
     const x=a.x+(b.x-a.x)*pt.p, y=a.y+(b.y-a.y)*pt.p;
-    ctx.beginPath(); ctx.arc(x,y, pt.e.verified?2.4:1.6, 0, Math.PI*2);
-    ctx.fillStyle = pt.e.verified ? 'rgba(180,200,255,.95)' : 'rgba(140,150,200,.5)';
-    ctx.fill();
-  }
-}
+    ctx.beginPath(); ctx.arc(x,y, pt.e.verified?2.2/cam.scale+0.6:1.4/cam.scale+0.4, 0, Math.PI*2);
+    ctx.fillStyle = pt.e.verified?'rgba(242,239,230,.9)':'rgba(138,147,173,.5)'; ctx.fill(); } }
 
 function isDimmed(item){
-  if (hover){
-    const id = item.id || null;
-    if (item.from!==undefined){                    // an edge
-      return item.from!==hover.id && item.to!==hover.id;
-    }
+  if (hover){ const id=item.id||null;
+    if (item.from!==undefined) return item.from!==hover.id && item.to!==hover.id;
     if (id===hover.id) return false;
-    return !edges.some(e => (e.from===hover.id&&e.to===id)||(e.to===hover.id&&e.from===id));
-  }
+    return !edges.some(e => (e.from===hover.id&&e.to===id)||(e.to===hover.id&&e.from===id)); }
   return false;
 }
 
 // --------------------------------------------------------------------------- //
 // Draw
 // --------------------------------------------------------------------------- //
-function drawEdge(e){
-  const a=byId[e.from], b=byId[e.to]; if(!a||!b) return;
-  const dim=isDimmed(e);
-  ctx.save();
-  ctx.globalAlpha = dim?0.08:(e.verified?0.5:0.28);
-  ctx.strokeStyle = e.verified ? cvar('--accent') : cvar('--muted');
-  ctx.lineWidth = e.verified?1.6:1;
-  ctx.setLineDash(e.verified?[]:[4,5]);             // declared-but-unverified = dashed
-  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-  ctx.restore();
-}
+function drawEdge(e){ const a=byId[e.from], b=byId[e.to]; if(!a||!b) return;
+  const dim=isDimmed(e), thick = lens==='flow' ? 0.8+Math.min((a.traffic||0),6)*0.5 : (e.verified?1.4:1);
+  ctx.save(); ctx.globalAlpha=dim?0.07:(e.verified?0.5:0.26);
+  ctx.strokeStyle=e.verified?cvar('--annotation'):cvar('--muted'); ctx.lineWidth=thick/cam.scale;
+  ctx.setLineDash(e.verified?[]:[4/cam.scale,5/cam.scale]);
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); ctx.restore(); }
 
 function drawUnit(u){
-  const dim=isDimmed(u);
-  const selectedTint = selected && blast.has(u.id);
+  const dim=isDimmed(u), selectedTint = selected && blast.has(u.id);
   const hcol=healthHex(u), kcol=kindHex(u);
   const form = u.container ? 'container' : (KIND_FORM[u.nodeKind]||'orb');
-  ctx.save();
-  ctx.globalAlpha = dim?0.18:1;
+  ctx.save(); ctx.globalAlpha=dim?0.16:1;
 
-  // health glow (pulse on RED unless reduced-motion)
-  let glow = u.r + 10;
-  if (!RM && (u.health==='RED'||u.health==='REGRESSED')) glow += Math.sin(t*0.12)*4+4;
+  let glow=u.r+10;
+  if (!RM && (u.health==='RED'||u.health==='REGRESSED')) glow+=Math.sin(t*0.12)*4+4;
   const g=ctx.createRadialGradient(u.x,u.y,u.r*0.4,u.x,u.y,glow);
-  g.addColorStop(0, hcol+'88'); g.addColorStop(1, hcol+'00');
+  g.addColorStop(0,hcol+'77'); g.addColorStop(1,hcol+'00');
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(u.x,u.y,glow,0,Math.PI*2); ctx.fill();
 
-  // blast-radius tint ring
-  if (selectedTint){ ctx.strokeStyle=cvar('--amber'); ctx.globalAlpha=dim?0.2:0.9;
-    ctx.lineWidth=2; ctx.setLineDash([3,3]); ctx.beginPath();
-    ctx.arc(u.x,u.y,u.r+7,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=dim?0.18:1; }
+  // budget-burn arc (cost/latency measured vs declared) — amber when over.
+  const burn=budgetBurn(u);
+  if (burn!=null){ const over=burn>1; ctx.strokeStyle=over?cvar('--signal-amber'):cvar('--muted');
+    ctx.globalAlpha=dim?0.2:0.9; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r+5,-Math.PI/2,-Math.PI/2+Math.min(burn,1)*Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=dim?0.16:1; }
 
-  const bodyCol = (lens==='health') ? hcol : kcol;
-  ctx.lineWidth=2; ctx.strokeStyle=bodyCol;
-  ctx.fillStyle = (lens==='health'? hcol : kcol) + (u.container?'22':'33');
+  if (selectedTint){ ctx.strokeStyle=cvar('--signal-amber'); ctx.globalAlpha=dim?0.2:0.9;
+    ctx.lineWidth=2; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.arc(u.x,u.y,u.r+8,0,Math.PI*2);
+    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=dim?0.16:1; }
 
-  if (form==='diamond'){                            // external → gold diamond
-    ctx.fillStyle = cvar('--gold')+'33'; ctx.strokeStyle=cvar('--gold');
-    ctx.beginPath(); ctx.moveTo(u.x,u.y-u.r); ctx.lineTo(u.x+u.r,u.y);
-    ctx.lineTo(u.x,u.y+u.r); ctx.lineTo(u.x-u.r,u.y); ctx.closePath(); ctx.fill(); ctx.stroke();
-  } else if (form==='dashed'){                       // config → dashed circle
-    ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
-  } else if (form==='ring' || form==='ring2'){       // state / schema → ringed
-    ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.lineWidth=1.6; ctx.strokeStyle=(lens==='health')?hcol:kcol;
+  ctx.fillStyle=((lens==='health')?hcol:kcol)+(u.container?'1c':'2a');
+  if (form==='diamond'){ ctx.fillStyle=cvar('--annotation')+'2a'; ctx.strokeStyle=cvar('--annotation');
+    ctx.beginPath(); ctx.moveTo(u.x,u.y-u.r); ctx.lineTo(u.x+u.r,u.y); ctx.lineTo(u.x,u.y+u.r);
+    ctx.lineTo(u.x-u.r,u.y); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  else if (form==='dashed'){ ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2);
+    ctx.fill(); ctx.stroke(); ctx.setLineDash([]); }
+  else if (form==='ring'||form==='ring2'){ ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.arc(u.x,u.y,u.r-5,0,Math.PI*2); ctx.stroke();
-    if (form==='ring2'){ ctx.beginPath(); ctx.arc(u.x,u.y,u.r-9,-0.6,1.2); ctx.stroke(); }
-  } else if (form==='container'){                    // collapsed group
-    const s=u.r; roundRect(u.x-s,u.y-s,s*2,s*2,12); ctx.fill(); ctx.stroke();
-  } else {                                           // compute → orb
-    ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    if (form==='ring2'){ ctx.beginPath(); ctx.arc(u.x,u.y,u.r-9,-0.6,1.2); ctx.stroke(); } }
+  else if (form==='container'){ const s=u.r; roundRect(u.x-s,u.y-s,s*2,s*2,12); ctx.fill(); ctx.stroke(); }
+  else { ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+
+  // agentic interior: satellites on an orbit ring (signature element, full render in H4).
+  if (u.interior && u.interior.tools && u.interior.tools.length){
+    const tools=u.interior.tools, orbit=u.r-3;
+    ctx.strokeStyle=cvar('--annotation')+'66'; ctx.lineWidth=1/cam.scale;
+    ctx.setLineDash(u.interior.registryOnly===false?[2,3]:[]);
+    ctx.beginPath(); ctx.arc(u.x,u.y,orbit,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    tools.forEach((tl,i)=>{ const a=(i/tools.length)*Math.PI*2 - Math.PI/2;
+      const sx=u.x+Math.cos(a)*orbit, sy=u.y+Math.sin(a)*orbit;
+      const nb=byId[tl.crosses]; if (nb){ ctx.strokeStyle=cvar('--annotation')+'44'; ctx.lineWidth=0.8/cam.scale;
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(nb.x,nb.y); ctx.stroke(); }
+      ctx.fillStyle=cvar('--annotation'); ctx.beginPath(); ctx.arc(sx,sy,2.4,0,Math.PI*2); ctx.fill(); });
   }
 
-  // approval gate marker (gold lock ring)
-  if (u.approvalRequired){ ctx.strokeStyle=cvar('--gold'); ctx.lineWidth=2;
+  if (u.approvalRequired){ ctx.strokeStyle=cvar('--annotation'); ctx.lineWidth=2;
     ctx.beginPath(); ctx.arc(u.x,u.y,u.r+3,-0.9,-0.1); ctx.stroke(); }
-
-  // verdict flash — the bubble pulses when a steering result lands
-  if (u.flash && u.flash>t){ const a=(u.flash-t)/45;
-    ctx.save(); ctx.strokeStyle=healthHex(u); ctx.globalAlpha=Math.min(1,a);
-    ctx.lineWidth=2+6*(1-a); ctx.beginPath();
-    ctx.arc(u.x,u.y,u.r+6+16*(1-a),0,Math.PI*2); ctx.stroke(); ctx.restore(); }
-
-  // selection ring
-  if (selected===u.id){ ctx.strokeStyle=cvar('--ink'); ctx.lineWidth=2.5;
+  if (selected===u.id){ ctx.strokeStyle=cvar('--starlight'); ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.arc(u.x,u.y,u.r+4,0,Math.PI*2); ctx.stroke(); }
+  if (focusIdx>=0 && units[focusIdx]===u){ ctx.strokeStyle=cvar('--annotation'); ctx.lineWidth=1.5;
+    ctx.setLineDash([2,2]); ctx.beginPath(); ctx.arc(u.x,u.y,u.r+7,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); }
+  if (u.flash && u.flash>t){ const a=(u.flash-t)/45; ctx.save(); ctx.strokeStyle=healthHex(u);
+    ctx.globalAlpha=Math.min(1,a); ctx.lineWidth=2+6*(1-a);
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r+6+16*(1-a),0,Math.PI*2); ctx.stroke(); ctx.restore(); }
 
-  // label + flow-volume badge
-  ctx.globalAlpha = dim?0.35:1;
-  ctx.fillStyle=cvar('--ink'); ctx.font='11px -apple-system,sans-serif'; ctx.textAlign='center';
-  const label = u.container ? `${u.group} (${u.count})` : shortName(u);
-  ctx.fillText(label, u.x, u.y+u.r+14);
-  if (lens==='flow' && u.traffic>0){ ctx.fillStyle=cvar('--accent');
-    ctx.fillText('▤ '+u.traffic, u.x, u.y-u.r-8); }
-  if (lens==='timeline'){ const ticks=(u.timeline||[]).length; if(ticks){ ctx.fillStyle=cvar('--muted');
-    ctx.fillText('◷ '+ticks, u.x, u.y-u.r-8); } }
+  // label (group names + unit names use the display serif via canvas font)
+  ctx.globalAlpha=dim?0.35:1; ctx.fillStyle=cvar('--starlight');
+  ctx.font=`${u.container?13:11}px ${u.container?"'Fraunces',serif":"var(--font-body),sans-serif"}`;
+  ctx.textAlign='center';
+  ctx.fillText(u.container?`${u.group} (${u.count})`:shortName(u), u.x, u.y+u.r+15);
+  if (lens==='flow' && u.traffic>0){ ctx.fillStyle=cvar('--annotation'); ctx.fillText('▤ '+u.traffic, u.x, u.y-u.r-8); }
+  if (lens==='timeline'){ const n=(u.timeline||[]).filter(e=>e.kind==='version').length;
+    if(n){ ctx.fillStyle=cvar('--muted'); ctx.fillText('◷ '+n, u.x, u.y-u.r-8); } }
   ctx.restore();
 }
-
 function shortName(u){ const p=u.id.split('.'); return p[p.length-1]; }
-function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
 function loop(ts){
   t++; step();
-  ctx.clearRect(0,0,W,H);
+  if (cam.flight){ const f=cam.flight;
+    cam.x+=(f.x-cam.x)*0.14; cam.y+=(f.y-cam.y)*0.14; cam.scale+=(f.scale-cam.scale)*0.14;
+    if (Math.hypot(f.x-cam.x,f.y-cam.y)<0.5 && Math.abs(f.scale-cam.scale)<0.005){ Object.assign(cam,f); cam.flight=null; } }
+  ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0,0,W,H);
+  ctx.setTransform(DPR*cam.scale,0,0,DPR*cam.scale, DPR*cam.x, DPR*cam.y);
   for (const e of edges) drawEdge(e);
   drawParticles();
   for (const u of units) drawUnit(u);
-  // fps meter (dev aid)
-  frames++; if (ts-lastFpsT>500){ fps=Math.round(frames*1000/(ts-lastFpsT)); frames=0; lastFpsT=ts; }
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  drawMinimap();
   requestAnimationFrame(loop);
 }
 
-// --------------------------------------------------------------------------- //
-// Interaction — hover isolation, drag, select (blast tint + dossier)
-// --------------------------------------------------------------------------- //
-function hit(mx,my){
-  for (let i=units.length-1;i>=0;i--){ const u=units[i];
-    if (Math.hypot(mx-u.x,my-u.y) <= u.r+4) return u; }
-  return null;
-}
-canvas.addEventListener('mousemove', e=>{
-  const mx=e.offsetX,my=e.offsetY;
-  if (dragging){ dragging.x=mx; dragging.y=my; dragging.vx=dragging.vy=0; dragMoved=true; hover=dragging; return; }
-  hover = hit(mx,my);
-  canvas.style.cursor = hover ? 'pointer' : 'default';
-});
-canvas.addEventListener('mousedown', e=>{ const u=hit(e.offsetX,e.offsetY);
-  if (u){ dragging=u; dragMoved=false; } });
-window.addEventListener('mouseup', e=>{
-  if (dragging && !dragMoved){ onClick(dragging); }
-  dragging=null;
-});
-canvas.addEventListener('mouseleave', ()=>{ hover=null; });
-
-function onClick(u){
-  if (u.container){ expanded.add(u.group); buildLayout(); return; }  // expand a collapsed group
-  select(u.id);
+function drawMinimap(){
+  const on = cam.scale>1.5 && units.length;
+  mini.classList.toggle('on', !!on);
+  if (!on) return;
+  mctx.clearRect(0,0,160,110);
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for (const u of units){ minx=Math.min(minx,u.x); miny=Math.min(miny,u.y); maxx=Math.max(maxx,u.x); maxy=Math.max(maxy,u.y); }
+  const pad=14, w=maxx-minx||1, h=maxy-miny||1, s=Math.min((160-pad)/w,(110-pad)/h);
+  const mx=x=>(x-minx)*s+pad/2, my=y=>(y-miny)*s+pad/2;
+  mctx.fillStyle=cvar('--muted');
+  for (const u of units){ mctx.beginPath(); mctx.arc(mx(u.x),my(u.y),2,0,Math.PI*2); mctx.fill(); }
+  // viewport rect
+  const [w0x,w0y]=screenToWorld(0,0), [w1x,w1y]=screenToWorld(W,H);
+  mctx.strokeStyle=cvar('--annotation'); mctx.lineWidth=1;
+  mctx.strokeRect(mx(w0x),my(w0y),(w1x-w0x)*s,(w1y-w0y)*s);
 }
 
-function select(id){
-  if (typeof stopSteerPoll==='function') stopSteerPoll();
-  selected=id;
-  blast = new Set(computeBlast(id));
-  openDossier(byId[id] || unitFromView(id));
-}
+// --------------------------------------------------------------------------- //
+// Interaction — pointer events (mouse + touch), zoom/pan/pinch, hover, drag
+// --------------------------------------------------------------------------- //
+const pointers=new Map(); let dragging=null, dragMoved=false, panning=false, panLast=null, pinchDist=0;
+function hit(sx,sy){ const [wx,wy]=screenToWorld(sx,sy);
+  for (let i=units.length-1;i>=0;i--){ const u=units[i]; if (Math.hypot(wx-u.x,wy-u.y)<=u.r+4) return u; } return null; }
+
+canvas.addEventListener('pointerdown', e=>{
+  canvas.setPointerCapture(e.pointerId); canvas.focus();
+  pointers.set(e.pointerId, {x:e.offsetX,y:e.offsetY});
+  if (pointers.size===2){ const p=[...pointers.values()]; pinchDist=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y); dragging=null; panning=false; return; }
+  const u=hit(e.offsetX,e.offsetY);
+  if (u){ dragging=u; dragMoved=false; } else { panning=true; panLast=[e.offsetX,e.offsetY]; }
+});
+canvas.addEventListener('pointermove', e=>{
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId,{x:e.offsetX,y:e.offsetY});
+  if (pointers.size===2){ const p=[...pointers.values()]; const d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
+    if (pinchDist){ zoomAt((p[0].x+p[1].x)/2,(p[0].y+p[1].y)/2, d/pinchDist); } pinchDist=d; return; }
+  if (dragging){ const [wx,wy]=screenToWorld(e.offsetX,e.offsetY); dragging.x=wx; dragging.y=wy; dragging.vx=dragging.vy=0; dragMoved=true; hover=dragging; return; }
+  if (panning){ cam.x+=e.offsetX-panLast[0]; cam.y+=e.offsetY-panLast[1]; panLast=[e.offsetX,e.offsetY]; cam.flight=null; return; }
+  hover=hit(e.offsetX,e.offsetY); canvas.style.cursor=hover?'pointer':'default';
+});
+function endPointer(e){ pointers.delete(e.pointerId);
+  if (dragging && !dragMoved) onClick(dragging);
+  dragging=null; panning=false; if (pointers.size<2) pinchDist=0; }
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', ()=>{ if(!dragging&&!panning) hover=null; });
+canvas.addEventListener('wheel', e=>{ e.preventDefault(); zoomAt(e.offsetX,e.offsetY, Math.exp(-e.deltaY*0.0012)); }, {passive:false});
+canvas.addEventListener('dblclick', e=>{ // dbl-click a group hull re-collapses; empty space fits
+  const u=hit(e.offsetX,e.offsetY);
+  if (u && !u.container && view.nodes.length>COLLAPSE_THRESHOLD){ expanded.delete(u.group); buildLayout(); }
+  else if (!u) fitToView();
+});
+
+function onClick(u){ if (u.container){ expanded.add(u.group); buildLayout(); return; } select(u.id); }
+function select(id){ if (typeof stopSteerPoll==='function') stopSteerPoll();
+  selected=id; blast=new Set(computeBlast(id)); focusIdx=units.findIndex(u=>u.id===id);
+  openDossier(byId[id]||unitFromView(id)); writeUrlState(); }
 function unitFromView(id){ const n=view.nodes.find(x=>x.id===id); return n?unitItem(n):null; }
+function computeBlast(id){ const rev={}; for (const e of view.edges){ (rev[e.to] ??= []).push(e.from); }
+  const seen=new Set(), stack=[id]; while(stack.length){ const c=stack.pop();
+    for (const d of (rev[c]||[])){ if(!seen.has(d)){ seen.add(d); stack.push(d); } } } return seen; }
+let blast=new Set();
 
-function computeBlast(id){                            // transitive downstream dependents
-  const rev={}; for (const e of view.edges){ (rev[e.to] ??= []).push(e.from); }
-  const seen=new Set(), stack=[id];
-  while(stack.length){ const c=stack.pop();
-    for (const d of (rev[c]||[])){ if(!seen.has(d)){ seen.add(d); stack.push(d); } } }
-  return seen;
+// --------------------------------------------------------------------------- //
+// Search / jump (/ to focus)
+// --------------------------------------------------------------------------- //
+const searchBox=document.getElementById('search'), searchInput=document.getElementById('search-input'),
+      results=document.getElementById('results');
+let searchSel=0, searchHits=[];
+function openSearch(){ searchBox.classList.add('open'); searchInput.value=''; renderResults(''); searchInput.focus(); }
+function closeSearch(){ searchBox.classList.remove('open'); canvas.focus(); }
+function fuzzy(q, s){ q=q.toLowerCase(); s=(s||'').toLowerCase(); let i=0; for (const ch of s){ if (ch===q[i]) i++; } return i===q.length; }
+function renderResults(q){
+  const nodes=view? view.nodes: [];
+  searchHits = !q ? nodes.slice(0,20)
+    : nodes.filter(n => fuzzy(q,n.id)||fuzzy(q,n.name||'')||fuzzy(q,n.task||''));
+  searchSel=0;
+  results.innerHTML = searchHits.map((n,i)=>
+    `<div class="hit ${i===0?'sel':''}" data-id="${esc(n.id)}"><span class="nm">${esc(n.name||n.id)}</span>`
+    +`<span class="id">${esc(n.id)}</span></div>`).join('') || '<div class="hit"><span class="id">no match</span></div>';
+  [...results.querySelectorAll('.hit')].forEach(el=>el.addEventListener('click',()=>{ if(el.dataset.id) jumpTo(el.dataset.id); }));
 }
+function jumpTo(id){ closeSearch(); const n=view.nodes.find(x=>x.id===id); if(!n) return;
+  // ensure the unit is visible (expand its group if collapsed), then fly + select.
+  if (view.nodes.length>COLLAPSE_THRESHOLD && !byId[id]){ expanded.add(n.group||'(ungrouped)'); buildLayout(); }
+  const u=byId[id]; if (u) flyTo(u.x,u.y, Math.max(cam.scale,1.6)); select(id); }
+searchInput.addEventListener('input', ()=>renderResults(searchInput.value.trim()));
+searchInput.addEventListener('keydown', e=>{
+  if (e.key==='Escape'){ closeSearch(); }
+  else if (e.key==='ArrowDown'){ e.preventDefault(); searchSel=Math.min(searchSel+1,searchHits.length-1); markSel(); }
+  else if (e.key==='ArrowUp'){ e.preventDefault(); searchSel=Math.max(searchSel-1,0); markSel(); }
+  else if (e.key==='Enter'){ const h=searchHits[searchSel]; if(h) jumpTo(h.id); }
+});
+function markSel(){ [...results.querySelectorAll('.hit')].forEach((el,i)=>el.classList.toggle('sel',i===searchSel)); }
+
+// --------------------------------------------------------------------------- //
+// Keyboard: / search · tab cycle · enter dossier · esc close · arrows pan · 0 fit
+// --------------------------------------------------------------------------- //
+window.addEventListener('keydown', e=>{
+  if (searchBox.classList.contains('open')) return;
+  if (e.key==='/'){ e.preventDefault(); openSearch(); }
+  else if (e.key==='Escape'){ closeDossier(); }
+  else if (e.key==='0'){ fitToView(); }
+  else if (e.key==='Tab'){ e.preventDefault(); if(!units.length) return;
+    focusIdx=(focusIdx+(e.shiftKey?-1:1)+units.length)%units.length; const u=units[focusIdx];
+    flyTo(u.x,u.y,Math.max(cam.scale,1.3)); }
+  else if (e.key==='Enter'){ if (focusIdx>=0 && units[focusIdx] && !units[focusIdx].container) select(units[focusIdx].id); }
+  else if (e.key.startsWith('Arrow')){ const d=40;
+    if (e.key==='ArrowLeft') cam.x+=d; if (e.key==='ArrowRight') cam.x-=d;
+    if (e.key==='ArrowUp') cam.y+=d; if (e.key==='ArrowDown') cam.y-=d; cam.flight=null; }
+});
+document.getElementById('btn-search').addEventListener('click', openSearch);
+document.getElementById('btn-fit').addEventListener('click', fitToView);
+document.getElementById('recollapse').addEventListener('click', ()=>{ expanded=new Set(); buildLayout(); fitToView(); });
+
+// --------------------------------------------------------------------------- //
+// URL state — #unit=refundly.decide&lens=health
+// --------------------------------------------------------------------------- //
+let _writingUrl=false;
+function applyUrlState(){
+  const h=new URLSearchParams(location.hash.slice(1));
+  const l=h.get('lens'); if (l && [...document.querySelectorAll('.lens')].some(b=>b.dataset.lens===l)) setLens(l);
+  const u=h.get('unit'); if (u) jumpTo(u);
+}
+function writeUrlState(){
+  const p=new URLSearchParams(); if (selected) p.set('unit',selected); p.set('lens',lens);
+  _writingUrl=true; history.replaceState(null,'', '#'+p.toString());
+  setTimeout(()=>{ _writingUrl=false; }, 0);
+}
+// external / in-page deep links (e.g. pasting a #unit=…&lens=… link) also apply.
+window.addEventListener('hashchange', ()=>{ if (!_writingUrl && view) applyUrlState(); });
 
 // --------------------------------------------------------------------------- //
 // Lenses
 // --------------------------------------------------------------------------- //
-document.querySelectorAll('.lens').forEach(b=>b.addEventListener('click', ()=>{
-  document.querySelectorAll('.lens').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active'); lens=b.dataset.lens; drawLegend();
-}));
-
+document.querySelectorAll('.lens').forEach(b=>b.addEventListener('click', ()=>setLens(b.dataset.lens)));
+function setLens(l){ lens=l;
+  document.querySelectorAll('.lens').forEach(x=>x.classList.toggle('active', x.dataset.lens===l));
+  drawLegend(); writeUrlState(); }
 function drawLegend(){
   const el=document.getElementById('legend');
-  if (lens==='health'){
-    el.innerHTML = '<b>Health</b>'+[['green','GREEN'],['amber','degraded'],['red','RED'],['grey','untested']]
-      .map(([c,l])=>`<div class="row"><span class="g" style="background:${cvar('--'+c)}"></span>${l}</div>`).join('');
-  } else if (lens==='flow'){
-    el.innerHTML = '<b>Flow</b><div class="row"><span class="g" style="background:var(--accent)"></span>verified · bright/fast</div>'
-      + '<div class="row"><span class="g" style="background:var(--muted)"></span>declared · dim/dashed</div>';
-  } else if (lens==='blast'){
-    el.innerHTML = '<b>Blast radius</b><div class="row">select a unit → its downstream dependents tint amber</div>';
-  } else if (lens==='trace'){
-    const n=(view.traces||[]).length;
-    el.innerHTML = `<b>Trace</b><div class="row">${n?`${n} recorded request(s) · ▤ volume in Flow`:'no trace recorded yet'}</div>`;
-  } else if (lens==='timeline'){
-    el.innerHTML = '<b>Timeline</b><div class="row">◷ = version + eval ticks per unit</div>';
-  } else {
-    el.innerHTML = '<b>Structure</b>'+[['compute','orb'],['state','ringed'],['schema','ring+band'],
+  if (lens==='health'){ el.innerHTML='<b>Health</b>'+[['green','GREEN'],['amber','degraded / over-budget'],['red','RED'],['grey','untested']]
+      .map(([c,l])=>`<div class="row"><span class="g" style="background:${cvar('--'+c)}"></span>${l}</div>`).join('')
+      + '<div class="row">thin arc = spend/latency vs budget</div>'; }
+  else if (lens==='flow'){ el.innerHTML='<b>Flow</b><div class="row"><span class="g" style="background:var(--annotation)"></span>verified · bright/fast · thicker = more traffic</div>'
+      + '<div class="row"><span class="g" style="background:var(--muted)"></span>declared · dim/dashed</div>'; }
+  else if (lens==='blast'){ el.innerHTML='<b>Blast radius</b><div class="row">select a unit → its downstream dependents tint amber</div>'; }
+  else if (lens==='trace'){ const n=(view.traces||[]).length;
+    el.innerHTML=`<b>Trace</b><div class="row">${n?`${n} recorded request(s) · ▤ volume in Flow`:'no trace recorded yet'}</div>`; }
+  else if (lens==='timeline'){ el.innerHTML='<b>Timeline</b><div class="row">◷ = version + eval ticks per unit</div>'; }
+  else { el.innerHTML='<b>Structure</b>'+[['compute','orb'],['state','ringed'],['schema','ring+band'],
       ['config','dashed'],['external','gold diamond'],['pipeline','container']]
-      .map(([k,f])=>`<div class="row"><span class="g" style="background:${cvar('--'+k)}"></span>${k} · ${f}</div>`).join('');
-  }
+      .map(([k,f])=>`<div class="row"><span class="g" style="background:${cvar('--'+k)}"></span>${k} · ${f}</div>`).join(''); }
 }
 
 // --------------------------------------------------------------------------- //
-// Dossier — logic first: task, contract, verdict, fingerprint, edges; artifacts
-// collapsed; ends in an action (steer / revert / approve).
+// Dossier — description → task → verdict → interior → contract → fingerprint →
+// edges → artifacts (plain words first, hashes last). Ends in an action.
 // --------------------------------------------------------------------------- //
 function openDossier(u){
-  if (!u) return;
-  const hcol=healthHex(u);
+  if (!u) return; const hcol=healthHex(u);
   const outs=view.edges.filter(e=>e.from===u.id), ins=view.edges.filter(e=>e.to===u.id);
-  const edgeLine = e => `<div class="edge"><span class="k">${esc(e.kinds.join('/'))}</span> ${esc(e.to||e.from)}${e.verified?' <span class="v">✓</span>':''}</div>`;
+  const edgeLine=e=>`<div class="edge"><span class="k">${esc(e.kinds.join('/'))}</span> ${esc(e.to||e.from)}${e.verified?' <span class="v">✓</span>':''}</div>`;
   const fp=u.version||{};
-  const body = `
-    <h2>${esc(u.id)}</h2>
-    <div class="kindline">${esc(u.nodeKind)} · owner ${esc(u.owner||'—')}
-      ${u.approvalRequired?'· <span class="pill">approval required</span>':''}
-      · side-effects ${esc(u.sideEffects||'none')}</div>
+  const body=`
+    <h2>${esc(u.name||u.id)}</h2>
+    <div class="kindline">${esc(u.id)} · ${esc(u.nodeKind)} · owner ${esc(u.owner||'—')}
+      ${u.approvalRequired?'· <span class="pill">approval required</span>':''} · side-effects ${esc(u.sideEffects||'none')}</div>
 
+    ${u.description?`<div class="sect"><h3>What it does</h3><div class="describe">${esc(u.description)}</div></div>`:''}
     <div class="sect"><h3>Task</h3><div class="task">${esc(u.task||'—')}</div></div>
-
+    <div class="sect"><h3>Verdict</h3><span id="verdict" class="verdict" style="background:${hcol}">${esc(u.health)}</span></div>
+    ${interiorSection(u)}
     <div class="sect"><h3>Contract</h3>
       ${(u.invariants&&u.invariants.length)? u.invariants.map(i=>`<div class="inv">${esc(i)}</div>`).join('')
         : '<span class="pill">no invariants declared</span>'}</div>
-
-    <div class="sect"><h3>Verdict</h3>
-      <span id="verdict" class="verdict" style="background:${hcol}">${esc(u.health)}</span></div>
-
-    <div class="sect"><h3>Fingerprint</h3>
-      <div class="fp">
-        <span>composite</span><code>${esc((fp.composite||'—'))}</code>
-        <span>code</span><code>${esc(fp.code||'—')}</code>
-        <span>prompt</span><code>${esc(fp.prompt||'—')}</code>
-        <span>config</span><code>${esc(fp.config||'—')}</code>
-        <span>model</span><code>${esc(fp.model||'—')}</code>
-      </div></div>
-
+    ${budgetSection(u)}
+    <div class="sect"><h3>Fingerprint</h3><div class="fp">
+      <span>composite</span><code>${esc(fp.composite||'—')}</code>
+      <span>code</span><code>${esc(fp.code||'—')}</code>
+      <span>prompt</span><code>${esc(fp.prompt||'—')}</code>
+      <span>config</span><code>${esc(fp.config||'—')}</code>
+      <span>model</span><code>${esc(fp.model||'—')}</code></div></div>
     ${timelineSection(u)}
-
     <div class="sect"><h3>Edges</h3>
       ${outs.length? outs.map(edgeLine).join(''):'<span class="pill">no outgoing edges</span>'}
       ${ins.length? '<div style="color:var(--muted);font-size:11px;margin-top:6px">depended on by</div>'+ins.map(e=>`<div class="edge">${esc(e.from)}</div>`).join(''):''}</div>
-
     <details class="artifacts sect"><summary>Artifacts — ${(u.claims||[]).length} claimed file(s)</summary>
       <ul>${(u.claims||[]).map(c=>`<li>${esc(c)}</li>`).join('')||'<li class="pill">none</li>'}</ul></details>
-
     <div class="actions">
       <textarea id="instr" placeholder="Steer: describe a change — the workload edits within this unit's claims only"></textarea>
       <div class="btns">
@@ -521,101 +642,99 @@ function openDossier(u){
       </div>
       <div id="status"></div><div id="outcome"></div>
     </div>`;
-  document.getElementById('dossier-body').innerHTML = body;
+  document.getElementById('dossier-body').innerHTML=body;
   document.getElementById('dossier').classList.add('open');
-
-  const eval0 = document.createElement('button'); // re-eval affordance
-  if (STATIC){
-    for (const id of ['steerBtn','revertBtn','approveBtn']){
-      const b=document.getElementById(id); b.disabled=true;
-      b.title='Static snapshot — run `ent serve` to act';
-    }
-  } else if (!u.approvalRequired){
-    document.getElementById('approveBtn').disabled=true;
-    document.getElementById('approveBtn').title='No approval gate on this unit';
-  }
+  if (STATIC){ for (const id of ['steerBtn','revertBtn','approveBtn']){ const b=document.getElementById(id);
+    b.disabled=true; b.title='Static snapshot — run `ent serve` to act'; } }
+  else if (!u.approvalRequired){ const b=document.getElementById('approveBtn'); b.disabled=true; b.title='No approval gate on this unit'; }
 }
-// Timeline lens (Phase E): fingerprint dimension deltas per version tick.
+function interiorSection(u){
+  if (!u.interior) return '';
+  const tv=u.trajectoryVerdict;
+  const tvHtml = tv ? (tv.verdict==='RED'
+      ? `<div class="inv" style="border-color:var(--signal-red)">trajectory RED — ${esc(tv.failedRule||'')}</div>`
+      : `<span class="pill">trajectory ${esc(tv.verdict)}</span>`) : '';
+  const tools=(u.interior.tools||[]).map(tl=>`<div class="edge"><span class="k">${esc(tl.name)}</span> → ${esc(tl.crosses||'—')}</div>`).join('');
+  return `<div class="sect"><h3>Interior</h3>
+    ${u.interior.process?`<div class="describe" style="font-size:13px">${esc(u.interior.process)}</div>`:''}
+    <div style="margin-top:6px">${tools}</div>
+    <div style="color:var(--muted);font-size:11px;margin-top:4px">maxSteps ${esc(u.interior.maxSteps??'—')}</div>
+    ${tvHtml}</div>`;
+}
+function budgetSection(u){
+  const b=u.budgets||{}, m=b.measured; if (!m && b.costPerCallUsd==null && b.p95LatencyMs==null) return '';
+  const burn=budgetBurn(u), over=burn!=null&&burn>1;
+  const rows=[];
+  if (b.costPerCallUsd!=null) rows.push(`cost ${m&&m.avgCostUsd!=null?'$'+m.avgCostUsd:'—'} / $${b.costPerCallUsd} budget`);
+  if (b.p95LatencyMs!=null) rows.push(`p95 ${m&&m.p95LatencyMs!=null?m.p95LatencyMs+'ms':'—'} / ${b.p95LatencyMs}ms budget`);
+  return `<div class="sect"><h3>Budget${over?' <span class="pill" style="color:var(--signal-amber)">over</span>':''}</h3>`
+    + rows.map(r=>`<div class="edge">${esc(r)}</div>`).join('')
+    + `<div style="color:var(--muted);font-size:11px">spend is health, same as correctness</div></div>`;
+}
 function timelineSection(u){
-  const ticks = (u.timeline||[]).filter(e => e.kind==='version');
-  if (!ticks.length) return '';
-  const rows = ticks.slice(-6).reverse().map(e => {
-    const ch = e.changed||[];
-    const chips = ch.length ? ch.map(d=>`<span class="pill">${esc(d)}</span>`).join('')
-                            : '<span class="muted">initial</span>';
-    return `<div class="edge"><code>${esc(e.composite||'—')}</code> ${chips}</div>`;
-  }).join('');
+  const ticks=(u.timeline||[]).filter(e=>e.kind==='version'); if (!ticks.length) return '';
+  const rows=ticks.slice(-6).reverse().map(e=>{ const ch=e.changed||[];
+    const chips=ch.length?ch.map(d=>`<span class="pill">${esc(d)}</span>`).join(''):'<span class="muted">initial</span>';
+    return `<div class="edge"><code>${esc(e.composite||'—')}</code> ${chips}</div>`; }).join('');
   return `<div class="sect"><h3>Timeline</h3><div class="muted" style="font-size:11px;margin-bottom:4px">`
     + `fingerprint changes (code / prompt / config / model)</div>${rows}</div>`;
 }
-
 function closeDossier(){ if(typeof stopSteerPoll==='function') stopSteerPoll();
-  document.getElementById('dossier').classList.remove('open'); selected=null; blast.clear(); }
+  document.getElementById('dossier').classList.remove('open'); selected=null; blast.clear(); writeUrlState(); }
 
-// The Bridge (Phase C): steering queues a request; Claude Code (the workload,
-// running the entiendo-operator skill) picks it up, edits within claims, and
-// posts a verdict back. The dossier flips queued → verdict without a terminal.
+// --------------------------------------------------------------------------- //
+// The Bridge (steer via queue → operator edits → verdict; approve/reject gated)
+// --------------------------------------------------------------------------- //
 let steerReqId=null, steerTimer=null, steerUnit=null;
 async function steer(){
-  const instr=document.getElementById('instr').value.trim();
-  if (!instr || STATIC) return;
-  const btn=document.getElementById('steerBtn'), status=document.getElementById('status');
-  btn.disabled=true;
-  const {status:code, data} = await api('POST','/api/steer',{unit:selected, instruction:instr});
-  btn.disabled=false;
-  if (code!==200){ document.getElementById('outcome').innerHTML =
-    `<div class="inv" style="border-color:var(--amber)">${esc(data.error||'error')}</div>`; return; }
-  steerReqId=data.id; steerUnit=selected;
-  status.textContent='queued — waiting for the operator (Claude Code)…';
-  document.getElementById('outcome').innerHTML =
-    `<div class="edge"><span class="pill">queued</span> <code>${esc(data.id)}</code></div>`;
+  const instr=document.getElementById('instr').value.trim(); if (!instr||STATIC) return;
+  const btn=document.getElementById('steerBtn'), status=document.getElementById('status'); btn.disabled=true;
+  const {status:code, data}=await api('POST','/api/steer',{unit:selected, instruction:instr}); btn.disabled=false;
+  if (code!==200){ document.getElementById('outcome').innerHTML=`<div class="inv" style="border-color:var(--signal-amber)">${esc(data.error||'error')}</div>`; return; }
+  steerReqId=data.id; steerUnit=selected; status.textContent='queued — waiting for the operator (Claude Code)…';
+  document.getElementById('outcome').innerHTML=`<div class="edge"><span class="pill">queued</span> <code>${esc(data.id)}</code></div>`;
   startSteerPoll();
 }
-function startSteerPoll(){
-  stopSteerPoll();
-  steerTimer=setInterval(async ()=>{
-    const {data}=await api('GET','/api/steering');
-    const res=(data.results||{})[steerReqId];
-    if (res){ stopSteerPoll(); showSteerResult(res); }
-  }, 1500);
-}
+function startSteerPoll(){ stopSteerPoll(); steerTimer=setInterval(async ()=>{
+  const {data}=await api('GET','/api/steering'); const res=(data.results||{})[steerReqId];
+  if (res){ stopSteerPoll(); showSteerResult(res); } }, 1500); }
 function stopSteerPoll(){ if(steerTimer){ clearInterval(steerTimer); steerTimer=null; } }
 function showSteerResult(res){
-  const o=res.outcome;
-  let verdict=null, statusTxt='', deps=0, note='';
-  if (o && typeof o==='object'){
-    const inner = o.outcome || o;              // apply_edit → {..., outcome:{verdict,status,blast}}
-    verdict = inner.verdict || o.verdict || null;
-    statusTxt = inner.status || o.status || 'done';
-    deps = (inner.blast?.dependents||[]).length;
-    if (o.rejected && o.rejected.length) note = `rejected (outside claims): ${o.rejected.join(', ')}`;
-  } else if (typeof o==='string'){ note=o; statusTxt='reported'; }
-  const status=document.getElementById('status');
-  status.textContent = verdict ? `verdict: ${verdict}` : 'result posted';
+  const o=res.outcome; let verdict=null, statusTxt='', deps=0, note='', diffs=null, delta=null;
+  if (o && typeof o==='object'){ const inner=o.outcome||o;
+    verdict=inner.verdict||o.verdict||null; statusTxt=inner.status||o.status||'done';
+    deps=(inner.blast?.dependents||[]).length; diffs=o.unifiedDiffs; delta=o.behaviourDelta;
+    if (o.rejected&&o.rejected.length) note=`rejected (outside claims): ${o.rejected.join(', ')}`;
+    if (o.proposalId){ statusTxt='awaiting approval'; } }
+  else if (typeof o==='string'){ note=o; statusTxt='reported'; }
+  const status=document.getElementById('status'); status.textContent=verdict?`verdict: ${verdict}`:statusTxt;
   if (verdict){ const col=cvar(HEALTH_COLOUR[({GREEN:'green',RED:'red'})[verdict]]||'--amber');
     const v=document.getElementById('verdict'); if(v){ v.textContent=verdict; v.style.background=col; }
-    if (steerUnit && byId[steerUnit]) byId[steerUnit].flash = t + 45;   // the bubble flashes
-  }
+    if (steerUnit&&byId[steerUnit]) byId[steerUnit].flash=t+45; }
   document.getElementById('outcome').innerHTML =
     `<div class="edge"><span class="pill">${esc(statusTxt)}</span> ${verdict?`verdict <b>${esc(verdict)}</b> · `:''}blast: ${deps} dependent(s)</div>`
-    + (note?`<div class="inv" style="border-color:var(--amber)">${esc(note)}</div>`:'');
+    + (delta?`<div class="edge">behaviour ${esc(delta.metric||'')}: ${esc(delta.before)} → ${esc(delta.after)} (${esc(delta.verdict)})</div>`:'')
+    + (note?`<div class="inv" style="border-color:var(--signal-amber)">${esc(note)}</div>`:'')
+    + (diffs?renderDiffs(diffs):'');
   refresh(steerUnit);
 }
-async function revert(){
-  if (STATIC) return;
-  const {data}=await api('POST', `/api/node/${selected}/revert`, {});
-  document.getElementById('status').textContent = data.restored?`reverted ${data.restored.length} file(s)`:(data.error||'');
-  await refresh(selected);
+function renderDiffs(diffs){
+  return Object.entries(diffs).map(([f,d])=>{
+    const lines=(d||'').split('\n').map(l=>{ const c=l[0]==='+'?'var(--signal-green)':l[0]==='-'?'var(--signal-red)':'var(--muted)';
+      return `<span style="color:${c}">${esc(l)}</span>`; }).join('\n');
+    return `<details class="sect"><summary style="font-family:var(--font-mono);font-size:11px">${esc(f)}</summary>`
+      +`<pre class="inv" style="white-space:pre-wrap;overflow:auto">${lines}</pre></details>`; }).join('');
 }
-function approve(){
-  const s=document.getElementById('status');
-  s.textContent = "Approval is the operator's call — review the steered change, then approve. Steer & Revert are live via the Bridge.";
-}
-async function refresh(id){                            // re-pull live verdicts after an action
-  if (STATIC) return;
-  view = (await api('GET','/api/graph')).data;
-  buildLayout(); if (id) select(id);
-}
+async function revert(){ if (STATIC) return; const {data}=await api('POST',`/api/node/${selected}/revert`,{});
+  document.getElementById('status').textContent=data.restored?`reverted ${data.restored.length} file(s)`:(data.error||''); await refresh(selected); }
+async function approve(){ if (STATIC) return; if (!steerReqId){ document.getElementById('status').textContent='no proposal to approve yet'; return; }
+  const {data}=await api('POST',`/api/proposals/${steerReqId}/approve`,{});
+  document.getElementById('status').textContent=data.applied?`approved — applied ${data.applied.length} file(s)`:(data.error||''); await refresh(selected); }
+async function refresh(id){ if (STATIC) return; view=(await api('GET','/api/graph')).data; buildLayout(); if (id) select(id); }
+
+// test/debug hook — script-scoped state isn't on window; expose read-only accessors.
+window.__ent = { get units(){return units}, get cam(){return cam}, get lens(){return lens},
+                 get selected(){return selected}, jumpTo, setLens, fitToView };
 
 boot();
 </script>
