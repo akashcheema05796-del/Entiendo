@@ -23,7 +23,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from . import agent, verdicts
+from . import agent, steering, verdicts
 from .editloop import assemble_context, review_edit
 from .evals.runner import run_tier0, run_tier1
 from .manifest import find_node
@@ -41,6 +41,19 @@ def handle_api(root: Path, method: str, path: str, body: dict[str, Any] | None,
     try:
         if parts == ["api", "graph"] and method == "GET":
             return 200, build_view(root)
+
+        # --- the Bridge (Phase C): steer here, the workload acts, verdict returns ---
+        if parts == ["api", "steer"] and method == "POST":
+            unit = (body or {}).get("unit", "")
+            instruction = (body or {}).get("instruction", "")
+            if not str(instruction).strip():
+                return 400, {"error": "empty instruction"}
+            if find_node(root, unit) is None:
+                return 404, {"error": f"no node '{unit}'"}
+            return 200, steering.enqueue(root, unit, instruction)
+
+        if parts == ["api", "steering"] and method == "GET":
+            return 200, steering.poll(root)
 
         if len(parts) >= 3 and parts[:2] == ["api", "node"]:
             node_id = parts[2]
