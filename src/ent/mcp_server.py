@@ -18,6 +18,8 @@ and the manifest remains the retrieval index (SPEC.md §6):
   - `retrofit_propose`    infer node manifests for an unmanaged repo (staging)
   - `retrofit_accept`     accept one proposal into the real tree
   - `validate_manifests`  L0 validation report
+  - `await_steering`      (the Bridge) block for the next operator steering request
+  - `post_verdict`        (the Bridge) report a steering request's result back
 
 Design guarantees (unchanged from the HTTP surface):
   - Read-only observer except `apply_edit` / `revert_node` / `retrofit_accept`,
@@ -41,6 +43,7 @@ from .render import blast_radius, build_view
 from .server import _backup, _BACKUP_DIR  # reuse the same backup convention as `ent serve`
 from .validation import validate_root
 from . import retrofit as retrofit_mod
+from . import steering
 
 
 # --------------------------------------------------------------------------- #
@@ -174,6 +177,28 @@ def tool_validate_manifests(root: Path) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# the Bridge (Phase C): the operator loop's ends — pull a steering request from
+# the Universe, and post the verdict back to it.
+# --------------------------------------------------------------------------- #
+
+def tool_await_steering(root: Path, timeout_s: float = 25.0) -> dict[str, Any]:
+    """Block (bounded) for the next steering request the operator queued.
+
+    Returns the request {id, unit, instruction, ...} or {"status": "timeout"}.
+    The workload then reads the unit with `get_node_context`, edits it with
+    `apply_edit`, and reports back with `post_verdict(request_id, outcome)`.
+    """
+    return steering.await_steering(root, timeout_s=timeout_s)
+
+
+def tool_post_verdict(root: Path, request_id: str, outcome: Any) -> dict[str, Any]:
+    """Write the result of a steering request back to the Universe (its dossier
+    flips from 'queued' to this verdict). `outcome` is typically the `apply_edit`
+    result (verdict, blast radius, approval status) or a short status string."""
+    return steering.post_verdict(root, request_id, outcome)
+
+
+# --------------------------------------------------------------------------- #
 # MCP wiring (optional dependency)
 # --------------------------------------------------------------------------- #
 
@@ -238,5 +263,24 @@ def serve_mcp(root: Path) -> None:  # pragma: no cover — transport glue only
     def validate_manifests() -> str:
         """L0 validation of all manifests against the schema."""
         return json.dumps(tool_validate_manifests(root))
+
+    @app.tool()
+    def await_steering(timeout_s: float = 25.0) -> str:
+        """Block (bounded) for the next steering request the operator queued in the
+        Universe. Returns {id, unit, instruction} or {"status":"timeout"}. This is
+        the head of the operator loop: await_steering → get_node_context →
+        apply_edit → post_verdict. Call it again after each request to keep looping."""
+        return json.dumps(tool_await_steering(root, timeout_s))
+
+    @app.tool()
+    def post_verdict(request_id: str, outcome: str) -> str:
+        """Report a steering request's result back to the Universe (its dossier flips
+        from 'queued' to this verdict). Pass the `apply_edit` outcome JSON or a short
+        status. Closes the loop for `request_id`."""
+        try:
+            parsed = json.loads(outcome)
+        except (json.JSONDecodeError, TypeError):
+            parsed = outcome
+        return json.dumps(tool_post_verdict(root, request_id, parsed))
 
     app.run()  # stdio transport — what Claude Code expects for local servers

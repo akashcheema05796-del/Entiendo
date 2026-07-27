@@ -358,6 +358,12 @@ function drawUnit(u){
   if (u.approvalRequired){ ctx.strokeStyle=cvar('--gold'); ctx.lineWidth=2;
     ctx.beginPath(); ctx.arc(u.x,u.y,u.r+3,-0.9,-0.1); ctx.stroke(); }
 
+  // verdict flash — the bubble pulses when a steering result lands
+  if (u.flash && u.flash>t){ const a=(u.flash-t)/45;
+    ctx.save(); ctx.strokeStyle=healthHex(u); ctx.globalAlpha=Math.min(1,a);
+    ctx.lineWidth=2+6*(1-a); ctx.beginPath();
+    ctx.arc(u.x,u.y,u.r+6+16*(1-a),0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+
   // selection ring
   if (selected===u.id){ ctx.strokeStyle=cvar('--ink'); ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.arc(u.x,u.y,u.r+4,0,Math.PI*2); ctx.stroke(); }
@@ -418,6 +424,7 @@ function onClick(u){
 }
 
 function select(id){
+  if (typeof stopSteerPoll==='function') stopSteerPoll();
   selected=id;
   blast = new Set(computeBlast(id));
   openDossier(byId[id] || unitFromView(id));
@@ -526,24 +533,57 @@ function openDossier(u){
     document.getElementById('approveBtn').title='No approval gate on this unit';
   }
 }
-function closeDossier(){ document.getElementById('dossier').classList.remove('open'); selected=null; blast.clear(); }
+function closeDossier(){ if(typeof stopSteerPoll==='function') stopSteerPoll();
+  document.getElementById('dossier').classList.remove('open'); selected=null; blast.clear(); }
 
+// The Bridge (Phase C): steering queues a request; Claude Code (the workload,
+// running the entiendo-operator skill) picks it up, edits within claims, and
+// posts a verdict back. The dossier flips queued → verdict without a terminal.
+let steerReqId=null, steerTimer=null, steerUnit=null;
 async function steer(){
   const instr=document.getElementById('instr').value.trim();
   if (!instr || STATIC) return;
   const btn=document.getElementById('steerBtn'), status=document.getElementById('status');
-  btn.disabled=true; status.textContent='steering — the workload is editing…';
-  const {status:code, data} = await api('POST', `/api/node/${selected}/edit`, {instruction:instr});
+  btn.disabled=true;
+  const {status:code, data} = await api('POST','/api/steer',{unit:selected, instruction:instr});
   btn.disabled=false;
-  if (code!==200){ status.textContent=''; document.getElementById('outcome').innerHTML =
+  if (code!==200){ document.getElementById('outcome').innerHTML =
     `<div class="inv" style="border-color:var(--amber)">${esc(data.error||'error')}</div>`; return; }
-  const o=data.outcome, col=cvar(HEALTH_COLOUR[({GREEN:'green',RED:'red'})[o.verdict]]||'--amber');
-  const v=document.getElementById('verdict'); v.textContent=o.verdict; v.style.background=col;
-  status.textContent = data.summary||'';
-  const rej = data.rejected&&data.rejected.length ? `<div class="inv" style="border-color:var(--amber)">rejected (outside claims): ${esc(data.rejected.join(', '))}</div>`:'';
+  steerReqId=data.id; steerUnit=selected;
+  status.textContent='queued — waiting for the operator (Claude Code)…';
   document.getElementById('outcome').innerHTML =
-    `<div class="edge"><span class="pill">${esc(o.status)}</span> blast: ${(o.blast?.dependents||[]).length} dependent(s)</div>${rej}`;
-  await refresh(selected);
+    `<div class="edge"><span class="pill">queued</span> <code>${esc(data.id)}</code></div>`;
+  startSteerPoll();
+}
+function startSteerPoll(){
+  stopSteerPoll();
+  steerTimer=setInterval(async ()=>{
+    const {data}=await api('GET','/api/steering');
+    const res=(data.results||{})[steerReqId];
+    if (res){ stopSteerPoll(); showSteerResult(res); }
+  }, 1500);
+}
+function stopSteerPoll(){ if(steerTimer){ clearInterval(steerTimer); steerTimer=null; } }
+function showSteerResult(res){
+  const o=res.outcome;
+  let verdict=null, statusTxt='', deps=0, note='';
+  if (o && typeof o==='object'){
+    const inner = o.outcome || o;              // apply_edit → {..., outcome:{verdict,status,blast}}
+    verdict = inner.verdict || o.verdict || null;
+    statusTxt = inner.status || o.status || 'done';
+    deps = (inner.blast?.dependents||[]).length;
+    if (o.rejected && o.rejected.length) note = `rejected (outside claims): ${o.rejected.join(', ')}`;
+  } else if (typeof o==='string'){ note=o; statusTxt='reported'; }
+  const status=document.getElementById('status');
+  status.textContent = verdict ? `verdict: ${verdict}` : 'result posted';
+  if (verdict){ const col=cvar(HEALTH_COLOUR[({GREEN:'green',RED:'red'})[verdict]]||'--amber');
+    const v=document.getElementById('verdict'); if(v){ v.textContent=verdict; v.style.background=col; }
+    if (steerUnit && byId[steerUnit]) byId[steerUnit].flash = t + 45;   // the bubble flashes
+  }
+  document.getElementById('outcome').innerHTML =
+    `<div class="edge"><span class="pill">${esc(statusTxt)}</span> ${verdict?`verdict <b>${esc(verdict)}</b> · `:''}blast: ${deps} dependent(s)</div>`
+    + (note?`<div class="inv" style="border-color:var(--amber)">${esc(note)}</div>`:'');
+  refresh(steerUnit);
 }
 async function revert(){
   if (STATIC) return;
@@ -553,7 +593,7 @@ async function revert(){
 }
 function approve(){
   const s=document.getElementById('status');
-  s.textContent = 'Approval sign-off is wired by the Bridge (Phase C) — steer/revert are live now.';
+  s.textContent = "Approval is the operator's call — review the steered change, then approve. Steer & Revert are live via the Bridge.";
 }
 async function refresh(id){                            // re-pull live verdicts after an action
   if (STATIC) return;

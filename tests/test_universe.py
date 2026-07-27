@@ -98,6 +98,15 @@ def test_blast_radius_tint_on_select() -> None:
     assert "blast" in html
 
 
+def test_steer_wired_to_the_bridge() -> None:
+    """Phase C: the dossier's Steer enqueues via /api/steer and polls /api/steering."""
+    html = build_universe(None)
+    assert "/api/steer" in html               # enqueue a steering request
+    assert "/api/steering" in html            # poll for the posted verdict
+    assert "startSteerPoll" in html and "showSteerResult" in html
+    assert ".flash" in html                   # the bubble flashes when the verdict lands
+
+
 # --------------------------------------------------------------------------- #
 # two modes: static embed vs live hydrate
 # --------------------------------------------------------------------------- #

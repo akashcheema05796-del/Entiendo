@@ -53,6 +53,10 @@ component with a contract, a composite version, tiered evals, and history.
 
 `.mcp.json` registers `ent mcp` (stdio). Tools: `get_graph`,
 `get_node_context`, `run_eval`, `get_blast_radius`, `apply_edit`,
-`revert_node`, `retrofit_propose`, `retrofit_accept`, `validate_manifests`.
-The visual surface is `ent serve` (browser, port 7373); start it when the user
-wants to *see* the map.
+`revert_node`, `retrofit_propose`, `retrofit_accept`, `validate_manifests`,
+and the Bridge pair `await_steering` / `post_verdict`.
+The visual surface is `ent serve` (the Universe, browser, port 7373); start it
+when the user wants to *see* the map. To act as the workload the operator steers
+from that canvas, use the `entiendo-operator` skill (`ent serve --operator`
+prints the exact start command): loop `await_steering` → `get_node_context` →
+`apply_edit` → `post_verdict`, editing through units, never around their claims.

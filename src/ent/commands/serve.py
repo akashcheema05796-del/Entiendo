@@ -27,7 +27,24 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
     )
     p.add_argument("--root", default=".", help="project root (default: current directory)")
     p.add_argument("--port", type=int, default=7373, help="port to serve on (default: 7373)")
+    p.add_argument(
+        "--operator", action="store_true",
+        help="print the command to run Claude Code as the steering workload, then serve",
+    )
     p.set_defaults(handler=_run)
+
+
+def _operator_banner(root: Path) -> str:
+    return (
+        "\n  ── Operate the Universe with Claude Code ──────────────────────────\n"
+        "  1. In THIS repo, start Claude Code:   claude\n"
+        "  2. Tell it:                           operate the map\n"
+        "     (triggers the `entiendo-operator` skill; it needs the `entiendo`\n"
+        "      MCP server from .mcp.json — `ent mcp`)\n"
+        "  3. In the browser, click a unit and Steer. Claude Code picks it up,\n"
+        "     edits within claims, reflex reruns, and the dossier shows the verdict.\n"
+        "  ───────────────────────────────────────────────────────────────────\n"
+    )
 
 
 def _run(args: argparse.Namespace) -> int:
@@ -36,5 +53,7 @@ def _run(args: argparse.Namespace) -> int:
     if not report.ok:
         print("ent serve: manifests are invalid — run `ent validate` first.")
         return 2
+    if args.operator:
+        print(_operator_banner(root))
     serve(root, port=args.port)
     return 0
