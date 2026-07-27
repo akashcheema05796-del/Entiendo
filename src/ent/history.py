@@ -57,6 +57,11 @@ def _append(root: Path, event: dict[str, Any]) -> dict[str, Any]:
     return event
 
 
+def record(root: Path, event: dict[str, Any]) -> dict[str, Any]:
+    """Append an arbitrary event to the log (e.g. proposal approved/rejected)."""
+    return _append(root, event)
+
+
 def latest_version(root: Path, node_id: str) -> dict[str, Any] | None:
     """The most recent version event payload for a node, or None."""
     latest = None

@@ -39,7 +39,11 @@ Run this loop continuously until the user tells you to stop:
    radius, and approval status.
 4. **`post_verdict(request_id, outcome)`** — pass the `apply_edit` result JSON (or
    a short status string) so the Universe dossier shows the verdict for that
-   request. This closes the loop for `id`.
+   request. This closes the loop for `id`. **If the unit is gated** — the outcome's
+   `approvalRequired` is true or its status is `awaiting-signoff` — call
+   `post_verdict(request_id, outcome, proposal=true)` instead: that routes the edit
+   into a **proposal** (the diff is captured, the working tree reverts to before),
+   and the operator approves or rejects it in the Universe. Do not self-approve.
 5. Go back to step 1.
 
 ## Rules (the control plane's boundaries are not suggestions)

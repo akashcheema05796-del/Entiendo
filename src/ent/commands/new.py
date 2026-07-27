@@ -32,6 +32,7 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
     )
     p.add_argument("id", help="unit id, dotted: <group>.<name> (e.g. refunds.decider)")
     p.add_argument("--task", help="one sentence: what this unit is for")
+    p.add_argument("--description", help="one plain-English paragraph (for non-engineers)")
     p.add_argument("--kind", default="compute",
                    choices=["compute", "state", "schema", "config", "external", "pipeline"])
     p.add_argument("--owner", default="TODO", help="the human accountable (never the AI)")
@@ -57,10 +58,12 @@ def _run(args: argparse.Namespace) -> int:
     name = args.id.split(".")[-1]
 
     task = args.task
+    description = args.description
     fixture_raw, expect_raw = args.fixture, args.expect
     # interactive fill-in only when attached to a terminal
     if sys.stdin.isatty():
         task = task or _prompt("task (one sentence — what is this unit for?): ")
+        description = description or _prompt("description (one paragraph, plain English — optional): ")
         if fixture_raw is None:
             fixture_raw = _prompt("one fixture INPUT (JSON): ")
         if expect_raw is None:
@@ -118,7 +121,8 @@ def _run(args: argparse.Namespace) -> int:
         f"id: {args.id}\n"
         f"name: {name}\n"
         f"task: {json.dumps(task)}\n"
-        f"nodeKind: {args.kind}\n"
+        + (f"description: {json.dumps(description)}\n" if description else "")
+        + f"nodeKind: {args.kind}\n"
         f"group: {args.id.split('.')[0]}\n"
         f"owner: {args.owner}\n"
         "status: experimental\n"

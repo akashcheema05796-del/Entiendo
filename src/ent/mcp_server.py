@@ -36,7 +36,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .editloop import assemble_context, review_edit
+from .editloop import assemble_context, behaviour_delta, golden_mean, review_edit, unified_diff
 from .evals.runner import run_tier0, run_tier1
 from .manifest import find_node
 from .render import blast_radius, build_view
@@ -94,9 +94,14 @@ def tool_apply_edit(
     ctx = assemble_context(root, node_id)
     claims = set(ctx.claimed_files)  # relative posix paths, same shape agent.py used
 
+    # verdict + behaviour BEFORE the edit (H0.2 — the before/after story is real).
+    verdict_before = run_tier0(node, root).verdict
+    golden_before = golden_mean(node, root)
+
     written: list[str] = []
     rejected: list[str] = []
     diffs: dict[str, dict[str, str]] = {}
+    unified: dict[str, str] = {}
 
     for entry in files:
         rel = Path(entry["path"]).as_posix()
@@ -105,6 +110,7 @@ def tool_apply_edit(
             continue
         before = ctx.claimed_files.get(rel, "")
         diffs[rel] = {"before": before, "after": entry["content"]}
+        unified[rel] = unified_diff(rel, before, entry["content"])
         _backup(root, node_id, rel, before)
         target = Path(root) / rel
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -120,11 +126,16 @@ def tool_apply_edit(
         }
 
     outcome = review_edit(root, node_id, written)
+    golden_after = golden_mean(find_node(root, node_id), root)
     return {
         "summary": summary,
         "changed": sorted(written),
         "rejected": sorted(rejected),
         "diffs": diffs,
+        "unifiedDiffs": unified,                       # per-file unified diff (H0.2)
+        "verdictBefore": verdict_before,
+        "verdictAfter": outcome.verdict,
+        "behaviourDelta": behaviour_delta(golden_before, golden_after),  # spec §6
         "outcome": outcome.as_dict(),
     }
 
@@ -191,10 +202,17 @@ def tool_await_steering(root: Path, timeout_s: float = 25.0) -> dict[str, Any]:
     return steering.await_steering(root, timeout_s=timeout_s)
 
 
-def tool_post_verdict(root: Path, request_id: str, outcome: Any) -> dict[str, Any]:
+def tool_post_verdict(root: Path, request_id: str, outcome: Any,
+                      *, proposal: bool = False) -> dict[str, Any]:
     """Write the result of a steering request back to the Universe (its dossier
     flips from 'queued' to this verdict). `outcome` is typically the `apply_edit`
-    result (verdict, blast radius, approval status) or a short status string."""
+    result (verdict, blast radius, approval status) or a short status string.
+
+    With `proposal=True` (for a unit whose `approval.required` is set), the edit is
+    routed into a PROPOSAL instead of applied: the diff is captured, the working
+    tree reverts to `before`, and the operator approves/rejects in the Universe."""
+    if proposal and isinstance(outcome, dict):
+        return steering.propose_from_outcome(root, request_id, outcome)
     return steering.post_verdict(root, request_id, outcome)
 
 
@@ -273,14 +291,16 @@ def serve_mcp(root: Path) -> None:  # pragma: no cover — transport glue only
         return json.dumps(tool_await_steering(root, timeout_s))
 
     @app.tool()
-    def post_verdict(request_id: str, outcome: str) -> str:
+    def post_verdict(request_id: str, outcome: str, proposal: bool = False) -> str:
         """Report a steering request's result back to the Universe (its dossier flips
         from 'queued' to this verdict). Pass the `apply_edit` outcome JSON or a short
-        status. Closes the loop for `request_id`."""
+        status. Set proposal=True when the unit's `approval.required` is set (or the
+        outcome status is awaiting-signoff): the edit is routed into a proposal for
+        the operator to approve/reject, not applied live. Closes the loop for `request_id`."""
         try:
             parsed = json.loads(outcome)
         except (json.JSONDecodeError, TypeError):
             parsed = outcome
-        return json.dumps(tool_post_verdict(root, request_id, parsed))
+        return json.dumps(tool_post_verdict(root, request_id, parsed, proposal=proposal))
 
     app.run()  # stdio transport — what Claude Code expects for local servers

@@ -149,3 +149,94 @@ def results(root: Path) -> dict[str, Any]:
 def poll(root: Path) -> dict[str, Any]:
     """The UI's view of the bridge: what's pending + every posted result."""
     return {"pending": pending(root), "results": results(root)}
+
+
+# --------------------------------------------------------------------------- #
+# H0.3 — approval, for real. A gated unit's edit lands as a PROPOSAL: the diff
+# is captured, the working tree is reverted to `before`, and approve re-applies
+# the stored `after` (a boring stored-diff apply — no live-tree magic).
+# --------------------------------------------------------------------------- #
+
+from . import gitinfo, history  # noqa: E402
+
+
+def _proposals_dir(root: Path) -> Path:
+    d = _root(root) / "proposals"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def propose_from_outcome(root: Path, request_id: str, outcome: dict[str, Any]) -> dict[str, Any]:
+    """Turn an applied edit on a gated unit into a proposal.
+
+    `outcome` is the `apply_edit` result (carrying diffs + verdicts + behaviour
+    delta). The working tree is reverted to `before` for each changed file, so the
+    gated change is NOT live until approved. Returns the stored proposal.
+    """
+    diffs = outcome.get("diffs", {}) or {}
+    unit = (outcome.get("outcome", {}) or {}).get("nodeId") or outcome.get("unit")
+
+    # revert the working tree to `before` — the gate holds the change back.
+    for rel, d in diffs.items():
+        (Path(root) / rel).write_text(d.get("before", ""), encoding="utf-8")
+
+    proposal = {
+        "id": request_id,
+        "unit": unit,
+        "status": "awaiting-approval",
+        "files": diffs,                                  # {rel: {before, after}}
+        "unifiedDiffs": outcome.get("unifiedDiffs", {}),
+        "verdictBefore": outcome.get("verdictBefore"),
+        "verdictAfter": outcome.get("verdictAfter"),
+        "behaviourDelta": outcome.get("behaviourDelta"),
+        "blast": (outcome.get("outcome", {}) or {}).get("blast"),
+        "summary": outcome.get("summary"),
+        "ts": _now(),
+    }
+    (_proposals_dir(root) / f"{request_id}.json").write_text(
+        json.dumps(proposal, indent=2), encoding="utf-8")
+    history.record(root, {"kind": "proposal", "event": "created", "nodeId": unit,
+                          "proposalId": request_id, "ts": gitinfo.now_iso()})
+    # the steering result points at the proposal so the dossier shows "awaiting"
+    post_verdict(root, request_id, {"status": "awaiting-approval", "proposalId": request_id})
+    return proposal
+
+
+def proposals(root: Path) -> list[dict[str, Any]]:
+    """All open proposals (awaiting approval), oldest first."""
+    d = _root(root) / "proposals"
+    if not d.exists():
+        return []
+    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(d.glob("*.json"))]
+
+
+def proposal_for(root: Path, request_id: str) -> dict[str, Any] | None:
+    path = _root(root) / "proposals" / f"{request_id}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def approve(root: Path, request_id: str) -> dict[str, Any]:
+    """Apply a proposal's stored `after` to the working tree (stored-diff apply)."""
+    prop = proposal_for(root, request_id)
+    if prop is None:
+        return {"error": f"no proposal '{request_id}'"}
+    applied = []
+    for rel, d in (prop.get("files", {}) or {}).items():
+        (Path(root) / rel).write_text(d.get("after", ""), encoding="utf-8")
+        applied.append(rel)
+    (_proposals_dir(root) / f"{request_id}.json").unlink(missing_ok=True)
+    history.record(root, {"kind": "proposal", "event": "approved", "nodeId": prop.get("unit"),
+                          "proposalId": request_id, "ts": gitinfo.now_iso()})
+    return {"approved": request_id, "unit": prop.get("unit"),
+            "applied": sorted(applied), "verdict": prop.get("verdictAfter")}
+
+
+def reject(root: Path, request_id: str) -> dict[str, Any]:
+    """Discard a proposal. The working tree is already at `before` (never applied)."""
+    prop = proposal_for(root, request_id)
+    if prop is None:
+        return {"error": f"no proposal '{request_id}'"}
+    (_proposals_dir(root) / f"{request_id}.json").unlink(missing_ok=True)
+    history.record(root, {"kind": "proposal", "event": "rejected", "nodeId": prop.get("unit"),
+                          "proposalId": request_id, "ts": gitinfo.now_iso()})
+    return {"rejected": request_id, "unit": prop.get("unit")}
