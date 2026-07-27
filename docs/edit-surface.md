@@ -1,7 +1,23 @@
-# The interactive edit surface (`ent serve`)
+# The Universe — the render + edit surface (`ent render` / `ent serve`)
 
-The scoped edit loop (SPEC.md §6) made interactive: click a node, describe a
-change, and an LLM edits it — confined to the node's claimed files — while tier0
+The **Universe** (SPEC.md §4, LEXICON → Universe) is the one surface humans steer
+through: an indigo field where every unit is a kind-form (orb / ringed / dashed /
+gold diamond / container), health is a glow (RED pulses), flow is particles
+(verified edges bright and fast, declared ones dim and dashed), and selecting a
+unit tints its blast radius and opens a **logic-first dossier** — task, contract,
+verdict, fingerprint, edges, with artifacts (claims) collapsed behind a
+disclosure. Every dossier ends in an action: **steer / revert / approve**.
+
+One template, two modes (`render.build_universe`):
+
+- **`ent render`** bakes the whole `build_view` model into the page — a static
+  snapshot that opens with no server (actions disabled).
+- **`ent serve`** ships the same page in live mode: it hydrates from `/api/graph`,
+  so **steer** drives an LLM edit within the unit's claims, reflex (tier0) reruns,
+  and the verdict + blast radius update live, with one-click **revert**.
+
+The scoped edit loop (SPEC.md §6) made interactive: click a unit, describe a
+change, and an LLM edits it — confined to the unit's claimed files — while reflex
 reruns and the verdict, blast radius, and approval gate update live.
 
 ```bash
@@ -17,7 +33,7 @@ A thin backend over functions that already exist, plus a self-contained frontend
 
 | Layer | What |
 |---|---|
-| **Frontend** (`server.build_app_html`) | One HTML page (inline CSS/JS, no build step). Left: the node list coloured by health. Right: the selected node's context, eval buttons, and an edit box. |
+| **Frontend** (`render.build_universe`) | The Universe — one self-contained HTML page (inline CSS/JS, canvas field, no build step), theme- and reduced-motion-aware. Units as kind-forms on an indigo field; the dossier opens on select. `ent serve` uses the live mode (`build_app_html` → `build_universe(None)`); `ent render` embeds the data. |
 | **Backend** (`server.handle_api`) | stdlib `http.server` — no new runtime dependency. A pure router so it's unit-tested without a socket. |
 | **Model** (`agent.propose_edit`) | Claude Opus 5 via the official `anthropic` SDK, structured outputs. Optional — degrades to a clear 503 without it. |
 

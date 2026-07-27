@@ -55,5 +55,8 @@ Specification = "https://github.com/akashdatageek/entiendo/blob/main/SPEC.md"
 [tool.hatch.build.targets.wheel]
 packages = ["src/ent"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/ent/universe.html" = "ent/universe.html"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
