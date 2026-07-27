@@ -37,6 +37,7 @@ from .commands import serve as serve_cmd
 from .commands import mcp as mcp_cmd
 from .commands import pin as pin_cmd
 from .commands import replay as replay_cmd
+from .commands import new as new_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -65,6 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mcp_cmd.register(sub)
     pin_cmd.register(sub)
     replay_cmd.register(sub)
+    new_cmd.register(sub)
 
     return parser
 
