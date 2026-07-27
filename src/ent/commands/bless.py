@@ -22,10 +22,10 @@ from ..manifest import find_node
 def register(subparsers: "argparse._SubParsersAction") -> None:
     p = subparsers.add_parser(
         "bless",
-        help="[tier1] sign a node's golden dataset for gating",
+        help="[golden] sign a unit's golden dataset for gating",
         description="Review and sign a golden dataset (humanBlessed).",
     )
-    p.add_argument("node", help="node id, e.g. retrieval.chunk_ranker")
+    p.add_argument("node", metavar="unit", help="unit id, e.g. retrieval.chunk_ranker")
     p.add_argument("--by", default=None, help="who is blessing (default: $USER)")
     p.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     p.add_argument("--root", default=".", help="project root (default: current directory)")
@@ -38,12 +38,12 @@ def _run(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     node = find_node(root, args.node)
     if node is None:
-        print(f"ent bless: no node with id '{args.node}' under {root}")
+        print(f"ent bless: no unit with id '{args.node}' under {root}")
         return 2
 
     golden = next((e for e in node.raw.get("evals", {}).get("tier1", []) if e.get("type") == "golden"), None)
     if not golden or not golden.get("dataset"):
-        print(f"ent bless: {args.node} has no tier1 golden dataset to bless")
+        print(f"ent bless: {args.node} has no golden dataset to bless")
         return 2
 
     dataset_rel = golden["dataset"]

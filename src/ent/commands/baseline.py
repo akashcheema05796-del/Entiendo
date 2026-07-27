@@ -20,13 +20,13 @@ from ..manifest import find_node
 def register(subparsers: "argparse._SubParsersAction") -> None:
     p = subparsers.add_parser(
         "baseline",
-        help="[tier1] manage node eval baselines",
+        help="[golden] manage unit eval baselines",
         description="Promote a pending baseline to active.",
     )
     sub = p.add_subparsers(dest="baseline_command", metavar="<subcommand>")
 
     accept = sub.add_parser("accept", help="promote a pending baseline")
-    accept.add_argument("node", help="node id")
+    accept.add_argument("node", metavar="unit", help="unit id")
     accept.add_argument("--root", default=".", help="project root (default: current directory)")
     accept.set_defaults(handler=_accept)
 
@@ -42,7 +42,7 @@ def _accept(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     node = find_node(root, args.node)
     if node is None:
-        print(f"ent baseline: no node with id '{args.node}' under {root}")
+        print(f"ent baseline: no unit with id '{args.node}' under {root}")
         return 2
 
     pending = baselines.read_pending(root, args.node)

@@ -23,8 +23,8 @@ from .. import retrofit
 def register(subparsers: "argparse._SubParsersAction") -> None:
     p = subparsers.add_parser(
         "retrofit",
-        help="[v2] propose node manifests for an existing repo",
-        description="Infer node boundaries in an unmanaged repo and stage manifest proposals.",
+        help="[v2] propose unit manifests for an existing repo",
+        description="Infer unit boundaries in an unmanaged repo and stage manifest proposals.",
     )
     p.add_argument("root", nargs="?", default=".", help="repo to retrofit (default: current directory)")
     p.add_argument("--accept", metavar="ID", help="promote one staged proposal into place (one at a time)")
@@ -61,7 +61,7 @@ def _propose(root: Path) -> int:
         print(f"           ⚠ boundary-uncertain — needs a fixture → expected verdict before accept")
 
     print()
-    print(f"✓ {cov['nodes']} node(s) proposed, {int(cov['coverage']*100)}% of "
+    print(f"✓ {cov['nodes']} unit(s) proposed, {int(cov['coverage']*100)}% of "
           f"{cov['total']} source files claimed")
     print(f"  written to {out.relative_to(root)}/ — review, then `ent retrofit . --accept <id>`")
     print("  expect to correct many guesses: retrofit infers boundaries nobody declared.")

@@ -295,10 +295,11 @@ ent mcp                             # L5: same surface as MCP tools for Claude C
 
 ---
 
-## The node
+## The unit
 
-Everything hangs off one schema. A node is declared by an `entiendo.node.yaml`
-colocated with the code it owns:
+Everything hangs off one schema. A unit is declared by an `entiendo.node.yaml`
+colocated with the code it owns (the filename keeps the `node` spelling for
+back-compat — see [LEXICON.md](./LEXICON.md) → Compatibility):
 
 ```yaml
 apiVersion: entiendo/v1
@@ -325,11 +326,17 @@ and the field-by-field reference in [`docs/manifest.md`](./docs/manifest.md).
 
 | Command | Layer | Does |
 |---|---|---|
-| `ent init` | L0 | scaffold `entiendo/` + a first node manifest |
+| `ent init` | L0 | scaffold `entiendo/` + a first unit manifest |
 | `ent validate` | L0 | validate manifests against the schema |
 | `ent extract` | L1 | emit `graph.json` + `coverage.json`; fail on drift |
-| `ent eval <node>` | L2 | run a node's evals (tier0 by default) |
-| `ent render` | L4 | serve the render surface (six lenses) |
+| `ent eval <unit>` | L2 | run a unit's evals — reflex (default) / golden / judge |
+| `ent render` | L4 | the Universe render surface (six lenses) |
+
+> **Lexicon:** the CLI, the Universe, and these docs speak of **units**,
+> **fingerprints**, and **reflex / golden / judge** evals. The *format* is
+> unchanged — `entiendo.node.yaml`, `claims:`, `apiVersion: entiendo/v1`,
+> `kind: Node` — and old forms (`--node-id`, `--tier 0/1/2`) keep working. See
+> [LEXICON.md](./LEXICON.md).
 
 All are wired; L0 onward is filled in over the build order below.
 

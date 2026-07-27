@@ -22,8 +22,8 @@ from ..validation import Report, validate_paths, validate_root
 def register(subparsers: "argparse._SubParsersAction") -> None:
     p = subparsers.add_parser(
         "validate",
-        help="[L0] validate node manifests against the schema",
-        description="Validate every entiendo.node.yaml against the node schema.",
+        help="[L0] validate unit manifests against the schema",
+        description="Validate every entiendo.node.yaml (unit manifest) against the schema.",
     )
     p.add_argument(
         "paths",

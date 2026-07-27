@@ -43,7 +43,7 @@ from .commands import new as new_cmd
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ent",
-        description="Entiendo — the node is the unit of work.",
+        description="Entiendo — the unit is the unit of work.",
     )
     parser.add_argument(
         "--version",
