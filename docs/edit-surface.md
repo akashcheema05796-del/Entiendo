@@ -1,12 +1,25 @@
 # The Universe — the render + edit surface (`ent render` / `ent serve`)
 
 The **Universe** (SPEC.md §4, LEXICON → Universe) is the one surface humans steer
-through: an indigo field where every unit is a kind-form (orb / ringed / dashed /
-gold diamond / container), health is a glow (RED pulses), flow is particles
-(verified edges bright and fast, declared ones dim and dashed), and selecting a
-unit tints its blast radius and opens a **logic-first dossier** — task, contract,
-verdict, fingerprint, edges, with artifacts (claims) collapsed behind a
-disclosure. Every dossier ends in an action: **steer / revert / approve**.
+through — a **star chart you operate** (celestial cartography: deep-ink field,
+ivory type, constellation hairlines, plate-gold callouts). Every unit is a
+kind-form (orb / ringed / dashed / gold diamond / container); an agentic unit
+draws its interior as **satellites on an orbit ring**, each tethered across the
+border to the edge it's declared against. Health is a glow (RED pulses), flow is
+particles (verified edges bright and fast, declared ones dim and dashed), a thin
+budget-burn arc shows spend/latency vs budget, and selecting a unit tints its
+blast radius and opens a **logic-first dossier** — *what it does* (plain English)
+→ task → verdict → interior → contract → budget → fingerprint → timeline → edges,
+with artifacts (claims) collapsed last. Every dossier ends in an action:
+**steer / revert / approve**.
+
+**Navigable by anyone.** Zoom (wheel/pinch) and pan (drag the field); a minimap
+appears past 1.5×. Pointer events throughout, so mouse and touch both work.
+Press `/` to fuzzy-search units by id/name/task and fly to one; `tab` cycles
+units, `enter` opens the dossier, `esc` closes, arrows pan, `0` fits. Groups
+collapse both ways (click a container to expand, the ⊟ control or a double-click
+to re-collapse). Every view is linkable: `#unit=refundly.decide&lens=health`.
+Reduced-motion is respected, including camera flights.
 
 One template, two modes (`render.build_universe`):
 
