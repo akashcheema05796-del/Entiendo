@@ -124,8 +124,22 @@
             "type": "object",
             "required": ["type"],
             "properties": {
-              "type": { "type": "string", "enum": ["schema_validation", "invariant_check", "smoke"] },
-              "fixture": { "type": "string" }
+              "type": { "type": "string", "enum": ["schema_validation", "invariant_check", "smoke", "trajectory"] },
+              "fixture": { "type": "string" },
+              "order": {
+                "description": "Trajectory ordering constraints for an agentic unit, each 'A before B' (A must precede B in the tool-call sequence).",
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "maxSteps": {
+                "description": "Trajectory step bound — more tool calls than this is RED.",
+                "type": "integer",
+                "minimum": 1
+              },
+              "registryOnly": {
+                "description": "Trajectory: fail if any tool call is outside interior.tools.",
+                "type": "boolean"
+              }
             }
           }
         },
@@ -198,6 +212,38 @@
       "additionalProperties": false,
       "properties": {
         "required": { "type": "boolean", "default": false }
+      }
+    },
+    "interior": {
+      "description": "Agentic units only: the private interior — its process, the tool registry (the ONLY tools it may call), and a step bound. Neighbours see the contract, never the interior (SPEC §14).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "process": {
+          "description": "Human-readable description of the multi-step loop.",
+          "type": "string"
+        },
+        "tools": {
+          "description": "The only tools this unit may call. A tool that crosses a border declares the edge it crosses; the reconciler verifies it against a declared dependency (Invariant 5).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "crosses": {
+                "description": "The unit id this tool's call crosses to. Must match a declared dependency edge from this unit.",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "maxSteps": {
+          "description": "Upper bound on interior steps.",
+          "type": "integer",
+          "minimum": 1
+        }
       }
     }
   }

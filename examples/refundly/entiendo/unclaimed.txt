@@ -1,0 +1,4 @@
+# Files intentionally not owned by any node (Invariant 4 — unclaimed is visible).
+# Eval fixtures live under evals/, owned by their unit's eval config.
+evals/*
+README.md

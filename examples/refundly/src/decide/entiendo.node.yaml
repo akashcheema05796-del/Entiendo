@@ -1,0 +1,42 @@
+apiVersion: entiendo/v1
+kind: Node
+id: refundly.decide
+name: Refund Decider
+nodeKind: compute
+group: refundly
+owner: mehar
+status: experimental
+claims:
+  - src/decide/agent.py
+contract:
+  entrypoint: src/decide/agent.py::decide
+  invariants:
+    - "output.decision == 'refund' or output.decision == 'deny'"
+    - "output.amount >= 0"
+  sideEffects: none
+dependencies:
+  calls: [refundly.orders, refundly.gateway]
+# The interior is private (agentic). Tools cross borders; the reconciler checks
+# each `crosses` against a declared edge, so the registry cannot lie.
+interior:
+  process: >
+    Look up the order, decide refund/deny against policy, then (on refund) issue
+    it. Tool calls are gated by the registry and ordered by a trajectory eval.
+  tools:
+    - name: order_lookup
+      crosses: refundly.orders
+    - name: issue_refund
+      crosses: refundly.gateway
+  maxSteps: 8
+evals:
+  tier0:
+    - type: invariant_check
+    - {type: smoke, fixture: evals/refundly.decide/smoke.jsonl}
+    # trajectory: the PATH must be right even when the answer is (§14.2)
+    - type: trajectory
+      fixture: evals/refundly.decide/trajectory.jsonl
+      order: ["order_lookup before issue_refund"]
+      maxSteps: 8
+      registryOnly: true
+observability:
+  spanName: refundly.decide

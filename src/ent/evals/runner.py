@@ -23,7 +23,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from .. import baselines, gitinfo, history, testing, tracing, verdicts
+from .. import baselines, gitinfo, history, testing, tracing, trajectory, verdicts
 from ..invariants import InvariantError, eval_invariant
 from ..manifest import Node
 from ..version import compute_version
@@ -78,6 +78,41 @@ def _tier0_fixtures(node: Node, root: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _run_trajectory(node: Node, root: Path) -> tuple[bool, list[Check]]:
+    """Evaluate every `type: trajectory` tier0 entry against its run-log fixture.
+
+    Returns (any_ran, checks). `any_ran` is True only if at least one trajectory
+    actually evaluated (had a fixture) — so a unit whose only signal is a green
+    trajectory reads GREEN, not UNTESTED. Falls back to `interior.maxSteps`.
+    """
+    entries = [e for e in node.raw.get("evals", {}).get("tier0", []) if e.get("type") == "trajectory"]
+    if not entries:
+        return False, []
+    interior = node.raw.get("interior", {}) or {}
+    registry = {t.get("name") for t in interior.get("tools", []) or [] if t.get("name")}
+    default_max = interior.get("maxSteps")
+
+    ran = False
+    checks: list[Check] = []
+    for entry in entries:
+        fixture = entry.get("fixture")
+        if not fixture:
+            checks.append(Check("trajectory", "skip", "trajectory check has no run-log fixture"))
+            continue
+        rows = load_rows(Path(root) / fixture)
+        if not rows:
+            checks.append(Check("trajectory", "skip", f"trajectory fixture '{fixture}' missing/empty"))
+            continue
+        calls = trajectory.calls_from_log(rows)
+        rule = dict(entry)
+        if rule.get("maxSteps") is None and default_max is not None:
+            rule["maxSteps"] = default_max
+        passed, detail = trajectory.evaluate(rule, calls, registry)
+        ran = True
+        checks.append(Check("trajectory", "pass" if passed else "fail", detail))
+    return ran, checks
+
+
 # --------------------------------------------------------------------------- #
 # tier0 — execution
 # --------------------------------------------------------------------------- #
@@ -92,25 +127,36 @@ def run_tier0(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
     if node.raw.get("evals", {}).get("executionMode") == "skip":
         return done(verdicts.UNTESTED, [Check("execution", "skip", "executionMode: skip")])
 
+    # --- trajectory checks (agentic units, §14.2): reason over the tool-call
+    #     sequence from a run-log fixture. Deterministic, no execution. ---
+    checks: list[Check] = []
+    traj_ran, traj_checks = _run_trajectory(node, root)
+    checks.extend(traj_checks)
+    if any(c.status == "fail" for c in traj_checks):
+        return done(verdicts.RED, checks)
+
     if entrypoint is None:
         try:
             entrypoint = resolve_entrypoint(node, root)
         except NoEntrypoint:
-            return done(verdicts.UNTESTED, [Check("entrypoint", "skip", "no contract.entrypoint")])
+            if traj_ran:
+                return done(verdicts.GREEN, checks)   # the trajectory tested the path
+            return done(verdicts.UNTESTED, checks + [Check("entrypoint", "skip", "no contract.entrypoint")])
         except EntrypointDrift as exc:
-            return done(verdicts.ERROR, [Check("entrypoint", "error", str(exc))])
+            return done(verdicts.ERROR, checks + [Check("entrypoint", "error", str(exc))])
         except EntrypointError as exc:
-            return done(verdicts.ERROR, [Check("entrypoint", "error", str(exc))])
+            return done(verdicts.ERROR, checks + [Check("entrypoint", "error", str(exc))])
 
     rows = _tier0_fixtures(node, root)
     if not rows:
-        return done(verdicts.UNTESTED, [Check("smoke", "skip", "entrypoint but no fixture rows")])
+        if traj_ran:
+            return done(verdicts.GREEN, checks)
+        return done(verdicts.UNTESTED, checks + [Check("smoke", "skip", "entrypoint but no fixture rows")])
 
     contract = node.raw.get("contract", {})
     do_schema = any(e.get("type") == "schema_validation" for e in node.raw["evals"]["tier0"])
     do_invariants = any(e.get("type") == "invariant_check" for e in node.raw["evals"]["tier0"])
 
-    checks: list[Check] = []
     for row in rows:
         name = row["name"]
         # --- execute in isolation ---

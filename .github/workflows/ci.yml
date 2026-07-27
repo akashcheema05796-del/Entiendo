@@ -31,3 +31,13 @@ jobs:
       - name: Eval every example node (tier0 executes the nodes)
         working-directory: examples/greenfield
         run: ent eval --all
+
+      - name: Validate + reconcile refundly (agentic units, trajectory, registry)
+        working-directory: examples/refundly
+        run: |
+          ent validate
+          ent extract --check
+
+      - name: Eval refundly (reflex incl. trajectory invariants)
+        working-directory: examples/refundly
+        run: ent eval --all

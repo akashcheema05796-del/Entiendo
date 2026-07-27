@@ -89,3 +89,38 @@ def record(*, cost_usd: float | None = None, tokens: int | None = None, **attrs:
             otel_span.set_attribute("entiendo.tokens", span.tokens)
     except Exception:
         pass
+
+
+class RegistryViolation(RuntimeError):
+    """An agentic unit called a tool outside its declared `interior.tools` registry."""
+
+
+def guard(registry, *, record_calls: list | None = None):
+    """Return a tool-call guard for an agentic unit (SPEC §14.3).
+
+    `registry` is the allowed tool names (from `interior.tools`). The returned
+    callable is invoked with a tool name before dispatch; it raises
+    `RegistryViolation` on anything outside the registry, so the border that the
+    reconciler enforces at build time also holds at runtime. Still a read-only
+    helper — it guards the workload, it is not in the request path unless the app
+    chooses to call it.
+
+    Optionally pass `record_calls` (a list) to append each guarded tool name to —
+    a run log the trajectory eval can consume.
+
+        gate = ent.guard(["order_lookup", "issue_refund"], record_calls=log)
+        gate("order_lookup"); ...            # ok
+        gate("delete_everything")            # raises RegistryViolation
+    """
+    allowed = {str(t) for t in registry}
+
+    def gate(tool_name: str) -> str:
+        if tool_name not in allowed:
+            raise RegistryViolation(
+                f"tool {tool_name!r} is not in the unit's registry {sorted(allowed)}"
+            )
+        if record_calls is not None:
+            record_calls.append(tool_name)
+        return tool_name
+
+    return gate

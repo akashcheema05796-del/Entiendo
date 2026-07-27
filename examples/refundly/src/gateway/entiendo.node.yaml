@@ -1,0 +1,20 @@
+apiVersion: entiendo/v1
+kind: Node
+id: refundly.gateway
+name: Refund Gateway
+nodeKind: external
+group: refundly
+owner: mehar
+status: experimental
+claims:
+  - src/gateway/client.py
+contract:
+  invariants: []
+  sideEffects: irreversible
+evals:
+  tier0:
+    - type: invariant_check
+approval:
+  required: true
+observability:
+  spanName: refundly.gateway

@@ -15,6 +15,6 @@ from __future__ import annotations
 __version__ = "0.1.0"
 __api_version__ = "entiendo/v1"
 
-from .instrument import node, record
+from .instrument import guard, node, record
 
-__all__ = ["node", "record", "__version__", "__api_version__"]
+__all__ = ["node", "record", "guard", "__version__", "__api_version__"]
