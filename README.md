@@ -84,7 +84,7 @@ $ ent serve               # the Universe: click a unit, steer it via Claude Code
 
 What **is** real today:
 
-- **[`SPEC.md`](./SPEC.md)** — the complete specification (v2).
+- **[`SPEC.md`](./SPEC.md)** — the complete specification (v3).
 - **[`schemas/node.schema.json`](./schemas/node.schema.json)** — the manifest
   JSON-Schema. This is *the contract for the entire system* (SPEC.md §12).
 - **`ent validate` / `ent init`** — L0 boundaries: schema conformance plus the
