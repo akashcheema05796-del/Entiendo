@@ -15,6 +15,8 @@ module it describes.
 | `kind` | ✓ | Always `Node`. |
 | `id` | ✓ | Stable, globally unique, dotted (`group.name`). Never renamed silently — a rename is a migration. |
 | `name` | ✓ | Human-readable display name. |
+| `task` |  | One line: what this unit is *for*. The first thing the dossier reads (logic before hashes). |
+| `description` |  | A short paragraph — what it does, in plain words. Rendered above the contract, for the non-engineer steering the map. |
 | `nodeKind` | ✓ | `compute` \| `state` \| `schema` \| `config` \| `external` \| `pipeline`. Drives how it's drawn. |
 | `group` |  | Hierarchy for collapse/expand at scale. |
 | `owner` | ✓ | The human accountable. **Never the AI.** |
@@ -40,9 +42,10 @@ Required. **No node without a contract** (Invariant 3).
 
 | Field | Notes |
 |---|---|
+| `entrypoint` | `path::callable` — the function tier0 *executes* over fixture rows (Phase 7). See [`docs/phase7.md`](./phase7.md). |
 | `input` / `output` | JSON-Schema (or `$ref` to one) for valid I/O. |
 | `invariants` | Boolean expressions that must hold every execution. |
-| `sideEffects` | `none` \| `writes` \| `external` \| `irreversible`. Drives blast radius. Required. |
+| `sideEffects` | `none` \| `writes` \| `external` \| `irreversible`. Drives blast radius. Required. `irreversible` defaults `approval.required` to true. |
 
 ## `dependencies` — edges
 
@@ -50,16 +53,45 @@ Declared, then **verified against reality** by the extractor — it does not tru
 them (Invariant 5). Divergence is a build failure. Keys: `calls`, `reads`,
 `writes`, `config`.
 
+## `interior` — the inside of an agentic unit
+
+Only for units that *are* an agent (a unit whose entrypoint runs a tool-using
+loop). Declaring it is what lets the Universe **render the interior** instead of
+drawing an opaque orb: each tool becomes a satellite on the unit's orbit ring,
+tethered across the border to the unit it crosses.
+
+| Field | Notes |
+|---|---|
+| `process` | A sentence of prose: how the agent works, in order. |
+| `tools` | List of `{name, crosses}` — each tool the agent may call, and the unit id its call crosses to (`issue_refund` → `refundly.gateway`). The registry. |
+| `maxSteps` | Step ceiling for one run. |
+
+The tool registry is reconciled against declared edges, and a **trajectory** eval
+(below) checks that the agent's *path* obeys the rules — so a border-crossing
+call to a tool not in `tools`, or one made out of order, is caught.
+
 ## `evals` — tiered, cost-aware
 
-See SPEC.md §5.
+See SPEC.md §5. (Lexicon: **reflex / golden / judge** = `tier0 / tier1 / tier2`.)
 
-- **tier0** — deterministic, <1s, free, every edit. `schema_validation`,
-  `invariant_check`, `smoke`. AI may author freely.
-- **tier1** — golden datasets, pre-merge. Requires `humanBlessed: true`. Judged
-  with `minRuns` + `significance` (never on one run; red only on meaningful
-  movement).
-- **tier2** — LLM judge, nightly/on-demand. Rubric human-authored, AI-refined.
+- **tier0 (reflex)** — deterministic, <1s, free, every edit. `schema_validation`,
+  `invariant_check`, `smoke`, and — for agentic units — `trajectory`. AI may
+  author freely.
+- **tier1 (golden)** — golden datasets, pre-merge. Requires `humanBlessed: true`.
+  Judged with `minRuns` + `significance` (never on one run; red only on
+  meaningful movement).
+- **tier2 (judge)** — LLM judge, nightly/on-demand. Rubric human-authored,
+  AI-refined.
+
+### `trajectory` — a reflex check on the *path*
+
+For agentic units. Rather than checking the answer, it checks the sequence of
+tool calls against an `order` list (`"order_lookup before issue_refund"`), a
+`maxSteps` ceiling, and `registryOnly: true` — no tool called outside the
+declared registry. On the map the orbit ring renders **solid** when
+`registryOnly` is enforced and **dashed** when it is not; trace playback lights
+each tool as the agent calls it, so an out-of-order call is visible even when the
+final output is correct.
 
 ## `budgets` — health signals
 

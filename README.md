@@ -23,8 +23,11 @@ human steers through *and* the retrieval unit an AI edits through.
 > red. Entiendo is a read-only observer — never in the request path.
 
 The full specification is **[SPEC.md](./SPEC.md)** (the source of truth), the
-vocabulary is **[LEXICON.md](./LEXICON.md)**, and the v3 roadmap is
-**[PLAN_v3.md](./PLAN_v3.md)**. This README is the map to the scaffold.
+vocabulary is **[LEXICON.md](./LEXICON.md)**, and the roadmaps are
+**[PLAN_v3.md](./PLAN_v3.md)** (units → fingerprints → Bridge) and
+**[PLAN_v4.md](./PLAN_v4.md)** (the rendered Universe — interiors, real lenses,
+diff-first approval — now fully implemented). This README is the map to the
+scaffold.
 
 > **Naming:** v3 speaks of *units*, *fingerprints*, and *reflex / golden / judge*
 > evals; the older *node* / *version* / *tier0–2* names still appear in code and
@@ -34,11 +37,27 @@ vocabulary is **[LEXICON.md](./LEXICON.md)**, and the v3 roadmap is
 
 ---
 
-## Status: L0 → L5 + Phase 7 (real evals) implemented
+## Status: L0 → L5 + Phase 7 + the v4 Universe implemented
 
-All six phases (SPEC.md §8) plus **Phase 7 (real evals)** are implemented. The
-full loop works end to end: declare nodes → reconcile the graph → instrument →
-**execute + eval** → record history → render six lenses → edit through the node.
+All six phases (SPEC.md §8), **Phase 7 (real evals)**, and the whole **v4 layer**
+are implemented. The full loop works end to end: declare units → reconcile the
+graph → instrument → **execute + eval** → record history → render the Universe →
+steer + approve through the unit.
+
+**What v4 added (PLAN_v4.md, H0–H5):** the render surface is now a single
+navigable **Universe** — one canvas with a world-coordinate camera, `/`-search,
+keyboard nav, a minimap, and group collapse — dressed in a celestial design
+system, replacing the old six-tab layout. The lenses became *real*: **trace
+playback** (a comet walks a recorded request's hops and halts red on a failed
+one), a **timeline scrubber** over a real commit axis (replays a unit's
+fingerprint against any past commit), and a **cost/budget overlay**. Agentic
+units now **render their interior** — each tool a satellite on an orbit ring,
+tethered across the border to the unit it crosses — and trace playback descends
+into it, lighting each tool as the agent calls it. Finally, **diff-first
+approval**: steering an approval-gated unit holds the change back as a
+*proposal*, and the dossier shows the unified diff + behaviour delta + verdict
+together with real Approve / Reject, while the map pulses a gold ring on any unit
+awaiting sign-off.
 
 ```
 $ ent validate            # schema + semantic checks (incl. restricted invariants)
@@ -88,13 +107,16 @@ What **is** real today:
   `src/ent/testing.py`, `docs/phase7.md`.
 - **`ent snapshot` + `ent render`** — L3/L4: `snapshot` records composite
   versions (code/prompt/config/model) + tier0 verdicts to an append-only history
-  log (version events dedup, so the timeline shows *changes*); `render` builds a
-  self-contained HTML system map with **all six lenses** — structure (kind/group),
-  flow (edge direction + trace volume), trace (per-hop latency/cost of a recorded
-  request), health (verdict colour, matches `ent eval`), timeline (version + eval
-  history), and blast radius (downstream dependents ranked by coupling).
-  Record a request with `history.capture_trace(root, trace_id=...)`. Read-only,
-  never in the request path (Invariant 2). See `src/ent/render.py`,
+  log (version events dedup, so the timeline shows *changes*); `render` builds the
+  **Universe** — one self-contained, navigable canvas (camera, search, minimap,
+  celestial design) whose **six lenses** are all real: structure (kind/group),
+  flow (edge kinds + traffic), **trace** (a comet plays a recorded request's hops
+  and descends into agentic interiors), health (verdict colour, matches
+  `ent eval`), **timeline** (a scrubber over the real commit axis that replays
+  fingerprints), and blast radius (dependents ranked by coupling). Agentic units
+  render their `interior` as orbiting, tethered tool satellites. Record a request
+  with `history.capture_trace(root, trace_id=...)`. Read-only, never in the
+  request path (Invariant 2). See `src/ent/render.py`, `src/ent/universe.html`,
   `src/ent/history.py`, `src/ent/version.py`.
 - **`ent edit`** — L5 scoped edit loop: assembles a context of only the node's
   claimed file bodies + immediate neighbours' contracts (no bodies) + recent
@@ -106,25 +128,33 @@ What **is** real today:
   entrypoint from a lone public function) and stages one manifest proposal per
   node for node-by-node review (`--accept`). Semi-automated migration, never a
   silent scan. `examples/legacy/` is the demo input. See `src/ent/retrofit.py`.
-- **`ent serve`** — the interactive edit surface: a localhost web app (stdlib
-  backend, self-contained frontend) where you click a node, see its scoped
-  context, run tier0/tier1, and describe a change in natural language. An LLM
-  (Claude Opus 5, via the `anthropic` SDK) edits **only within the node's
-  claims**, tier0 reruns, and the verdict + blast radius + approval gate surface
-  live — with a one-click revert. The map stays read-only (Invariant 2); only the
-  edit endpoint writes. The model is optional (`pip install -e '.[serve]'` + an
-  API key); without it the explorer and evals still work. See `src/ent/server.py`,
-  `src/ent/agent.py`, `docs/edit-surface.md`.
+- **`ent serve`** — the interactive surface: the Universe over a localhost web app
+  (stdlib backend, self-contained frontend). Select a unit, see its scoped
+  context, run tier0/tier1, and **Steer** it in natural language — edited **only
+  within the unit's claims**, tier0 reruns, verdict + blast radius surface live,
+  with one-click **Revert**. An approval-gated unit's change is held as a
+  **proposal** you Approve / Reject from the diff. The workload is either an LLM
+  directly (`pip install -e '.[serve]'` + an API key) or **Claude Code via the
+  Bridge** (steer → `await_steering`/`post_verdict`, the `entiendo-operator`
+  skill). The map stays read-only (Invariant 2); only steer / approve / revert
+  write. See `src/ent/server.py`, `src/ent/steering.py`, `src/ent/agent.py`,
+  `docs/edit-surface.md`, `docs/bridge.md`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
   project laid out the Entiendo way. Full loop:
   `cd examples/greenfield && ent validate && ent extract && ent snapshot && ent render && ent edit retrieval.chunk_ranker`.
-- **[`examples/refundly/`](./examples/refundly/)** — the v3 reference project: a
-  support-refund agent whose `refundly.decide` is an **agentic unit** with an
-  `interior` (a tool registry + `maxSteps`) and a **trajectory invariant** — a
-  reflex check that the *path* is right (`order_lookup` before `issue_refund`, no
-  tool outside the registry), not just the answer. Border-crossing tools are
-  reconciled against declared edges (`ent.guard` enforces the registry at
-  runtime); `refundly.gateway` is `irreversible` + approval-gated. See SPEC §14.
+- **[`examples/refundly/`](./examples/refundly/)** — the reference project and the
+  v4 demo: a support-refund **pipeline of six units** — `parse_email` (compute) →
+  `orders` (state) → `policy` (config) → `decide` (the **agentic unit**) →
+  `gateway` (external) → `ledger` (state). `refundly.decide` has an `interior` (a
+  five-tool registry — parse / order_lookup / read_policy / issue_refund /
+  write_ledger, each crossing to another unit — plus `maxSteps`) and a
+  **trajectory eval** — a reflex check that the *path* is right (`order_lookup`
+  before `issue_refund`, no tool outside the registry), not just the answer.
+  Border-crossing tools are reconciled against declared edges (`ent.guard`
+  enforces the registry at runtime); `refundly.gateway` is `irreversible` +
+  approval-gated, so steering it produces a **proposal** you approve from the
+  diff. Its committed traces (including a bad-order run where the refund is issued
+  before the order is verified) drive trace playback. See SPEC §14.
 - **`src/ent/`** — the package: CLI, one module per layer.
 
 ---
@@ -175,68 +205,82 @@ statically provable (`reads`/`config`). Health is the node's tier0 verdict —
 executable eval yet. An undeclared import would fail `ent extract` naming both
 nodes (Invariant 5), so what you see is guaranteed to match the code.
 
-### The rendered surface — `ent render`
+### The rendered surface — the Universe (`ent render`)
 
 `ent render` builds a **self-contained HTML page** (inline CSS/JS, no build step,
-read-only) with one topology and six lenses — a browser tab each:
+read-only) — the **Universe**: one navigable canvas, not a wall of tables. Pan
+and zoom with a world-coordinate camera, `/` to search, arrow keys to walk units,
+a minimap for the whole system, and groups you collapse at scale. The six
+**lenses** don't switch pages — they change what the *same* canvas shows:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  Entiendo — Structure                                                      │
-│  5 nodes · 7 edges · coverage 100% · executable 2/5 · reconciled ✓  @a1b2c │
-├──────────────────────────────────────────────────────────────────────────┤
-│ │1·Structure│ 2·Flow │ 3·Trace │ 4·Health │ 5·Timeline │ 6·Blast radius │ │
-├──────────────────────────────────────────────────────────────────────────┤
-│  retrieval                                                                 │
-│  ▎retrieval.chunk_ranker        [compute] [mehar]        v: a1b2c3d        │
-│  ▎  calls retrieval.vector_store ✓ · calls llm.gateway ✓ · reads … · config…│
-│  ▎retrieval.vector_store        [compute] [mehar]        v: c3d4e5f        │
-│  ▎  reads state.doc_index · config config.retrieval                        │
-│  llm                                                                       │
-│  ▎llm.gateway                   [external] [mehar]       v: 9f8e7d6        │
+│  ✦ Entiendo · Universe            [ structure ][ flow ][ trace ]           │
+│  5 units · 7 edges · coverage 100% · executable 2/5 · reconciled ✓  @a1b2c │
+│                                          ┌─────────── dossier ───────────┐ │
+│         ( ranker )────✓───▶( vstore )    │ retrieval.chunk_ranker  🟢     │ │
+│            │  ╲                          │ What it does · Task · Verdict  │ │
+│            ✓   ╲config                   │ Contract: len(chunks) ≤ k      │ │
+│            ▼    ▼                         │ Budget · Fingerprint · Edges   │ │
+│        ( gw )  ( cfg )   ○ doc_index      │ [ Steer ][ Revert ][ Approve ] │ │
+│         ▲ minimap ▫                      └────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-The **Health** lens re-colours the same cards by tier0 verdict (it calls the same
-`run_tier0` as `ent eval`, so the colour matches by construction):
+- **Structure** — kind + group; the map you read first.
+- **Health** — recolours every unit by its tier0 verdict; it calls the same
+  `run_tier0` as `ent eval`, so the colour matches by construction (🟢 executed +
+  invariants held, ⚪ no executable eval).
+- **Flow** — edge direction with per-edge kind labels and per-unit traffic volume.
+- **Trace** — pick a recorded request and a **comet walks its hops** in order,
+  annotating each with latency + cost; a failed hop halts it and pulses red. Over
+  an agentic unit the comet **descends into the interior**, lighting each tool as
+  the agent calls it — so an out-of-order call shows even when the answer is right.
+- **Timeline** — a **scrubber over the real commit axis**; drag it and a unit's
+  fingerprint replays against that past commit, the changed dimension attributed
+  (code / prompt / config / model).
+- **Blast radius** — select a unit → its transitive downstream dependents light
+  up, ranked by contract coupling.
+
+Agentic units aren't opaque orbs: their `interior` renders as **satellites on an
+orbit ring**, each tethered across the border to the unit its tool crosses (the
+ring dashes when the registry isn't enforced).
+
+### Steer + approve on the canvas — `ent serve`
+
+`ent serve` puts the Universe behind a localhost web app and turns the dossier
+into a control panel. Select a unit → **Steer**: describe a change in English. The
+change is made **within the unit's claims**, tier0 reruns, and the verdict + blast
+radius surface live, with one-click **Revert**. Two ways the workload edits: an
+LLM directly (`.[serve]` + an API key), or **Claude Code as the operator** — the
+steer request lands on a file-based **Bridge** queue (`await_steering` →
+`get_node_context` → `apply_edit` → `post_verdict`, the `entiendo-operator`
+skill), so the map steers the same agent you already code with.
+
+For an **approval-gated** unit (`approval.required`), the change is not applied
+live — it is held back as a **proposal**. The dossier shows the change you'd be
+approving: the **unified diff, the behaviour delta, and the after-verdict
+together**, with real **Approve** / **Reject**. On the map, any unit with a
+proposal waiting pulses a gold ring.
 
 ```
-  🟢 retrieval.chunk_ranker   GREEN      executed · invariants held
-  🟢 retrieval.vector_store   GREEN      executed · invariants held
-  ⚪ config.retrieval         UNTESTED   no executable eval
-  ⚪ llm.gateway              UNTESTED   no executable eval
-  ⚪ state.doc_index          UNTESTED   no executable eval
+┌ Universe ─────────────────────────┬─ refundly.gateway ────────────────────┐
+│                                    │ external · irreversible · approval ✋  │
+│   parse ▶ orders ▶ policy          │ ── Proposal · awaiting approval ──     │
+│              │                     │ clamp refund to order amount · 🟢      │
+│         ( decide )  ◜orbit◝        │ behaviour Δ  0.91 → 0.94 (IMPROVED)    │
+│           tools: order_lookup…     │ ┌ src/gateway/pay.py ────────────┐    │
+│              │                     │ │ - amount = req.amount          │    │
+│         ((gateway))✦ ← pulsing     │ │ + amount = min(req.amount, ord)│    │
+│              │      gold ring      │ └────────────────────────────────┘    │
+│           ( ledger )               │        [ Approve ]   [ Reject ]        │
+└────────────────────────────────────┴────────────────────────────────────────┘
 ```
 
-The other four: **Flow** (edge direction + per-node traffic volume), **Trace**
-(per-hop latency/cost of one recorded request), **Timeline** (version + eval
-history), **Blast radius** (click a node → its transitive downstream dependents
-light up, ranked by coupling).
-
-### The interactive edit loop — `ent serve`
-
-`ent serve` puts that surface behind a localhost web app: click a node → its
-scoped context; describe a change in English → an LLM edits it **within the
-node's claims**, tier0 reruns, and the verdict + blast radius + approval gate
-update live, with one-click revert:
-
-```
-┌ nodes (by health) ┬ retrieval.chunk_ranker ──────────────────────────────┐
-│ 🟢 chunk_ranker    │ claims:   src/retrieval/ranker.py                     │
-│ 🟢 vector_store    │ contract: len(output.chunks) <= input.k              │
-│ ⚪ doc_index       │ neighbours (contracts only): vector_store · gateway   │
-│ ⚪ gateway         │ [ Run tier0 ]  [ Run tier1 ]                          │
-│ ⚪ retrieval.cfg   │ ┌ describe a change ─────────────────────────────┐    │
-│                   │ │ clamp scores into [0, 1]                        │    │
-│                   │ └──────────────────────────── [ propose & apply ]┘    │
-│                   │ verdict:  🟢 GREEN · ready-to-merge                    │
-│                   │ blast radius:  0 downstream        [ diff ] [ revert ] │
-└───────────────────┴───────────────────────────────────────────────────────┘
-```
-
-The map stays read-only (Invariant 2); only the edit endpoint writes, and only
-inside the claims. A red edit is **blocked**, and the pre-edit content is backed
-up for revert.
+The map stays read-only (Invariant 2); only the steer / approve / revert
+endpoints write, and only inside the claims. A red edit is **blocked**, the
+pre-edit content is backed up for revert, and an approval gate is never bypassed —
+Reject leaves the working tree untouched.
 
 ---
 
@@ -252,8 +296,8 @@ flowchart LR
   D["declare<br/><small>entiendo.node.yaml</small>"] --> V["ent validate<br/><small>L0 schema + rules</small>"]
   V --> X["ent extract<br/><small>graph.json + coverage.json<br/>fail on drift</small>"]
   X --> E["ent eval<br/><small>tier0 executes the node<br/>GREEN / RED</small>"]
-  E --> R["ent render<br/><small>six lenses</small>"]
-  R --> C["change it<br/><small>ent edit · serve · mcp</small>"]
+  E --> R["ent render<br/><small>the Universe · six lenses</small>"]
+  R --> C["steer + approve<br/><small>ent edit · serve · mcp</small>"]
   C -->|"confined to claims<br/>tier0 reruns"| E
 ```
 
@@ -327,10 +371,18 @@ and the field-by-field reference in [`docs/manifest.md`](./docs/manifest.md).
 | Command | Layer | Does |
 |---|---|---|
 | `ent init` | L0 | scaffold `entiendo/` + a first unit manifest |
+| `ent new <id>` | L0 | fixture-first unit birth (refuses without a fixture/expect pair) |
 | `ent validate` | L0 | validate manifests against the schema |
 | `ent extract` | L1 | emit `graph.json` + `coverage.json`; fail on drift |
 | `ent eval <unit>` | L2 | run a unit's evals — reflex (default) / golden / judge |
-| `ent render` | L4 | the Universe render surface (six lenses) |
+| `ent bless` / `ent baseline` | L2 | sign a golden dataset / promote a baseline (human only) |
+| `ent snapshot` | L3 | record composite fingerprints + verdicts to history |
+| `ent render` | L4 | the Universe render surface (six lenses, self-contained HTML) |
+| `ent pin` / `ent replay` | L4 | pin a fingerprint dimension / replay a metric against an old one |
+| `ent edit <unit>` | L5 | scoped edit loop: context → boundary → verdict → approval |
+| `ent serve` | L5 | the Universe live: steer + approve on the canvas |
+| `ent mcp` | L5 | the same surface as MCP tools for Claude Code |
+| `ent retrofit <root>` | — | infer units in an unmanaged repo → staged proposals |
 
 > **Lexicon:** the CLI, the Universe, and these docs speak of **units**,
 > **fingerprints**, and **reflex / golden / judge** evals. The *format* is
@@ -338,7 +390,8 @@ and the field-by-field reference in [`docs/manifest.md`](./docs/manifest.md).
 > `kind: Node` — and old forms (`--node-id`, `--tier 0/1/2`) keep working. See
 > [LEXICON.md](./LEXICON.md).
 
-All are wired; L0 onward is filled in over the build order below.
+All layers are implemented (L0 → L5 + Phase 7 + the v4 Universe); see the build
+order below.
 
 ---
 
@@ -353,8 +406,8 @@ L0  Manifest & schema      declaration + validation          src/ent/manifest.py
 L1  Extractor / reconciler graph.json + coverage.json         src/ent/extractor.py, version.py
 L2  Instrumentation        @ent.node() spans; eval runner     src/ent/instrument.py, evals/
 L3  History store          append-only versions + evals       src/ent/history.py
-L4  Render surface         one topology, six lenses           (Phase 4/5)
-L5  Scoped edit loop        node → context → edit → verdict   (Phase 6)
+L4  The Universe           one canvas, six real lenses         src/ent/render.py, universe.html
+L5  Steer + approve        unit → context → edit → verdict     src/ent/editloop.py, server.py, steering.py
 ```
 
 ---
@@ -370,18 +423,25 @@ Entiendo/
     node.schema.json          manifest contract (JSON-Schema)
   src/ent/                    the tool
     cli.py                    argparse entry; one file per subcommand under commands/
-    commands/                 init, validate, extract, eval, render
-    manifest.py               L0  node model: discover, load, Node
+    commands/                 init, new, validate, extract, eval, bless, baseline,
+                              snapshot, render, pin, replay, edit, serve, mcp, retrofit
+    manifest.py               L0  unit model: discover, load, Node
     schema.py                 L0  schema load + validator
     validation.py             L0  schema + semantic checks
-    extractor.py              L1  reconciler (stub)
-    version.py                L1/L3 composite versioning (stub)
-    instrument.py             L2  @ent.node() decorator (safe pass-through)
-    evals/                    L2  tiered eval runner (stub)
-    history.py                L3  append-only store (stub)
-  examples/greenfield/        a five-node example project
-  docs/                       architecture, build order, manifest reference
-  tests/                      scaffold-coherence checks
+    extractor.py              L1  reconciler (AST edges vs declared deps; drift = fail)
+    version.py                L1/L3 composite fingerprinting (code/prompt/config/model)
+    instrument.py             L2  @ent.node() decorator + ent.guard registry gate
+    evals/, invariants.py     L2  tiered eval runner + restricted-AST invariants
+    history.py                L3  append-only versions/evals/traces store
+    render.py, universe.html  L4  the Universe: one canvas, six lenses, interiors
+    editloop.py               L5  scoped context + boundary + verdict + behaviour delta
+    server.py, agent.py       L5  ent serve backend + the editing model
+    steering.py, mcp_server.py L5 the Bridge (steer queue → operator → proposal/verdict)
+    replay.py                 L4  fingerprint replay for the Timeline scrubber
+  examples/greenfield/        a five-unit example project (the MVP walkthrough)
+  examples/refundly/          the 6-unit agentic pipeline + v4 demo (interiors, approval)
+  docs/                       architecture, build order, manifest, edit-surface, bridge
+  tests/                      the suite (251 tests, ~3s)
 ```
 
 ---
@@ -391,7 +451,7 @@ Entiendo/
 ```bash
 pip install -e ".[dev]"     # editable install; provides the `ent` command
 ent --version
-pytest                       # scaffold-coherence tests (schema loads; examples conform)
+pytest                       # the full suite (251 tests, ~3s)
 ```
 
 Guiding invariants (SPEC.md §2): the map is generated never drawn; Entiendo is a

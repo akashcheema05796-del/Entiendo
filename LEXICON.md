@@ -138,15 +138,24 @@ forbidden order is RED.
 
 ## The surface
 
-**Universe** — the render surface: one indigo field where every unit is a
-kind-form (orb / ringed / dashed / gold diamond), health is glow, flow is
-particles, and selecting a unit tints its blast radius and opens a **dossier**.
-Replaces the plain v2 HTML explorer. `ent render` writes it static; `ent serve`
-hydrates it live.
+**Universe** — the render surface: one indigo field (celestial design system)
+navigated with a world-coordinate camera — zoom, pan, `/`-search, keyboard nav,
+minimap, group collapse. Every unit is a kind-form, health is glow, and selecting
+one tints its blast radius and opens a **dossier**. Replaces the plain v2 HTML
+explorer. `ent render` writes it static; `ent serve` hydrates it live.
 
 **Lens** — one of the six views over the *same* topology: Structure · Flow ·
 Trace · Health · Timeline · Blast radius. Same boxes; only colour/motion meaning
-changes. Every lens ends in an action.
+changes. The v4 lenses are live: **Trace** plays a recorded request back as a
+comet (halting red on a failed hop, descending into agentic interiors),
+**Timeline** is a scrubber over the real commit axis that replays fingerprints,
+and a **cost overlay** shows spend against budget. Every lens ends in an action.
+
+**Interior** — the rendered inside of an **agentic unit**: its tool registry
+drawn as satellites on an orbit ring, each tethered across the border to the unit
+its call crosses. The ring is solid when the registry is enforced
+(`registryOnly`), dashed when not. Trace playback lights each satellite as the
+agent calls it.
 
 **Dossier** — the panel for a selected unit: task + contract + verdict +
 fingerprint + edges up front, artifacts (claims) collapsed behind a disclosure.
@@ -169,9 +178,13 @@ session start.
 `await_steering` → `get_node_context` → `apply_edit` → `post_verdict`, proposing
 boundary changes instead of writing around claims.
 
-**Approval gate** — `approval.required: true`: an edit to the unit surfaces as a
-proposal with a before/after behaviour diff, awaiting the operator's sign-off
-before it merges. Default `true` for `irreversible` side effects.
+**Approval gate** — `approval.required: true`: an edit to the unit is held back as
+a **proposal** rather than applied live. The dossier shows it **diff-first** — the
+unified diff, the behaviour delta, and the after-verdict together — with real
+Approve / Reject, and the map pulses a gold ring on any unit awaiting sign-off
+(`steering.py` proposals + `/api/proposals`). Approve applies the stored diff;
+Reject leaves the working tree untouched. Default `true` for `irreversible` side
+effects.
 
 **Retrofit** — the semi-automated migration of an unmanaged repo into units:
 AI-proposed manifests, each phrased as a task with a candidate fixture → verdict,
@@ -183,6 +196,8 @@ accepted by the operator one unit at a time. Never a bulk scan.
 
 `get_graph` · `get_node_context` · `run_eval` · `get_blast_radius` ·
 `apply_edit` · `revert_node` · `retrofit_propose` · `retrofit_accept` ·
-`validate_manifests` — and, added in v3, `await_steering` · `post_verdict`. The
-workload reads through `get_node_context` (claims + neighbour contracts only) and
-writes through `apply_edit` (boundary-enforced, reflex-verified).
+`validate_manifests` — and, added in v3, `await_steering` · `post_verdict` (which
+can set `proposal=true` to route a gated edit into the diff-first approval flow).
+The workload reads through `get_node_context` (claims + neighbour contracts only)
+and writes through `apply_edit` (boundary-enforced, reflex-verified; returns the
+unified diff, before/after verdict, and behaviour delta).

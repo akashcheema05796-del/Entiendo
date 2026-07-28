@@ -20,9 +20,11 @@ boundary error. This single test decides every boundary in the system.
 
 **Vocabulary.** v3 speaks of **units** (v2: nodes), **fingerprints** (v2:
 versions), and **reflex / golden / judge** evals (v2: tier0 / tier1 / tier2). The
-full glossary is **[LEXICON.md](./LEXICON.md)**; the roadmap is
-**[PLAN_v3.md](./PLAN_v3.md)**. The *format* is unchanged — manifest filename,
-`claims:` key, and `apiVersion: entiendo/v1` all stay (see LEXICON → Compatibility).
+full glossary is **[LEXICON.md](./LEXICON.md)**; the roadmaps are
+**[PLAN_v3.md](./PLAN_v3.md)** and **[PLAN_v4.md](./PLAN_v4.md)** — the latter (the
+rendered Universe: agentic interiors, real lenses, diff-first approval) is now
+fully implemented. The *format* is unchanged — manifest filename, `claims:` key,
+and `apiVersion: entiendo/v1` all stay (see LEXICON → Compatibility).
 
 ### Why the unit, not the file
 
@@ -57,11 +59,12 @@ system." CLI binary: `ent`.
 **What this is:** a build-time instrumentation layer + a generated system map + a scoped editing loop.
 
 **What this is NOT:**
-- Not an APM / trace viewer (those are run-centric; this is artifact-centric — executions are one *tab* on a node, not the primary object).
+- Not an APM / trace viewer (those are run-centric; this is artifact-centric — executions are one *lens* on a unit, not the primary object).
 - Not a diagramming tool. Nothing here is hand-drawn.
 - Not in the request path. Ever. See Invariant #2.
 
-**Target:** greenfield projects first. Retrofit is explicitly v2 (see §12).
+**Target:** greenfield projects first. Retrofit (§12) is implemented — `ent
+retrofit` stages one AI-proposed manifest per unit for node-by-node review.
 
 ---
 
@@ -88,6 +91,10 @@ kind: Node
 
 id: retrieval.chunk_ranker          # stable, globally unique, never renamed silently
 name: Chunk Ranker
+task: Rank retrieved chunks by relevance to the query.   # one line: what it's for
+description: >                       # a plain-words paragraph; the dossier reads it first
+  Scores each candidate chunk against the query and returns the top-k, so the
+  answer step sees only the most relevant context.
 nodeKind: compute                   # compute | state | schema | config | external | pipeline
 group: retrieval                    # hierarchy, for collapse/expand at scale
 owner: mehar                        # human accountable, not the AI
@@ -213,6 +220,16 @@ L5  Scoped edit loop             — node → AI context → edit → eval → v
 
 Same boxes every time. Only the meaning of colour and motion changes. This is what makes it *control*, not three dashboards you cross-reference in your head.
 
+**Realized as the Universe (v4).** These six are not six pages — they are one
+navigable **canvas** (`ent render` static, `ent serve` live): a world-coordinate
+camera, `/`-search, minimap, and group collapse, with the lens switching what the
+*same* topology shows. All six are implemented and live: **Trace** plays a
+recorded request as a comet along the hops (halting red on a failure, descending
+into an agentic unit's interior to light each tool), **Timeline** is a scrubber
+over the real commit axis that replays a unit's fingerprint against any past
+commit, and **cost** is a first-class overlay on **Health**. Agentic units render
+their interior as tool satellites on an orbit ring (§14).
+
 | # | Lens | Question it answers | Colour/motion means |
 |---|---|---|---|
 | 1 | **Structure** | What is this system? | Node kind + group |
@@ -266,8 +283,11 @@ Because a node version is a *composite* hash (code + prompt + config + model), y
    Touching a file outside `claims` requires an explicit boundary-change proposal.
 4. tier0 evals rerun automatically. Verdict in seconds.
 5. Blast-radius lens shows what downstream is now at risk.
-6. If `approval.required: true` → change surfaces as a proposal on the node,
-   with a before/after behaviour diff, awaiting human sign-off.
+6. If `approval.required: true` → the change is held back as a proposal (not
+   applied live). The dossier shows it **diff-first** — unified diff + behaviour
+   delta + after-verdict together — with real Approve / Reject, and the map pulses
+   a gold ring on the unit; Approve applies the stored diff, Reject leaves the
+   tree untouched.
 7. On merge: tier1 runs. Baseline updated only on human confirmation.
 ```
 
@@ -464,10 +484,14 @@ the plane they operate under.
 
 ## 16. Reference project — refundly
 
-`examples/refundly/` is the v3 reference project: a support agent that parses an
-email → looks up the order (retrieval) → reads policy (`config`) → **decides** (an
-agentic unit with interior tools + trajectory invariants) → executes the refund
-(`external`, `irreversible`, `approval.required: true`) → writes a case ledger
-(`state`). It exercises every v3 feature — the law, agentic units, the approval
-gate, and fingerprint replay — and grows phase by phase alongside the build, each
-phase's acceptance running against it.
+`examples/refundly/` is the reference project and the v4 demo — a **six-unit
+pipeline**: `parse_email` (compute) → `orders` (state) → `policy` (config) →
+**`decide`** → `gateway` (external) → `ledger` (state). `decide` is the agentic
+unit: an `interior` of five tools (parse / order_lookup / read_policy /
+issue_refund / write_ledger, each crossing to another unit), `maxSteps: 8`, and a
+**trajectory** eval with ordered rules (`order_lookup before issue_refund`) plus
+`registryOnly: true`. `gateway` is `irreversible` + `approval.required: true`, so
+steering it produces a diff-first **proposal**. It exercises every feature — the
+law, agentic units, rendered interiors, the approval gate, trace playback, and
+fingerprint replay — with committed traces (including a bad-order run where the
+refund is issued before the order is verified) driving the Trace lens.

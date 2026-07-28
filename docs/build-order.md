@@ -14,7 +14,9 @@ Legend: ☐ not started · ◐ in progress · ☑ done
 | 5 | L4 — remainder (lenses 2, 3, 6) | ☑ flow / trace / blast radius |
 | 6 | L5 — Scoped edit loop | ☑ `ent edit` — context + boundary + verdict + approval |
 
-**All phases complete.** The full loop L0 → L5 is implemented.
+**All phases complete.** The full loop L0 → L5 is implemented, plus Phase 7 (real
+evals), the retrofit path, and the **v4 Universe** (rendered interiors, real
+lenses, diff-first approval — see the v4 section below).
 
 ---
 
@@ -164,14 +166,15 @@ Built after the L0 → L5 phases, one PR each, CI-gated.
 | E4 | Retrofit path (§12 v2) — AI-proposed manifests | ☑ `ent retrofit` |
 | E5 | Interactive edit surface (`ent serve`) — AI-assisted edit loop | ☑ |
 
-**E5 — interactive edit surface.** `ent serve` puts the scoped edit loop behind a
-web app: click a node → context + evals; describe a change → an LLM (Claude Opus 5)
-edits within the node's claims, tier0 reruns, verdict + blast radius + approval
-surface live, with one-click revert. Backend is stdlib `http.server`
-(`src/ent/server.py`, pure `handle_api` router); the model is
-`src/ent/agent.py` (optional `[serve]` extra); read-only map (Invariant 2), edits
-write claims only. `tests/test_agent.py` + `tests/test_server.py` (stub client,
-no real API). See `docs/edit-surface.md`.
+**E5 — interactive edit surface.** `ent serve` puts the edit loop behind a web
+app: select a unit → context + evals; **Steer** it in English → the workload
+edits within the unit's claims, tier0 reruns, verdict + blast radius surface live,
+with one-click **Revert**. Backend is stdlib `http.server` (`src/ent/server.py`,
+pure `handle_api` router); the editing model is `src/ent/agent.py` (optional
+`[serve]` extra, provider-agnostic); read-only map (Invariant 2), edits write
+claims only. `tests/test_agent.py` + `tests/test_server.py` (stub client, no real
+API). This surface is rebuilt into the navigable **Universe** in v4 (below). See
+`docs/edit-surface.md`.
 
 **E4 — retrofit.** `ent retrofit <root>` infers node boundaries in an unmanaged
 repo (group by directory, kind from extensions, deps from static import
@@ -188,6 +191,31 @@ with a significance threshold (red only on meaningful regression, §5.3); tier2 
 the rubric-driven LLM-judge scaffold (judge wired explicitly, never faked). The
 greenfield ranker is runnable, so `ent eval retrieval.chunk_ranker --tier 1`
 scores a real ndcg@5. `tests/test_tier1_tier2.py`.
+
+## v4 — the Universe (PLAN_v4.md, H0–H5)
+
+The render surface was rebuilt from a set of tabbed views into a single navigable
+**Universe** and the lenses were made real. One PR per phase, each CI-gated. The
+reference project for this work is **`examples/refundly/`** — a 6-unit agentic
+pipeline (parse_email → orders → policy → decide → gateway → ledger) whose
+`decide` unit is agentic (a five-tool `interior` + a `trajectory` eval) and whose
+`gateway` is `irreversible` + approval-gated. Its committed traces exercise
+playback (including a bad-order run).
+
+| Phase | Ships | Status |
+|---|---|---|
+| H0 | View-model completeness — `description`/`invariants`/`budgets` (declared + measured-from-traces)/`trajectoryVerdict`/`interior` into `build_view`; `apply_edit` captures diff + before/after verdict + behaviour delta; real approval via proposals (`steering.py`, `/api/proposals`) | ☑ |
+| H1 | `examples/refundly` grown to the 6-unit pipeline + committed trace/history fixtures | ☑ |
+| H2 | Celestial design system + navigable Universe shell (world camera, pointer/touch, search, keyboard nav, minimap, URL state) | ☑ |
+| H3 | Real lenses — trace playback (comet halts red on a failed hop), timeline scrubber over a real commit axis, cost overlay | ☑ |
+| H4 | Rendered agentic interiors — tool satellites tethered to crossed edges; trace descends into the interior | ☑ |
+| H5 | Diff-first steer + approve — a gated unit's proposal shows diff + behaviour delta + verdict together, real Approve/Reject, gold-ring pulse on the map | ☑ |
+
+**Acceptance:** the Universe opens with `ent render` (static) or `ent serve`
+(live), every lens is a genuinely different view of the same topology, agentic
+interiors are drawn, and an approval-gated steer produces a diff-first proposal.
+`tests/test_h0.py … test_h5_approval.py`; live click-through verified in Chromium.
+See `docs/bridge.md` and `docs/edit-surface.md`.
 
 ## MVP — the two-week slice (SPEC.md §9)
 
