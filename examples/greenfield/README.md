@@ -39,13 +39,15 @@ greenfield/
 
 ## Try it
 
-From this directory, once Phase 1 lands:
+From this directory:
 
 ```
 ent validate      # all five manifests conform to the schema
 ent extract       # emit entiendo/graph.json + coverage.json, fail on drift
-ent eval retrieval.chunk_ranker   # tier0 verdict
+ent eval retrieval.chunk_ranker   # tier0 executes the unit → GREEN/RED
+ent render        # the Universe: open entiendo/render.html
+ent serve         # the Universe live — steer + approve on the canvas
 ```
 
-Today those commands are stubs that name the phase implementing them — see the
+All commands are implemented (L0 → L5 + Phase 7 + the v4 Universe) — see the
 repository root `README.md` and `docs/build-order.md`.

@@ -22,8 +22,9 @@ human steers through *and* the retrieval unit an AI edits through.
 > while you build, so "which part broke" is already answered when something turns
 > red. Entiendo is a read-only observer — never in the request path.
 
-The full specification is **[SPEC.md](./SPEC.md)** (the source of truth), the
-vocabulary is **[LEXICON.md](./LEXICON.md)**, and the roadmaps are
+What's implemented today is tracked in **[STATUS.md](./STATUS.md)** (the single
+status source). The full specification is **[SPEC.md](./SPEC.md)** (the source of
+truth), the vocabulary is **[LEXICON.md](./LEXICON.md)**, and the roadmaps are
 **[PLAN_v3.md](./PLAN_v3.md)** (units → fingerprints → Bridge) and
 **[PLAN_v4.md](./PLAN_v4.md)** (the rendered Universe — interiors, real lenses,
 diff-first approval — now fully implemented). This README is the map to the

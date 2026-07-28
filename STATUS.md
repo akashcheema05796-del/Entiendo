@@ -1,0 +1,65 @@
+# Entiendo — status
+
+The single source of truth for *what is implemented today*. When you change what
+the project can do, update this file in the same PR — narrative docs (README,
+SPEC, LEXICON, `docs/`) should agree with it. If they drift, this file wins until
+they're reconciled.
+
+- **Version:** `0.1.0` (pre-release)
+- **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
+  heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
+- **Tests:** `python -m pytest -q` → **251 passing** (~3s).
+
+## Implemented
+
+The full control-plane loop works end to end — declare units → reconcile the
+graph → instrument → execute + eval → record history → render the Universe →
+steer + approve through the unit.
+
+| Track | Scope | State |
+|---|---|---|
+| **L0 — Boundaries** | manifest schema + validator; `ent init` / `ent new` (fixture-first) | ✅ |
+| **L1 — Extractor** | AST import analysis; declared-vs-actual edge reconciliation; drift fails the build | ✅ |
+| **L2 — Instrumentation + evals** | `@ent.node()` spans + `ent.guard`; tier0 *executes* the unit; tier1 golden; tier2 judge scaffold | ✅ |
+| **L3 — History** | append-only versions / evals / traces; composite fingerprints | ✅ |
+| **L4 — The Universe** | one navigable canvas, six real lenses (structure/flow/trace/health/timeline/blast) | ✅ |
+| **L5 — Steer + approve** | scoped edit loop; `ent serve`; the Bridge (operator loop); diff-first approval | ✅ |
+| **Phase 7 — Real evals** | restricted-AST invariants, isolation, GREEN/RED/UNTESTED/ERROR | ✅ |
+| **v3 (PLAN_v3 A–G)** | units/fingerprints vocabulary, Universe, Bridge, agentic units + trajectory, replay, retrofit | ✅ |
+| **v4 (PLAN_v4 H0–H5)** | rendered agentic interiors, trace playback, timeline scrubber, cost overlay, diff-first approval | ✅ |
+
+**CLI (all wired):** `init` · `new` · `validate` · `extract` · `eval` · `bless` ·
+`baseline` · `snapshot` · `render` · `pin` · `replay` · `edit` · `serve` · `mcp` ·
+`retrofit`.
+
+**Examples:** `greenfield` (5 units — the MVP walkthrough) · `refundly` (6-unit
+agentic pipeline — the v4 demo: interiors, trajectory, approval) · `legacy`
+(unmanaged input for `ent retrofit`).
+
+## Not yet — the roadmap
+
+Ordered by impact (see the gap analysis for detail). None of these are started.
+
+1. **Language path** — the extractor + instrumentation + invariant evaluator are
+   Python-only. A pluggable, language-agnostic extractor (starting with
+   TypeScript/JS) is the largest structural ceiling.
+2. **Live telemetry → Universe** — Trace / cost / health are strong on fixtures
+   and recorded traces; continuous production capture (OTel auto-ingest, durable
+   Parquet/DuckDB by default) is thin.
+3. **Soft adoption + fixture assist** — no warn-only / coverage-ramp mode; fixture
+   authoring is manual (no "propose fixtures from recent traces").
+4. **Team surface** — `ent serve` is single-operator (localhost stdlib, file-queue
+   steering); no auth / RBAC / shared proposals / first-class CI status checks;
+   no `ent doctor`.
+5. **Eval depth** — tier2 needs a default judge harness; behaviour delta needs
+   goldens; no sandboxed side-effect simulation.
+6. **Packaging & first-run** — version `0.1.0`, no binary distribution.
+
+## Explicitly deferred (PLAN_v4 §9)
+
+WebGL renderer · SSE/push steering · presence/multiplayer · `apiVersion` bump +
+full mechanical `node`→`unit` rename · advanced retrofit UX.
+
+---
+
+*Keep this current: it exists so the narrative docs have one place to agree with.*
