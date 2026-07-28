@@ -61,7 +61,11 @@ def build_view(root: Path) -> dict[str, Any]:
         }
         interior = raw.get("interior")
         if interior:                         # agentic units only (audit finding 1)
-            view["interior"] = interior
+            traj = next((e for e in (raw.get("evals", {}).get("tier0", []) or [])
+                         if e.get("type") == "trajectory"), None)
+            # surface whether the registry is enforced (orbit ring dashes if not) — H4
+            view["interior"] = {**interior,
+                                "registryOnly": bool(traj.get("registryOnly")) if traj else None}
         node_views.append(view)
 
     timelines = {n.id: history.timeline(root, n.id) for n in nodes}
