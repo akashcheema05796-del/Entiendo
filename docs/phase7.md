@@ -44,6 +44,15 @@ tree-walker. Attribute access on dicts is key access (`output.chunks` →
 `output["chunks"]`). Failures print the real values:
 `len(output.chunks)=12 <= input.k=5`.
 
+**Agentic units — the `trajectory` reflex.** For a unit with an `interior`, a
+`trajectory` tier0 eval checks the recorded *sequence* of tool calls rather than
+the answer: the `order` rules (`order_lookup before issue_refund`), the `maxSteps`
+ceiling, and `registryOnly` (no call to a tool outside the declared registry). A
+RED verdict names the violated rule, and the Universe renders the same result —
+the orbit ring dashes when `registryOnly` is off, and trace playback lights each
+tool as the agent calls it, so an out-of-order call is visible even when the
+final output is correct. `refundly.decide` is the worked example.
+
 ## Verdicts (§5)
 
 | Verdict | Meaning | Health |
