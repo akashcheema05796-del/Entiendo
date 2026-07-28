@@ -1,8 +1,10 @@
 """L1 — Extractor / reconciler. The real anti-drift mechanism (Invariant 5).
 
-Statically analyses each node's claimed Python files, derives the *actual*
-import edges between nodes, and reconciles them against the `dependencies`
-declared in the manifests. It then emits two GENERATED artifacts:
+Statically analyses each node's claimed source files, derives the *actual* import
+edges between nodes, and reconciles them against the `dependencies` declared in
+the manifests. Import extraction is per-language behind a small seam
+(`ent.languages`) — Python and a TypeScript/JS spike today — so the reconciler
+itself is language-neutral. It then emits two GENERATED artifacts:
 
   - entiendo/graph.json     the node topology + edges (declared / verified / drift)
   - entiendo/coverage.json  claimed vs unclaimed files; the coverage headline
@@ -25,13 +27,13 @@ never churn — they are committed per commit and must not produce merge noise.
 
 from __future__ import annotations
 
-import ast
 import fnmatch
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from . import languages
 from .evals.entrypoint import entrypoint_spec, propose_entrypoint, scan_decorated
 from .manifest import MANIFEST_FILENAME, _SKIP_DIRS, Node, discover, load
 
@@ -152,49 +154,6 @@ def _coverage(root: Path, owner: dict[str, str]) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# static import analysis
-# --------------------------------------------------------------------------- #
-
-def _imports(file: Path) -> list[tuple[str, int]]:
-    """Return (module, level) for every import in a Python file.
-
-    `level` is the relative-import depth (0 = absolute). `module` may be '' for
-    `from . import x`.
-    """
-    try:
-        tree = ast.parse(file.read_text())
-    except (SyntaxError, UnicodeDecodeError, ValueError):
-        return []
-    out: list[tuple[str, int]] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            out.extend((alias.name, 0) for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            out.append((node.module or "", node.level))
-    return out
-
-
-def _resolve_import(module: str, level: int, importing: Path, root: Path) -> Path | None:
-    """Resolve an import to a file within the project, or None if external.
-
-    Handles absolute (root-relative) and relative imports. Only intra-project
-    files resolve; third-party packages return None and are ignored.
-    """
-    if level > 0:
-        base = importing.parent
-        for _ in range(level - 1):
-            base = base.parent
-    else:
-        base = root
-    parts = module.split(".") if module else []
-    target = base.joinpath(*parts)
-    for candidate in (target.with_suffix(".py"), target / "__init__.py"):
-        if candidate.exists():
-            return candidate.resolve()
-    return None
-
-
-# --------------------------------------------------------------------------- #
 # edges + reconciliation
 # --------------------------------------------------------------------------- #
 
@@ -228,22 +187,24 @@ def _build_edges(
                 e["kinds"].add(kind)
                 e["declared"] = True
 
-    # Actual edges from static import analysis.
+    # Actual edges from static import analysis — per-language, through the seam
+    # (languages.for_file). A file with no registered extractor is skipped; the
+    # Python path is byte-for-byte the same as before the seam existed.
     for node in nodes:
         for claim in node.claims:
             file = root / claim
-            if file.suffix != ".py" or not file.exists():
+            if not file.exists():
                 continue
-            for module, level in _imports(file):
-                target_file = _resolve_import(module, level, file, root)
-                if target_file is None:
-                    continue
-                target_node = owner.get(_rel(target_file, root))
+            extractor = languages.for_file(file)
+            if extractor is None:
+                continue
+            for imp in extractor.resolved_imports(file, root):
+                target_node = owner.get(_rel(imp.target, root))
                 if not target_node or target_node == node.id:
                     continue
                 e = edge(node.id, target_node)
                 e["verified"] = True
-                e["evidence"].append(f"{claim} imports {module or '.'}")
+                e["evidence"].append(f"{claim} imports {imp.detail}")
                 if not e["declared"]:
                     e["kinds"].add("calls")
 

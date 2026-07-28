@@ -38,11 +38,15 @@ agentic pipeline — the v4 demo: interiors, trajectory, approval) · `legacy`
 
 ## Not yet — the roadmap
 
-Ordered by impact (see the gap analysis for detail). None of these are started.
+Ordered by impact (see the gap analysis for detail).
 
-1. **Language path** — the extractor + instrumentation + invariant evaluator are
-   Python-only. A pluggable, language-agnostic extractor (starting with
-   TypeScript/JS) is the largest structural ceiling.
+1. **Language path** — *spike landed.* The extractor now runs through a
+   language-agnostic seam (`ent.languages`) with a Python extractor and a
+   minimal **TypeScript/JS** proof-of-concept; `ent extract` reconciles a TS
+   project, Python path unchanged (see `docs/multi-language.md`). Still Python-only
+   past extraction: instrumentation (`@ent.node()`), the invariant evaluator, and
+   `contract.entrypoint` execution. Next: tsconfig path aliases, a real tokenizer,
+   and a language-agnostic execution/eval seam.
 2. **Live telemetry → Universe** — Trace / cost / health are strong on fixtures
    and recorded traces; continuous production capture (OTel auto-ingest, durable
    Parquet/DuckDB by default) is thin.

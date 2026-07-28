@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from .evals.entrypoint import scan_decorated
-from .extractor import _imports, _resolve_import
+from . import languages
 from .manifest import _SKIP_DIRS
 
 _CODE_EXT = {".py", ".ts", ".tsx", ".js", ".go", ".rs", ".java", ".rb"}
@@ -133,16 +133,14 @@ def propose(root: Path) -> list[Proposal]:
         claims = [f.relative_to(root).as_posix() for f in gfiles]
         target_dir = (gfiles[0].parent.relative_to(root)).as_posix()
 
-        # dependencies via static imports between groups
+        # dependencies via static imports between groups (per-language seam)
         calls: set[str] = set()
         for f in gfiles:
-            if f.suffix != ".py":
+            extractor = languages.for_file(f)
+            if extractor is None:
                 continue
-            for module, level in _imports(f):
-                tgt = _resolve_import(module, level, f, root)
-                if tgt is None:
-                    continue
-                dep = owner.get(tgt.resolve().relative_to(root).as_posix())
+            for imp in extractor.resolved_imports(f, root):
+                dep = owner.get(imp.target.resolve().relative_to(root.resolve()).as_posix())
                 if dep and dep != node_id:
                     calls.add(dep)
 
