@@ -192,6 +192,21 @@ the rubric-driven LLM-judge scaffold (judge wired explicitly, never faked). The
 greenfield ranker is runnable, so `ent eval retrieval.chunk_ranker --tier 1`
 scores a real ndcg@5. `tests/test_tier1_tier2.py`.
 
+## v3 — units, the Bridge, agentic units (PLAN_v3.md, A–G)
+
+The rename to the v3 vocabulary (units / fingerprints / reflex-golden-judge) and
+the features that made the map *steerable*. One PR per phase, each CI-gated.
+
+| Phase | Ships | Status |
+|---|---|---|
+| A | v3 documents — SPEC/LEXICON/README speak of units + fingerprints (format unchanged) | ☑ |
+| B | The Universe render surface (replaces the plain v2 HTML explorer) | ☑ |
+| C | **The Bridge** — canvas → Claude Code: steer queue, `await_steering`/`post_verdict`, the `entiendo-operator` skill | ☑ |
+| D | **Agentic units** — `interior` tool registry, `ent.guard` runtime gate, trajectory invariants | ☑ |
+| E | Fingerprint replay — `ent pin` + `ent replay` a metric against an old fingerprint | ☑ |
+| F | Unit birth + retrofit — `ent new` (fixture-first) and the `ent retrofit` migration path | ☑ |
+| G | The lexicon in the product — units/fingerprints/reflex-golden-judge in the CLI + Universe | ☑ |
+
 ## v4 — the Universe (PLAN_v4.md, H0–H5)
 
 The render surface was rebuilt from a set of tabbed views into a single navigable
