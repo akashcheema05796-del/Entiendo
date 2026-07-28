@@ -443,8 +443,12 @@ function drawUnit(u){
     });
   }
 
-  if (u.approvalRequired){ ctx.strokeStyle=cvar('--annotation'); ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(u.x,u.y,u.r+3,-0.9,-0.1); ctx.stroke(); }
+  if (u.approvalRequired){ const waiting=pendingApproval.has(u.id);
+    ctx.save(); ctx.strokeStyle=cvar('--annotation');
+    ctx.globalAlpha = (waiting && !RM) ? (Math.sin(t*0.15)*0.4+0.6) : (dim?0.16:1);
+    ctx.lineWidth = waiting?3:2;
+    // a waiting proposal draws a full pulsing gold ring; otherwise a small gate arc.
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r+3, waiting?0:-0.9, waiting?Math.PI*2:-0.1); ctx.stroke(); ctx.restore(); }
   if (selected===u.id){ ctx.strokeStyle=cvar('--starlight'); ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.arc(u.x,u.y,u.r+4,0,Math.PI*2); ctx.stroke(); }
   if (focusIdx>=0 && units[focusIdx]===u){ ctx.strokeStyle=cvar('--annotation'); ctx.lineWidth=1.5;
@@ -780,19 +784,23 @@ function openDossier(u){
     <details class="artifacts sect"><summary>Artifacts — ${(u.claims||[]).length} claimed file(s)</summary>
       <ul>${(u.claims||[]).map(c=>`<li>${esc(c)}</li>`).join('')||'<li class="pill">none</li>'}</ul></details>
     <div class="actions">
+      <div id="proposals"></div>
       <textarea id="instr" placeholder="Steer: describe a change — the workload edits within this unit's claims only"></textarea>
       <div class="btns">
         <button class="act primary" id="steerBtn" onclick="steer()">Steer</button>
         <button class="act" id="revertBtn" onclick="revert()">Revert</button>
         <button class="act" id="approveBtn" onclick="approve()">Approve</button>
+        <button class="act" id="rejectBtn" onclick="reject()">Reject</button>
       </div>
       <div id="status"></div><div id="outcome"></div>
     </div>`;
   document.getElementById('dossier-body').innerHTML=body;
   document.getElementById('dossier').classList.add('open');
-  if (STATIC){ for (const id of ['steerBtn','revertBtn','approveBtn']){ const b=document.getElementById(id);
+  if (STATIC){ for (const id of ['steerBtn','revertBtn','approveBtn','rejectBtn']){ const b=document.getElementById(id);
     b.disabled=true; b.title='Static snapshot — run `ent serve` to act'; } }
-  else if (!u.approvalRequired){ const b=document.getElementById('approveBtn'); b.disabled=true; b.title='No approval gate on this unit'; }
+  else { if (!u.approvalRequired){ for (const id of ['approveBtn','rejectBtn']){ const b=document.getElementById(id);
+      b.disabled=true; b.title='No approval gate on this unit'; } }
+    loadProposals(u.id); }   // show any open proposal for this unit (H5)
 }
 function interiorSection(u){
   if (!u.interior) return '';
@@ -882,10 +890,44 @@ function renderDiffs(diffs){
       +`<pre class="inv" style="white-space:pre-wrap;overflow:auto">${lines}</pre></details>`; }).join('');
 }
 async function revert(){ if (STATIC) return; const {data}=await api('POST',`/api/node/${selected}/revert`,{});
-  document.getElementById('status').textContent=data.restored?`reverted ${data.restored.length} file(s)`:(data.error||''); await refresh(selected); }
-async function approve(){ if (STATIC) return; if (!steerReqId){ document.getElementById('status').textContent='no proposal to approve yet'; return; }
-  const {data}=await api('POST',`/api/proposals/${steerReqId}/approve`,{});
-  document.getElementById('status').textContent=data.applied?`approved — applied ${data.applied.length} file(s)`:(data.error||''); await refresh(selected); }
+  document.getElementById('status').textContent=data.restored?`reverted ${data.restored.length} file(s)`:(data.error||'nothing to revert'); await refresh(selected); }
+
+// H5 approval flow: gated units show their open proposal(s) in the dossier —
+// diff + behaviour delta + verdict together — with real Approve / Reject.
+let pendingApproval=new Set();
+async function loadProposals(unitId){
+  if (STATIC) return;
+  const {data}=await api('GET','/api/proposals');
+  const props=(data.proposals||[]);
+  pendingApproval = new Set(props.map(p=>p.unit));                 // pulse the gate arc while waiting
+  const mine = props.filter(p=>p.unit===unitId);
+  const el=document.getElementById('proposals'); if (!el) return;
+  el.innerHTML = mine.length ? mine.map(proposalCard).join('') : '';
+  for (const id of ['approveBtn','rejectBtn']){ const b=document.getElementById(id);
+    if (b){ b.disabled = !mine.length; if (!mine.length && (byId[unitId]||{}).approvalRequired) b.title='no proposal waiting'; } }
+  window.__lastProposal = mine.length ? mine[0].id : null;
+}
+function proposalCard(p){
+  const d=p.behaviourDelta;
+  const col = cvar(HEALTH_COLOUR[({GREEN:'green',RED:'red'})[p.verdictAfter]]||'--amber');
+  return `<div class="sect" style="border-color:var(--annotation)">
+    <h3 style="color:var(--annotation)">Proposal · awaiting approval</h3>
+    <div class="edge">${esc(p.summary||'')} · verdict <b style="color:${col}">${esc(p.verdictAfter||'—')}</b></div>
+    ${d?`<div class="edge">behaviour ${esc(d.metric||'')}: ${esc(d.before)} → ${esc(d.after)} (${esc(d.verdict)})</div>`:''}
+    ${p.unifiedDiffs?renderDiffs(p.unifiedDiffs):''}
+    <div class="btns"><button class="act primary" onclick="approve('${esc(p.id)}')">Approve</button>
+      <button class="act" onclick="reject('${esc(p.id)}')">Reject</button></div></div>`;
+}
+async function approve(id){ if (STATIC) return; id=id||window.__lastProposal;
+  if (!id){ document.getElementById('status').textContent='no proposal waiting to approve'; return; }
+  const {data}=await api('POST',`/api/proposals/${id}/approve`,{});
+  document.getElementById('status').textContent=data.applied?`approved — applied ${data.applied.length} file(s)`:(data.error||'approve failed');
+  await refresh(selected); }
+async function reject(id){ if (STATIC) return; id=id||window.__lastProposal;
+  if (!id){ document.getElementById('status').textContent='no proposal waiting to reject'; return; }
+  const {data}=await api('POST',`/api/proposals/${id}/reject`,{});
+  document.getElementById('status').textContent=data.rejected?`rejected — discarded, working tree unchanged`:(data.error||'reject failed');
+  await refresh(selected); }
 async function refresh(id){ if (STATIC) return; view=(await api('GET','/api/graph')).data; buildLayout(); if (id) select(id); }
 
 // test/debug hook — script-scoped state isn't on window; expose read-only accessors.

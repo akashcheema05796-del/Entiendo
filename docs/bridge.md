@@ -61,6 +61,16 @@ captured, the working tree reverts to *before*, and the change waits under
 Both approve and reject write a history event. It is a boring stored-diff apply —
 no live-tree magic, no git stash.
 
+## Diff-first approval on the canvas (H5)
+
+The gate is signed from the Universe, not a summary. A unit with a proposal
+waiting draws a **pulsing gold ring** on the map (`pendingApproval`); every other
+gated unit shows a small static gate arc. Opening it loads the proposal into the
+dossier — the **unified diff, the behaviour delta, and the after-verdict
+together** — so the human approves the change they can *see*, then **Approve**
+(`POST /api/proposals/<id>/approve`) or **Reject** (`POST …/reject`). A static
+`ent render` has no server to act against, so those actions are inert there.
+
 All are pure functions over `root` (`src/ent/steering.py`), unit-tested without a
 transport (`tests/test_steering.py`), including a scripted-agent dry-run of the
 whole loop ending in a GREEN verdict.
