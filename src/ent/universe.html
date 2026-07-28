@@ -418,17 +418,29 @@ function drawUnit(u){
   else if (form==='container'){ const s=u.r; roundRect(u.x-s,u.y-s,s*2,s*2,12); ctx.fill(); ctx.stroke(); }
   else { ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
 
-  // agentic interior: satellites on an orbit ring (signature element, full render in H4).
+  // agentic interior: satellites on an orbit ring — the signature element (H4).
+  // Each satellite is a registry tool, tethered across the border to the edge it
+  // crosses; the orbit ring dashes when registryOnly is NOT enforced at runtime.
+  // During trace playback the visited tool's satellite lights up — you watch the
+  // agent's actual path (and see it violate ordering when it does).
   if (u.interior && u.interior.tools && u.interior.tools.length){
     const tools=u.interior.tools, orbit=u.r-3;
-    ctx.strokeStyle=cvar('--annotation')+'66'; ctx.lineWidth=1/cam.scale;
-    ctx.setLineDash(u.interior.registryOnly===false?[2,3]:[]);
+    ctx.strokeStyle=cvar('--annotation')+'55'; ctx.lineWidth=1/cam.scale;
+    ctx.setLineDash(u.interior.registryOnly ? [] : [2/cam.scale,3/cam.scale]);
     ctx.beginPath(); ctx.arc(u.x,u.y,orbit,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
     tools.forEach((tl,i)=>{ const a=(i/tools.length)*Math.PI*2 - Math.PI/2;
       const sx=u.x+Math.cos(a)*orbit, sy=u.y+Math.sin(a)*orbit;
-      const nb=byId[tl.crosses]; if (nb){ ctx.strokeStyle=cvar('--annotation')+'44'; ctx.lineWidth=0.8/cam.scale;
+      const nb=byId[tl.crosses];
+      const active = (activeSat[u.id+'|'+tl.name]||0) > t;
+      if (nb){ ctx.strokeStyle=cvar('--annotation')+(active?'aa':'40'); ctx.lineWidth=(active?1.6:0.8)/cam.scale;
         ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(nb.x,nb.y); ctx.stroke(); }
-      ctx.fillStyle=cvar('--annotation'); ctx.beginPath(); ctx.arc(sx,sy,2.4,0,Math.PI*2); ctx.fill(); });
+      if (active){ const gg=ctx.createRadialGradient(sx,sy,0,sx,sy,7); gg.addColorStop(0,cvar('--annotation'));
+        gg.addColorStop(1,cvar('--annotation')+'00'); ctx.fillStyle=gg;
+        ctx.beginPath(); ctx.arc(sx,sy,7,0,Math.PI*2); ctx.fill(); }
+      ctx.fillStyle=cvar('--annotation'); ctx.beginPath(); ctx.arc(sx,sy,active?3.4:2.4,0,Math.PI*2); ctx.fill();
+      if (active || cam.scale>1.6){ ctx.fillStyle=cvar('--starlight'); ctx.font=`${9/cam.scale+1}px var(--font-mono),monospace`;
+        ctx.textAlign='center'; ctx.fillText(tl.name, sx, sy-6); }
+    });
   }
 
   if (u.approvalRequired){ ctx.strokeStyle=cvar('--annotation'); ctx.lineWidth=2;
@@ -485,8 +497,9 @@ function drawComet(){
   const hop=hops[playHop+1]||hops[playHop];
   if (playing && !RM){ playPhase+=0.02; if (playPhase>=1){ playPhase=0; playHop++;
     if (playHop>=hops.length-1){ playHop=hops.length-2; playPhase=1; playing=false; } } }
+  if (playHop!==_lastPlayHop){ _lastPlayHop=playHop; descendIntoInteriors(hops[playHop].node); }
   const failed = hop && hop.status==='error';
-  if (failed) playing=false;
+  if (failed){ if(!_halted){ _halted=true; descendIntoInteriors(hop.node); } playing=false; }
   let x,y;
   if (a&&b){ x=a.x+(b.x-a.x)*playPhase; y=a.y+(b.y-a.y)*playPhase; }
   else if (a){ x=a.x; y=a.y; } else return;
@@ -653,6 +666,18 @@ function setLens(l){ lens=l;
 // --------------------------------------------------------------------------- //
 const timebar=document.getElementById('timebar');
 let playTrace=null, playHop=0, playPhase=0, playing=false, scrubIdx=-1;
+let activeSat={}, satelliteLog=[], _lastPlayHop=-1, _halted=false;   // trace descends into interiors (H4)
+
+// map a visited hop's unit to any agentic tool that crosses to it, and light it.
+function descendIntoInteriors(hopNode){
+  for (const u of units){
+    if (!u.interior || !u.interior.tools) continue;
+    for (const tl of u.interior.tools){
+      if (tl.crosses===hopNode){ activeSat[u.id+'|'+tl.name]=t+40;
+        satelliteLog.push({unit:u.id, tool:tl.name, node:hopNode}); }
+    }
+  }
+}
 
 function updateTimebar(){
   if (lens==='trace'){ timebar.classList.add('on'); renderTracePicker(); }
@@ -673,6 +698,7 @@ function renderTracePicker(){
     [...timebar.querySelectorAll('.trace-row')].forEach(x=>x.classList.remove('sel')); el.classList.add('sel'); }));
 }
 function playbackTrace(tr){ playTrace=tr; playHop=0; playPhase=0; playing=true;
+  activeSat={}; satelliteLog=[]; _lastPlayHop=-1; _halted=false;   // drawComet lights hop 0 on the first frame
   if (tr.hops&&tr.hops[0]){ const u=byId[tr.hops[0].node]; if(u) flyTo(u.x,u.y,Math.max(cam.scale,1.2)); } }
 
 function renderScrubber(){
@@ -864,7 +890,8 @@ async function refresh(id){ if (STATIC) return; view=(await api('GET','/api/grap
 
 // test/debug hook — script-scoped state isn't on window; expose read-only accessors.
 window.__ent = { get units(){return units}, get cam(){return cam}, get lens(){return lens},
-                 get selected(){return selected}, jumpTo, setLens, fitToView };
+                 get selected(){return selected}, get view(){return view},
+                 get satelliteLog(){return satelliteLog}, jumpTo, setLens, fitToView, playbackTrace };
 
 boot();
 </script>
