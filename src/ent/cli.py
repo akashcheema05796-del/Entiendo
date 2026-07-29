@@ -39,6 +39,7 @@ from .commands import pin as pin_cmd
 from .commands import replay as replay_cmd
 from .commands import new as new_cmd
 from .commands import doctor as doctor_cmd
+from .commands import fixtures as fixtures_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -69,6 +70,7 @@ def _build_parser() -> argparse.ArgumentParser:
     replay_cmd.register(sub)
     new_cmd.register(sub)
     doctor_cmd.register(sub)
+    fixtures_cmd.register(sub)
 
     return parser
 
