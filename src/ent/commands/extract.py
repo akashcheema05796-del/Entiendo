@@ -47,6 +47,13 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
         help="report drift as warnings instead of failing the build "
              "(progressive adoption); structural errors still fail",
     )
+    p.add_argument(
+        "--min-coverage",
+        type=float,
+        default=None,
+        metavar="PCT",
+        help="fail if claimed+acknowledged coverage is below PCT%% (ramp target)",
+    )
     p.set_defaults(handler=_run)
 
 
@@ -87,6 +94,16 @@ def _run(args: argparse.Namespace) -> int:
         for f in cov["unaccounted"]:
             print(f"    ? {f}")
 
+    # coverage ramp target (--min-coverage): a threshold a migrating team raises.
+    min_cov = getattr(args, "min_coverage", None)
+    cov_pct = cov["coverage"] * 100.0
+    below = min_cov is not None and cov_pct + 1e-9 < min_cov
+
+    def _coverage_line() -> None:
+        if below:
+            print(f"✗ coverage {cov_pct:.0f}% is below the --min-coverage "
+                  f"{min_cov:.0f}% target")
+
     if result.errors:
         drift, structural = result.partition_errors()
         print()
@@ -100,11 +117,21 @@ def _run(args: argparse.Namespace) -> int:
         if structural or not args.soft:
             failed = len(result.errors) if not args.soft else len(structural)
             print(f"\n✗ {failed} reconciliation error(s)")
+            _coverage_line()
             return 1
 
         print(f"\n⚠ {len(drift)} drift warning(s) — soft mode, build not failed "
               "(declare them to make the graph honest)")
+        if below:
+            print()
+            _coverage_line()
+            return 1
         return 0
+
+    if below:
+        print()
+        _coverage_line()
+        return 1
 
     print("\n✓ graph reconciled — no drift")
     return 0

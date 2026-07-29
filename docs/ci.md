@@ -59,3 +59,8 @@ A repo still being brought under management can run `ent ci --soft`: drift is
 reported as a warning instead of failing the build (structural errors — a
 double-claimed file, a dependency on an unknown unit — still fail). Drop `--soft`
 once the graph is honest. See `ent extract --soft`.
+
+To **ratchet coverage up**, add `--min-coverage <pct>`: the build fails while
+claimed+acknowledged coverage is below the threshold, so a migrating team raises
+the number over time (`ent ci --soft --min-coverage 60`, then 70, …). Works on
+`ent extract` too. A `coverage` stage appears in the `ent ci` output when set.

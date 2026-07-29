@@ -26,13 +26,16 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
     p.add_argument("--root", default=".", help="project root (default: current directory)")
     p.add_argument("--soft", action="store_true",
                    help="treat reconcile drift as a warning (progressive adoption)")
+    p.add_argument("--min-coverage", type=float, default=None, metavar="PCT",
+                   help="also fail if claimed+acknowledged coverage is below PCT%%")
     p.set_defaults(handler=_run)
 
 
 def _run(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     try:
-        result = run_ci(root, soft=args.soft)
+        result = run_ci(root, soft=args.soft,
+                        min_coverage=getattr(args, "min_coverage", None))
     except ModuleNotFoundError as exc:
         print(f"ent ci: missing dependency — {exc}. Try: pip install -e '.[dev]'")
         return 2
