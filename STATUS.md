@@ -8,7 +8,7 @@ they're reconciled.
 - **Version:** `0.1.0` (pre-release)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **292 passing** (~3s).
+- **Tests:** `python -m pytest -q` → **299 passing** (~3s).
 
 ## Implemented
 
@@ -54,7 +54,8 @@ Ordered by impact (see the gap analysis for detail).
    drift → warning, structural still fails) ✅ and `ent fixtures <unit>` (scaffold
    smoke-fixture skeletons from recorded traces — dep stubs pre-wired, error
    traces flagged; `input` is a placeholder since traces don't record payloads) ✅
-   both landed. Still open: a coverage-ramp target.
+   both landed, plus `--min-coverage <pct>` on `ent extract`/`ent ci` (a
+   coverage-ramp target a migrating team raises over time). ✅ §3 complete.
 4. **Team surface** — `ent serve` is single-operator (localhost stdlib, file-queue
    steering); no auth / RBAC / shared proposals. (`ent doctor` ✅ and `ent ci` —
    one validate+reconcile+eval gate for CI/pre-commit, see `docs/ci.md` — ✅ landed.)

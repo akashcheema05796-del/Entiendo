@@ -38,10 +38,16 @@ class CiResult:
         return 0 if self.ok else 1
 
 
-def run_ci(root: Path, *, soft: bool = False) -> CiResult:
-    """Run validate → reconcile → eval and collapse to one pass/fail."""
+def run_ci(root: Path, *, soft: bool = False, min_coverage: float | None = None) -> CiResult:
+    """Run validate → reconcile (→ coverage) → eval, collapsed to one pass/fail."""
+    from .extractor import extract
+
     root = Path(root)
-    stages = [_validate_stage(root), _reconcile_stage(root, soft=soft), _eval_stage(root)]
+    ext = extract(root)                                 # once, shared by reconcile + coverage
+    stages = [_validate_stage(root), _reconcile_stage(ext, soft=soft)]
+    if min_coverage is not None:
+        stages.append(_coverage_stage(ext, min_coverage))
+    stages.append(_eval_stage(root))
     return CiResult(stages=stages)
 
 
@@ -55,9 +61,7 @@ def _validate_stage(root: Path) -> Stage:
     return Stage("validate", False, f"{bad} of {n} manifest(s) invalid — run `ent validate`")
 
 
-def _reconcile_stage(root: Path, *, soft: bool) -> Stage:
-    from .extractor import extract
-    result = extract(root)
+def _reconcile_stage(result: Any, *, soft: bool) -> Stage:
     cov = result.coverage.get("coverage")
     cov_txt = f"coverage {cov:.0%}" if cov is not None else "coverage n/a"
     if result.ok:
@@ -71,6 +75,13 @@ def _reconcile_stage(root: Path, *, soft: bool) -> Stage:
                  f"{len(failing)} reconciliation error(s) — run `ent extract`"
                  + (" --soft" if soft else ""),
                  warnings=drift if soft else [])
+
+
+def _coverage_stage(result: Any, min_coverage: float) -> Stage:
+    cov = (result.coverage.get("coverage") or 0.0) * 100.0
+    if cov + 1e-9 >= min_coverage:
+        return Stage("coverage", True, f"{cov:.0f}% (>= {min_coverage:.0f}% target)")
+    return Stage("coverage", False, f"{cov:.0f}% below the {min_coverage:.0f}% target")
 
 
 def _eval_stage(root: Path) -> Stage:
