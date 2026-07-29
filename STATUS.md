@@ -8,7 +8,7 @@ they're reconciled.
 - **Version:** `0.1.0` (pre-release)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **285 passing** (~3s).
+- **Tests:** `python -m pytest -q` → **292 passing** (~3s).
 
 ## Implemented
 
@@ -43,10 +43,10 @@ Ordered by impact (see the gap analysis for detail).
 1. **Language path** — *spike landed.* The extractor now runs through a
    language-agnostic seam (`ent.languages`) with a Python extractor and a
    minimal **TypeScript/JS** proof-of-concept; `ent extract` reconciles a TS
-   project, Python path unchanged (see `docs/multi-language.md`). Still Python-only
-   past extraction: instrumentation (`@ent.node()`), the invariant evaluator, and
-   `contract.entrypoint` execution. Next: tsconfig path aliases, a real tokenizer,
-   and a language-agnostic execution/eval seam.
+   project — including tsconfig `paths`/`baseUrl` aliases (see `docs/multi-language.md`),
+   Python path unchanged. Still Python-only past extraction: instrumentation
+   (`@ent.node()`), the invariant evaluator, and `contract.entrypoint` execution.
+   Next: a real tokenizer, and a language-agnostic execution/eval seam.
 2. **Live telemetry → Universe** — Trace / cost / health are strong on fixtures
    and recorded traces; continuous production capture (OTel auto-ingest, durable
    Parquet/DuckDB by default) is thin.

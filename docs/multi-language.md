@@ -73,16 +73,24 @@ with each source extension, then a directory `index.*`, and map a written
 (`react`, `@scope/pkg`) are external and dropped; anything resolving outside the
 project is dropped.
 
+## tsconfig path aliases (landed)
+
+Non-relative specifiers now resolve through `tsconfig.json`: `paths` aliases
+(`@app/*` → `src/*`, or an exact `@lib` → a named file) and `baseUrl`-relative
+imports (`utils/x` under `baseUrl: ./src`). Genuine external packages match no
+alias and resolve to no project file, so they stay dropped; a project with no
+tsconfig is unchanged. tsconfig is read with light JSONC tolerance (comments +
+trailing commas); `extends` chains aren't followed yet. See
+`tests/test_ts_tsconfig.py`.
+
 ## Deliberately out of scope (where a real implementation goes next)
 
 The spike proves the seam, not a production TS story. In priority order:
 
-1. **`tsconfig` path aliases** — resolve `baseUrl` + `paths` (`@app/*`) so
-   non-relative intra-project imports are seen, not dropped.
-2. **A real tokenizer** — the regex can match import-like text inside comments or
+1. **A real tokenizer** — the regex can match import-like text inside comments or
    string literals. A lightweight scanner that skips comments/strings removes
-   that ambiguity (still no heavy dependency).
-3. **Entrypoint + instrumentation** — L2 (`@ent.node()`), the restricted-AST
+   that ambiguity (still no heavy dependency). `tsconfig` `extends` chains too.
+2. **Entrypoint + instrumentation** — L2 (`@ent.node()`), the restricted-AST
    invariant evaluator, and `contract.entrypoint` execution are still
    Python-only. A TS unit can be reconciled and drawn today, but not yet
    *executed* for tier0. That is the next language-agnostic seam to open.
