@@ -8,7 +8,7 @@ they're reconciled.
 - **Version:** `0.1.0` (pre-release)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **251 passing** (~3s).
+- **Tests:** `python -m pytest -q` → **279 passing** (~3s).
 
 ## Implemented
 
@@ -30,7 +30,7 @@ steer + approve through the unit.
 
 **CLI (all wired):** `init` · `new` · `validate` · `extract` · `eval` · `bless` ·
 `baseline` · `snapshot` · `render` · `pin` · `replay` · `edit` · `serve` · `mcp` ·
-`retrofit` · `doctor`.
+`retrofit` · `doctor` · `fixtures`.
 
 **Examples:** `greenfield` (5 units — the MVP walkthrough) · `refundly` (6-unit
 agentic pipeline — the v4 demo: interiors, trajectory, approval) · `legacy`
@@ -50,10 +50,11 @@ Ordered by impact (see the gap analysis for detail).
 2. **Live telemetry → Universe** — Trace / cost / health are strong on fixtures
    and recorded traces; continuous production capture (OTel auto-ingest, durable
    Parquet/DuckDB by default) is thin.
-3. **Soft adoption + fixture assist** — `ent extract --soft` (warn-only reconcile
-   for a repo mid-migration: drift → warning, structural errors still fail): ✅
-   landed. Still open: a coverage-ramp target and fixture authoring is manual
-   (no "propose fixtures from recent traces").
+3. **Soft adoption + fixture assist** — `ent extract --soft` (warn-only reconcile:
+   drift → warning, structural still fails) ✅ and `ent fixtures <unit>` (scaffold
+   smoke-fixture skeletons from recorded traces — dep stubs pre-wired, error
+   traces flagged; `input` is a placeholder since traces don't record payloads) ✅
+   both landed. Still open: a coverage-ramp target.
 4. **Team surface** — `ent serve` is single-operator (localhost stdlib, file-queue
    steering); no auth / RBAC / shared proposals / first-class CI status checks.
    (`ent doctor` self-diagnosis: ✅ landed.)
