@@ -40,6 +40,7 @@ from .commands import replay as replay_cmd
 from .commands import new as new_cmd
 from .commands import doctor as doctor_cmd
 from .commands import fixtures as fixtures_cmd
+from .commands import ci as ci_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -71,6 +72,7 @@ def _build_parser() -> argparse.ArgumentParser:
     new_cmd.register(sub)
     doctor_cmd.register(sub)
     fixtures_cmd.register(sub)
+    ci_cmd.register(sub)
 
     return parser
 
