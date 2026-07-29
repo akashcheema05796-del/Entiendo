@@ -50,8 +50,10 @@ Ordered by impact (see the gap analysis for detail).
 2. **Live telemetry → Universe** — Trace / cost / health are strong on fixtures
    and recorded traces; continuous production capture (OTel auto-ingest, durable
    Parquet/DuckDB by default) is thin.
-3. **Soft adoption + fixture assist** — no warn-only / coverage-ramp mode; fixture
-   authoring is manual (no "propose fixtures from recent traces").
+3. **Soft adoption + fixture assist** — `ent extract --soft` (warn-only reconcile
+   for a repo mid-migration: drift → warning, structural errors still fail): ✅
+   landed. Still open: a coverage-ramp target and fixture authoring is manual
+   (no "propose fixtures from recent traces").
 4. **Team surface** — `ent serve` is single-operator (localhost stdlib, file-queue
    steering); no auth / RBAC / shared proposals / first-class CI status checks.
    (`ent doctor` self-diagnosis: ✅ landed.)

@@ -44,6 +44,13 @@ UNCLAIMED_LIST = "entiendo/unclaimed.txt"
 # Manifest dependency buckets, in report order.
 DECLARED_EDGE_KINDS = ("calls", "reads", "writes", "config")
 
+# Reconciliation errors of this kind are *drift* — reality diverging from the
+# declared graph (an undeclared edge, an interior tool with no declared edge).
+# Drift is the migration-friction kind `ent extract --soft` downgrades to a
+# warning. Everything else (double-claim, dependency on an unknown node,
+# entrypoint drift) is structural and always fails.
+DRIFT_PREFIX = "drift:"
+
 
 # --------------------------------------------------------------------------- #
 # result types
@@ -58,6 +65,18 @@ class ExtractResult:
     @property
     def ok(self) -> bool:
         return not self.errors
+
+    def partition_errors(self) -> tuple[list[str], list[str]]:
+        """Split errors into (drift, structural).
+
+        Drift — undeclared edges, interior tools with no declared edge — is what
+        `ent extract --soft` reports as warnings for a repo mid-migration.
+        Structural errors (double-claim, unknown-node dependency, entrypoint
+        drift) are authoring bugs and fail the build even in soft mode.
+        """
+        drift = [e for e in self.errors if e.startswith(DRIFT_PREFIX)]
+        structural = [e for e in self.errors if not e.startswith(DRIFT_PREFIX)]
+        return drift, structural
 
 
 def _norm(rel: str) -> str:
@@ -224,8 +243,8 @@ def _build_edges(
             e = pairs.get((node.id, crosses))
             if e is None or not e["declared"]:
                 errors.append(
-                    f"drift: interior tool '{name}' of {node.id} crosses to {crosses} but "
-                    f"no dependency edge is declared — add {crosses} to {node.id}'s "
+                    f"{DRIFT_PREFIX} interior tool '{name}' of {node.id} crosses to {crosses} "
+                    f"but no dependency edge is declared — add {crosses} to {node.id}'s "
                     f"dependencies, or remove the tool from the registry"
                 )
 
@@ -234,7 +253,7 @@ def _build_edges(
         if e["verified"] and not e["declared"]:
             evidence = e["evidence"][0] if e["evidence"] else "static import"
             errors.append(
-                f"drift: undeclared dependency {frm} -> {to} "
+                f"{DRIFT_PREFIX} undeclared dependency {frm} -> {to} "
                 f"(observed: {evidence}) — declare it in {frm}'s manifest or remove it"
             )
 
