@@ -384,6 +384,7 @@ and the field-by-field reference in [`docs/manifest.md`](./docs/manifest.md).
 | `ent serve` | L5 | the Universe live: steer + approve on the canvas |
 | `ent mcp` | L5 | the same surface as MCP tools for Claude Code |
 | `ent retrofit <root>` | — | infer units in an unmanaged repo → staged proposals |
+| `ent doctor` | — | self-diagnose the environment + project (deps, key, schema, reconcile) |
 
 > **Lexicon:** the CLI, the Universe, and these docs speak of **units**,
 > **fingerprints**, and **reflex / golden / judge** evals. The *format* is
@@ -425,7 +426,8 @@ Entiendo/
   src/ent/                    the tool
     cli.py                    argparse entry; one file per subcommand under commands/
     commands/                 init, new, validate, extract, eval, bless, baseline,
-                              snapshot, render, pin, replay, edit, serve, mcp, retrofit
+                              snapshot, render, pin, replay, edit, serve, mcp,
+                              retrofit, doctor
     manifest.py               L0  unit model: discover, load, Node
     schema.py                 L0  schema load + validator
     validation.py             L0  schema + semantic checks

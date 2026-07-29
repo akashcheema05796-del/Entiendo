@@ -30,7 +30,7 @@ steer + approve through the unit.
 
 **CLI (all wired):** `init` · `new` · `validate` · `extract` · `eval` · `bless` ·
 `baseline` · `snapshot` · `render` · `pin` · `replay` · `edit` · `serve` · `mcp` ·
-`retrofit`.
+`retrofit` · `doctor`.
 
 **Examples:** `greenfield` (5 units — the MVP walkthrough) · `refundly` (6-unit
 agentic pipeline — the v4 demo: interiors, trajectory, approval) · `legacy`
@@ -53,8 +53,8 @@ Ordered by impact (see the gap analysis for detail).
 3. **Soft adoption + fixture assist** — no warn-only / coverage-ramp mode; fixture
    authoring is manual (no "propose fixtures from recent traces").
 4. **Team surface** — `ent serve` is single-operator (localhost stdlib, file-queue
-   steering); no auth / RBAC / shared proposals / first-class CI status checks;
-   no `ent doctor`.
+   steering); no auth / RBAC / shared proposals / first-class CI status checks.
+   (`ent doctor` self-diagnosis: ✅ landed.)
 5. **Eval depth** — tier2 needs a default judge harness; behaviour delta needs
    goldens; no sandboxed side-effect simulation.
 6. **Packaging & first-run** — version `0.1.0`, no binary distribution.
