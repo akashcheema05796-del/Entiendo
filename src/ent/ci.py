@@ -1,0 +1,107 @@
+"""`ent ci` — the one gate a CI job or pre-commit hook calls (gap analysis §4).
+
+Individually the checks already exist (`validate`, `extract --check`, `eval
+--all`); wiring three commands and reasoning about three exit codes is the
+friction. `run_ci` runs all three, reports a stage line each, and collapses them
+to a single pass/fail — the thing you put in one CI step or a pre-commit hook.
+
+Pure `run_ci(root) -> CiResult` so it is tested without a subprocess; the CLI
+prints the stages and returns `exit_code`. `--soft` passes through to the
+reconcile stage (drift → warning) for a repo mid-migration.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+
+@dataclass(frozen=True)
+class Stage:
+    name: str
+    ok: bool
+    detail: str
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CiResult:
+    stages: list[Stage]
+
+    @property
+    def ok(self) -> bool:
+        return all(s.ok for s in self.stages)
+
+    @property
+    def exit_code(self) -> int:
+        return 0 if self.ok else 1
+
+
+def run_ci(root: Path, *, soft: bool = False) -> CiResult:
+    """Run validate → reconcile → eval and collapse to one pass/fail."""
+    root = Path(root)
+    stages = [_validate_stage(root), _reconcile_stage(root, soft=soft), _eval_stage(root)]
+    return CiResult(stages=stages)
+
+
+def _validate_stage(root: Path) -> Stage:
+    from .validation import validate_root
+    report = validate_root(root)
+    n = len(report.results)
+    if report.ok:
+        return Stage("validate", True, f"{n} manifest(s) valid")
+    bad = sum(1 for r in report.results if getattr(r, "errors", None))
+    return Stage("validate", False, f"{bad} of {n} manifest(s) invalid — run `ent validate`")
+
+
+def _reconcile_stage(root: Path, *, soft: bool) -> Stage:
+    from .extractor import extract
+    result = extract(root)
+    cov = result.coverage.get("coverage")
+    cov_txt = f"coverage {cov:.0%}" if cov is not None else "coverage n/a"
+    if result.ok:
+        return Stage("reconcile", True, f"no drift, {cov_txt}")
+    drift, structural = result.partition_errors()
+    if soft and not structural:
+        return Stage("reconcile", True, f"{cov_txt}, {len(drift)} drift warning(s) (soft)",
+                     warnings=drift)
+    failing = structural + (drift if not soft else [])
+    return Stage("reconcile", False,
+                 f"{len(failing)} reconciliation error(s) — run `ent extract`"
+                 + (" --soft" if soft else ""),
+                 warnings=drift if soft else [])
+
+
+def _eval_stage(root: Path) -> Stage:
+    from . import verdicts
+    from .evals.runner import run_tier0
+    from .manifest import Node, discover, load
+
+    counts: dict[str, int] = {verdicts.GREEN: 0, verdicts.RED: 0,
+                              verdicts.UNTESTED: 0, verdicts.ERROR: 0}
+    failing: list[str] = []
+    for path in discover(root):
+        node = Node.from_manifest(load(path), path)
+        verdict = run_tier0(node, root).verdict
+        counts[verdict] = counts.get(verdict, 0) + 1
+        if verdict in (verdicts.RED, verdicts.ERROR):
+            failing.append(f"{node.id}:{verdict}")
+
+    summary = (f"{counts[verdicts.GREEN]} green, {counts[verdicts.UNTESTED]} untested, "
+               f"{counts[verdicts.RED]} red, {counts[verdicts.ERROR]} error")
+    if failing:
+        return Stage("eval", False, f"{summary} — {', '.join(failing)}")
+    return Stage("eval", True, summary)
+
+
+def summary_lines(result: CiResult) -> list[str]:
+    """Human-readable stage lines + a headline — shared by the CLI."""
+    mark = {True: "✓", False: "✗"}
+    lines = [f"  {mark[s.ok]} {s.name.ljust(9)}  {s.detail}" for s in result.stages]
+    for s in result.stages:
+        for w in s.warnings:
+            lines.append(f"      ⚠ {w}")
+    lines.append("")
+    lines.append("✓ ent ci passed" if result.ok else "✗ ent ci failed")
+    return lines
