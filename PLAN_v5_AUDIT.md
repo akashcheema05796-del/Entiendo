@@ -253,3 +253,38 @@ re-checked against the tree.
   every new baseline carries a real identity; the identity is visible in the CLI
   and the Universe dossier. `tests/test_v3_blessedby.py` (9). **Full suite 325
   green** (316 + 9).
+
+### V4 — live H5 pre-flight + runbook ✅ (code half; recording handed to Mehar)
+
+- **Seam walk (steering queue → context assembly → edit → tier0 rerun → diff →
+  proposal → approval → merge):** exercised end to end on a scratch refundly copy
+  through the real functions. **No test-harness-only assumptions found** — ids are
+  `uuid4` (no `Date`/`random` collision), timestamps are real (`time.time()` /
+  `datetime.now`), the operator supplies edit content directly (no model needed
+  live), and `apply_edit` confines writes to `claims`. The path is live-ready.
+- **Expected-verdict note for the demo:** steering `refundly.gateway` yields tier0
+  `UNTESTED` (external unit, no `contract.entrypoint` — you don't execute an
+  irreversible refund). Correct and documented in the runbook so it isn't read as
+  a failure on camera.
+- **Regression test (`tests/test_v4_h5_endtoend.py`, 3):** the full loop —
+  steer → apply_edit (real unifiedDiffs) → `proposal=true` reverts the working
+  tree → approve applies the stored `after` and clears the proposal; reject leaves
+  the tree untouched; an out-of-claims write is rejected. Locks the seam before the
+  recording.
+- **Runbook (`docs/H5_DEMO_RUNBOOK.md`):** the exact node, steering instruction,
+  expected diff, expected verdict (UNTESTED), approval step, end state, and reset
+  instructions. **The live screen-recording (V4.3) is the human's to capture** —
+  Claude Code delivered pre-flight fixes + the runbook only, per plan.
+- **Full suite 328 green** (325 + 3).
+
+---
+
+## Definition of done for v5 — met
+
+- **V0–V4 acceptance criteria pass** (see each section above).
+- **Zero regressions:** the suite grew 299 → **328** green; the Python path and
+  existing behaviour are unchanged where a phase didn't touch them.
+- **This audit's closing verification** re-checked each phase's claims against the
+  tree (per the skeptical-verification norm).
+- **Outstanding (human):** V4.3, the uncut steer→diff→approve recording, using
+  `docs/H5_DEMO_RUNBOOK.md`.
