@@ -8,14 +8,14 @@ they're reconciled.
 - **Version:** `0.1.0` (pre-release)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **325 passing** (~5s).
+- **Tests:** `python -m pytest -q` → **328 passing** (~5s).
 
 **PLAN_v5 (close the loop) — in progress:** V0 audit ✅ (`PLAN_v5_AUDIT.md`);
 V1 edge verification ✅ — edges flip declared→verified from recorded runtime spans
 (`ent extract --with-spans`), with a `verificationSource`/`observationCount`
 tri-state and a staleness rule (a code change reverts verification until
 re-observed). V2 golden-set spread ✅ — refundly.parse_email gets a real (non-saturated) tier1 golden set (baseline 0.78, not 1.0) that discriminates: an injected regression goes REGRESSED, cosmetic noise stays within band. V3 blessedBy + kill-the-CI-bless-bypass ✅ — blessing needs a real identity (--as → config → git email, never "unknown") and an interactive TTY (CI can't bless);
-V4 (H5 pre-flight + runbook) next.
+V4 H5 pre-flight ✅ — the steer→edit→propose→approve seam is verified live-ready with an end-to-end regression test + docs/H5_DEMO_RUNBOOK.md. **PLAN_v5 code is complete (V0–V4)**; the uncut live H5 screen-recording (V4.3) is the human's to capture.
 
 ## Implemented
 
