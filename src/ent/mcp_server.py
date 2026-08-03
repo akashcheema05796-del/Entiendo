@@ -42,6 +42,7 @@ from .manifest import find_node
 from .render import blast_radius, build_view
 from .server import _backup, _BACKUP_DIR  # reuse the same backup convention as `ent serve`
 from .validation import validate_root
+from . import claims as claims_mod
 from . import retrofit as retrofit_mod
 from . import steering
 
@@ -92,7 +93,6 @@ def tool_apply_edit(
         return {"error": "no files provided"}
 
     ctx = assemble_context(root, node_id)
-    claims = set(ctx.claimed_files)  # relative posix paths, same shape agent.py used
 
     # verdict + behaviour BEFORE the edit (H0.2 — the before/after story is real).
     verdict_before = run_tier0(node, root).verdict
@@ -104,9 +104,11 @@ def tool_apply_edit(
     unified: dict[str, str] = {}
 
     for entry in files:
-        rel = Path(entry["path"]).as_posix()
-        if rel not in claims:
-            rejected.append(rel)
+        # the single claims authority (v6 1.4): realpath + repo containment +
+        # resolved-claim membership — not a string comparison.
+        rel = claims_mod.claimed_rel(root, node, entry["path"])
+        if rel is None:
+            rejected.append(Path(entry["path"]).as_posix())
             continue
         before = ctx.claimed_files.get(rel, "")
         diffs[rel] = {"before": before, "after": entry["content"]}

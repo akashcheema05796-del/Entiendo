@@ -281,6 +281,7 @@ def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
     significance = float(baseline_rec.get("significance", golden.get("significance", 0.0)))
 
     run_scores: list[float] = []
+    row_matrix: list[list[float]] = []       # per-run row scores → per-row means (v6 1.2)
     total_cost = 0.0
     latencies: list[float] = []
     for _ in range(min_runs):
@@ -294,8 +295,12 @@ def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
                                 [Check("golden", "error", f"node raised on row {i}: {exc}")], advisory=advisory)
                 row_scores.append(metric(out, row["expect"]))
         run_scores.append(_mean(row_scores))
+        row_matrix.append(row_scores)
         total_cost += sum(s.cost_usd or 0.0 for s in spans)
         latencies.extend(s.duration_ms for s in spans if s.node_id == node.id)
+
+    # per-row means across the minRuns runs — the paired sample the bootstrap uses
+    row_means = [round(_mean([run[i] for run in row_matrix]), 6) for i in range(len(rows))]
 
     mean = _mean(run_scores)
     spread = statistics.stdev(run_scores) if len(run_scores) > 1 else 0.0
@@ -310,7 +315,16 @@ def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
         "compositeVersion": compute_version(node, root)["composite"],
     }
 
-    verdict, detail = _stat_verdict(mean, baseline, spread, significance)
+    # v6 1.2 — a real statistical test when the baseline carries per-row scores;
+    # otherwise the legacy threshold, tagged so nobody mistakes it for a test.
+    base_rows = baseline_rec.get("rowScores")
+    if base_rows and len(base_rows) == len(row_means):
+        verdict, detail, boot = _bootstrap_verdict(row_means, base_rows, significance)
+        stats.update(boot)
+    else:
+        verdict, detail = _stat_verdict(mean, baseline, spread, significance)
+        stats["verdictMethod"] = "threshold-legacy"
+    stats["rowScores"] = row_means
     stats["delta"] = round(mean - baseline, 4) if baseline is not None else None
 
     # baseline proposal on improvement (§7 — never automatic)
@@ -318,6 +332,7 @@ def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
         baselines.write_pending(root, node.id, {
             "baseline": round(mean, 4), "metric": golden["metric"],
             "minRuns": min_runs, "significance": significance,
+            "rowScores": row_means,          # the paired sample for future bootstraps
         })
         detail += " — baseline proposal written (ent baseline accept)"
 
@@ -334,6 +349,49 @@ def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
 
     _record_eval(root, node, stats, verdict, min_runs)
     return done(verdict, checks, stats, advisory)
+
+
+_BOOTSTRAP_RESAMPLES = 10_000
+_BOOTSTRAP_SEED = 20260803        # fixed — verdicts must be reproducible
+
+
+def _bootstrap_verdict(new_rows: list[float], base_rows: list[float],
+                       sig: float) -> tuple[str, str, dict[str, Any]]:
+    """Paired bootstrap over golden rows (v6 1.2) — a test, not a threshold.
+
+    Per row, d_i = new_i − base_i. Resample rows with replacement
+    (10k, fixed seed) → a 95% CI on mean(d). REGRESSED iff the CI is entirely
+    below zero; IMPROVED iff entirely above; straddling zero is WITHIN_BAND when
+    the point estimate is inside `significance`, UNSTABLE when the CI half-width
+    exceeds it (too noisy to judge at this n).
+    """
+    import random
+
+    diffs = [n - b for n, b in zip(new_rows, base_rows)]
+    n = len(diffs)
+    mean_d = _mean(diffs)
+    rng = random.Random(_BOOTSTRAP_SEED)
+    means = sorted(
+        _mean([diffs[rng.randrange(n)] for _ in range(n)])
+        for _ in range(_BOOTSTRAP_RESAMPLES))
+    lo = means[int(0.025 * _BOOTSTRAP_RESAMPLES)]
+    hi = means[int(0.975 * _BOOTSTRAP_RESAMPLES) - 1]
+    half_width = (hi - lo) / 2.0
+    boot = {"verdictMethod": "paired-bootstrap", "ciLow": round(lo, 4),
+            "ciHigh": round(hi, 4), "nRows": n,
+            # the smallest effect this n could have called — honesty about power
+            "minDetectableEffect": round(half_width, 4)}
+
+    ci_txt = f"Δ={mean_d:+.4f} CI95[{lo:+.4f},{hi:+.4f}] n={n}"
+    if hi < 0:
+        return verdicts.REGRESSED, f"{ci_txt} — CI entirely below zero", boot
+    if lo > 0:
+        return verdicts.IMPROVED, f"{ci_txt} — CI entirely above zero", boot
+    if abs(mean_d) <= sig and half_width <= sig:
+        return verdicts.WITHIN_BAND, f"{ci_txt} — within significance {sig}", boot
+    if half_width > sig:
+        return verdicts.UNSTABLE, f"{ci_txt} — CI half-width {half_width:.4f} > {sig}: underpowered at n={n}", boot
+    return verdicts.WITHIN_BAND, f"{ci_txt} — straddles zero", boot
 
 
 def _stat_verdict(mean: float, baseline: float | None, spread: float, sig: float) -> tuple[str, str]:

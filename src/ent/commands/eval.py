@@ -16,9 +16,20 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .. import verdicts
-from ..evals.runner import run_tier0, run_tier1, run_tier2
+from .. import sandbox, verdicts
+from ..evals.runner import Check, EvalResult, run_tier0, run_tier1, run_tier2
 from ..manifest import discover, load, Node, find_node
+
+
+def _from_dict(d: dict) -> EvalResult:
+    """Rehydrate a sandboxed child's EvalResult dict for printing/exit codes."""
+    return EvalResult(
+        node_id=d.get("node_id", "?"), tier=d.get("tier", 0),
+        verdict=d.get("verdict", verdicts.ERROR),
+        duration_ms=d.get("duration_ms", 0.0),
+        checks=[Check(**c) for c in d.get("checks", [])],
+        stats=d.get("stats", {}) or {}, advisory=bool(d.get("advisory")),
+    )
 
 
 def register(subparsers: "argparse._SubParsersAction") -> None:
@@ -33,6 +44,8 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
                    help="eval tier: reflex (default, executes), golden (dataset), judge (LLM). "
                         "Numeric 0/1/2 also accepted.")
     p.add_argument("--root", default=".", help="project root (default: current directory)")
+    p.add_argument("--no-sandbox", action="store_true",
+                   help="run entrypoints in-process (no child process, no timeout/rlimits)")
     p.set_defaults(handler=_run)
 
 
@@ -65,9 +78,16 @@ def _run(args: argparse.Namespace) -> int:
         return 2
 
     tier_name = {0: "reflex", 1: "golden", 2: "judge"}[tier_num]
+    # Sandbox by default for the executing tiers (v6 1.1): a hostile or hung
+    # entrypoint is killed on the wall clock instead of hanging the runner.
+    use_sandbox = tier_num in (0, 1) and not getattr(args, "no_sandbox", False) \
+        and not sandbox.in_sandbox()
     codes: list[int] = []
     for node in sorted(nodes, key=lambda n: n.id):
-        result = runner(node, root)
+        if use_sandbox:
+            result = _from_dict(sandbox.run_sandboxed(root, node, tier_num))
+        else:
+            result = runner(node, root)
         _print_result(result, tier=tier_name, verbose=not args.all)
         if tier_num == 1:
             _print_blesser(root, node.id)

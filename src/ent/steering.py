@@ -180,7 +180,12 @@ def propose_from_outcome(root: Path, request_id: str, outcome: dict[str, Any]) -
     for rel, d in diffs.items():
         (Path(root) / rel).write_text(d.get("before", ""), encoding="utf-8")
 
+    # v6 1.3 — record the base content hash per touched file, so approve can
+    # detect the tree moving underneath the proposal (V6_VERIFICATION V0.1).
+    base_sha = {rel: _sha256_text(d.get("before", "")) for rel, d in diffs.items()}
+
     proposal = {
+        "baseSha256": base_sha,
         "id": request_id,
         "unit": unit,
         "status": "awaiting-approval",
@@ -215,13 +220,38 @@ def proposal_for(root: Path, request_id: str) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
+def _sha256_text(text: str) -> str:
+    import hashlib
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def approve(root: Path, request_id: str) -> dict[str, Any]:
-    """Apply a proposal's stored `after` to the working tree (stored-diff apply)."""
+    """Apply a proposal's stored `after` to the working tree (stored-diff apply).
+
+    Guarded (v6 1.3): every touched file is re-hashed against the base recorded
+    at proposal creation FIRST; any mismatch refuses the whole apply with zero
+    writes — a proposal built against a tree that has since moved is stale, and
+    silently overwriting the newer content would lose someone's work.
+    """
     prop = proposal_for(root, request_id)
     if prop is None:
         return {"error": f"no proposal '{request_id}'"}
+
+    files = prop.get("files", {}) or {}
+    base_sha = prop.get("baseSha256", {}) or {}
+    for rel in files:
+        recorded = base_sha.get(rel)
+        if recorded is None:
+            continue                       # pre-v6 proposal — no base to check
+        current = (Path(root) / rel).read_text(encoding="utf-8") \
+            if (Path(root) / rel).exists() else ""
+        if _sha256_text(current) != recorded:
+            return {"error": f"proposal stale: {rel} changed since the proposal "
+                             "was created — re-steer against the current tree",
+                    "stale": rel}
+
     applied = []
-    for rel, d in (prop.get("files", {}) or {}).items():
+    for rel, d in files.items():
         (Path(root) / rel).write_text(d.get("after", ""), encoding="utf-8")
         applied.append(rel)
     (_proposals_dir(root) / f"{request_id}.json").unlink(missing_ok=True)

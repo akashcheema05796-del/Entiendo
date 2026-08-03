@@ -8,7 +8,7 @@ they're reconciled.
 - **Version:** `0.1.0` (pre-release)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **328 passing** (~5s).
+- **Tests:** `python -m pytest -q` → **343 passing** (~8s).
 
 **PLAN_v6 (trust hardening) — in progress:** Phase 0 verification ✅
 (`docs/V6_VERIFICATION.md` — all 13 audit questions answered with file:line
@@ -17,7 +17,7 @@ evidence; task 3.3 overlapping-claims CLOSED as already enforced at
 bootstrap-CI verdicts (1.2), proposal base-hash guard (1.3), single claims
 authority (1.4), claims hook (2.1), tier1 health lens (2.2), append durability
 (3.1), ent ci tier1 (3.2), queue atomicity/CSRF (3.4), live reload (4.2), polish
-(5.x). Phases 1-5 next.
+(5.x). Phase 1 ✅ — sandboxed eval runner (timeout + rlimits, TIER0_TIMEOUT), paired-bootstrap tier1 verdicts (CI bounds + n + MDE; threshold-legacy fallback), base-hash guard on proposal approve (stale → zero writes), and the single claims authority `claims.py` (realpath + containment) routed through all write paths. Phases 2-5 next.
 
 **PLAN_v5 (close the loop) — in progress:** V0 audit ✅ (`PLAN_v5_AUDIT.md`);
 V1 edge verification ✅ — edges flip declared→verified from recorded runtime spans
