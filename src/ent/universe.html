@@ -307,7 +307,7 @@ function unitItem(n){
     health:n.health, healthColour:n.healthColour, owner:n.owner, approvalRequired:n.approvalRequired,
     task:n.task, description:n.description, invariants:n.invariants||[], claims:n.claims||[],
     sideEffects:n.sideEffects, version:n.version||{}, interior:n.interior,
-    budgets:n.budgets||{}, trajectoryVerdict:n.trajectoryVerdict,
+    budgets:n.budgets||{}, trajectoryVerdict:n.trajectoryVerdict, tier1:n.tier1||null, blessing:n.blessing||null,
     traffic:(view.traffic||{})[n.id]||0, timeline:(view.timelines||{})[n.id]||[] };
 }
 const RANK={GREEN:0,IMPROVED:0,WITHIN_BAND:1,UNTESTED:2,DEGRADED:3,UNSTABLE:3,AMBER:3,ERROR:4,REGRESSED:5,RED:6};
@@ -442,6 +442,19 @@ function drawUnit(u){
         ctx.textAlign='center'; ctx.fillText(tl.name, sx, sy-6); }
     });
   }
+
+  // v6 2.2 — tier1 significance ring (health lens): red = REGRESSED (CI < 0),
+  // amber = DEGRADED, amber pulse = UNSTABLE (underpowered). tier0 RED wins the
+  // orb colour; WITHIN_BAND stays calm (no ring — that's the point).
+  if (lens==='health' && u.tier1 && u.health!=='RED'){
+    const sv=u.tier1.statVerdict; let ringCol=null, pulse=false;
+    if (sv==='REGRESSED') ringCol=cvar('--signal-red');
+    else if (sv==='DEGRADED') ringCol=cvar('--signal-amber');
+    else if (sv==='UNSTABLE'){ ringCol=cvar('--signal-amber'); pulse=true; }
+    if (ringCol){ ctx.save(); ctx.strokeStyle=ringCol;
+      ctx.globalAlpha = pulse && !RM ? (Math.sin(t*0.12)*0.35+0.55) : (dim?0.16:0.9);
+      ctx.lineWidth=2.2; ctx.beginPath(); ctx.arc(u.x,u.y,u.r+5.5,0,Math.PI*2);
+      ctx.stroke(); ctx.restore(); } }
 
   if (u.approvalRequired){ const waiting=pendingApproval.has(u.id);
     ctx.save(); ctx.strokeStyle=cvar('--annotation');
@@ -735,7 +748,8 @@ function drawLegend(){
   const el=document.getElementById('legend');
   if (lens==='health'){ el.innerHTML='<b>Health</b>'+[['green','GREEN'],['amber','degraded / over-budget'],['red','RED'],['grey','untested']]
       .map(([c,l])=>`<div class="row"><span class="g" style="background:${cvar('--'+c)}"></span>${l}</div>`).join('')
-      + '<div class="row">thin arc = spend/latency vs budget</div>'; }
+      + '<div class="row">thin arc = spend/latency vs budget</div>'
+      + '<div class="row">ring = golden verdict — red only on statistically meaningful movement</div>'; }
   else if (lens==='flow'){ el.innerHTML='<b>Flow</b><div class="row"><span class="g" style="background:var(--annotation)"></span>verified · bright/fast · thicker = more traffic</div>'
       + '<div class="row"><span class="g" style="background:var(--muted)"></span>declared · dim/dashed</div>'; }
   else if (lens==='blast'){ el.innerHTML='<b>Blast radius</b><div class="row">select a unit → its downstream dependents tint amber</div>'; }
@@ -773,7 +787,8 @@ function openDossier(u){
     ${u.description?`<div class="sect"><h3>What it does</h3><div class="describe">${esc(u.description)}</div></div>`:''}
     <div class="sect"><h3>Task</h3><div class="task">${esc(u.task||'—')}</div></div>
     <div class="sect"><h3>Verdict</h3><span id="verdict" class="verdict" style="background:${hcol}">${esc(u.health)}</span>
-      ${u.blessing&&u.blessing.blessedBy?`<span class="pill" title="golden baseline blessed by a human">blessed · ${esc(u.blessing.blessedBy)}${u.blessing.blessedAt?' · '+esc(u.blessing.blessedAt):''}</span>`:''}</div>
+      ${u.blessing&&u.blessing.blessedBy?`<span class="pill" title="golden baseline blessed by a human">blessed · ${esc(u.blessing.blessedBy)}${u.blessing.blessedAt?' · '+esc(u.blessing.blessedAt):''}</span>`:''}
+      ${u.tier1?`<div class="edge">golden: <b>${esc(u.tier1.statVerdict)}</b>${u.tier1.ciLow!=null?` · CI95[${esc(u.tier1.ciLow)}, ${esc(u.tier1.ciHigh)}] · n=${esc(u.tier1.nRows)}`:''}${u.tier1.verdictMethod==='threshold-legacy'?' <span class="pill">threshold-legacy</span>':''}</div>`:''}</div>
     ${interiorSection(u)}
     <div class="sect"><h3>Contract</h3>
       ${(u.invariants&&u.invariants.length)? u.invariants.map(i=>`<div class="inv">${esc(i)}</div>`).join('')

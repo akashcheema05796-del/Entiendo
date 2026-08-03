@@ -37,6 +37,7 @@ def build_view(root: Path) -> dict[str, Any]:
         for hop in trace.get("hops", []):
             traffic[hop["node"]] = traffic.get(hop["node"], 0) + 1
     measured = _measured_budgets(trace_events)
+    tier1_latest = _tier1_latest(root)
 
     by_id = {n.id: n for n in nodes}
     node_views = []
@@ -63,6 +64,8 @@ def build_view(root: Path) -> dict[str, Any]:
             "trajectoryVerdict": _trajectory_verdict(result0),
             # who blessed this unit's golden baseline (V3) — the human gate, visible
             "blessing": _blessing(root, gnode["id"]),
+            # latest tier1 statistical verdict + CI (v6 2.2) — significance on the map
+            "tier1": tier1_latest.get(gnode["id"]),
         }
         interior = raw.get("interior")
         if interior:                         # agentic units only (audit finding 1)
@@ -91,6 +94,40 @@ def build_view(root: Path) -> dict[str, Any]:
         "traffic": traffic,
         "commits": commits,          # the Timeline scrubber's axis (H3)
     }
+
+
+def _tier1_latest(root: Path) -> dict[str, dict[str, Any]]:
+    """Latest tier1 stat verdict per unit from evals.jsonl (v6 2.2).
+
+    The health lens blends this with tier0: red only on statistically meaningful
+    movement — WITHIN_BAND is a first-class calm state, UNSTABLE means
+    underpowered, not broken.
+    """
+    import json as _json
+
+    path = Path(root) / "entiendo" / "history" / "evals.jsonl"
+    if not path.exists():
+        return {}
+    latest: dict[str, dict[str, Any]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = _json.loads(line)
+        except ValueError:
+            continue
+        if row.get("tier") != 1 or not row.get("nodeId"):
+            continue
+        latest[row["nodeId"]] = {
+            "statVerdict": row.get("verdict"),
+            "ciLow": row.get("ciLow"), "ciHigh": row.get("ciHigh"),
+            "nRows": row.get("nRows"), "mean": row.get("mean"),
+            "baseline": row.get("baseline"),
+            "verdictMethod": row.get("verdictMethod"),
+            "blessed": row.get("blessed"), "ts": row.get("ts"),
+        }
+    return latest
 
 
 def _blessing(root: Path, node_id: str) -> dict[str, Any] | None:

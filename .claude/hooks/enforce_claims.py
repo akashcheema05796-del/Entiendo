@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""PreToolUse hook — deterministic enforcement of Invariant 8 (PLAN_v6 2.1).
+
+"Edit through the unit" was a convention the agent was asked to follow; this
+makes it mechanical. On every Edit/Write/MultiEdit, the hook resolves the target
+file against the managed repo's `entiendo/graph.json` claims (via the single
+claims authority, `ent.claims` — not a reimplementation) and DENIES:
+
+  - a file no unit claims (unclaimed — the map doesn't know it), and
+  - while a steer is active, a file owned by a unit other than the steered one.
+
+With no active steer, claimed files are allowed (any unit) and only unclaimed
+files are denied. The steered unit is the Bridge queue's active item:
+claimed-but-unresolved first, else the oldest pending request.
+
+Fail-open by design outside managed repos: no `entiendo/graph.json` above the
+target → allow (this hook governs operator sessions inside managed trees; it
+must never brick an ordinary repo). Plane-owned paths are always allowed:
+manifests (`entiendo.node.yaml`), the `entiendo/` artifact tree, and `evals/`
+fixtures — those are the control plane's files, not unit interiors, and their
+changes are reviewed by humans in PRs. `ENT_HOOK_DISABLE=1` bypasses entirely.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+
+def _allow() -> None:
+    print(json.dumps({}))
+    sys.exit(0)
+
+
+def _deny(reason: str) -> None:
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }))
+    sys.exit(0)
+
+
+def _managed_root(start: Path) -> Path | None:
+    """Nearest ancestor holding entiendo/graph.json — the managed repo root."""
+    cur = start if start.is_dir() else start.parent
+    for candidate in [cur, *cur.parents]:
+        if (candidate / "entiendo" / "graph.json").exists():
+            return candidate
+    return None
+
+
+def _steered_unit(root: Path) -> str | None:
+    """The Bridge's active steer: claimed-but-unresolved first, else oldest pending."""
+    queue = root / "entiendo" / "steering" / "queue.jsonl"
+    if not queue.exists():
+        return None
+    claimed_dir = root / "entiendo" / "steering" / "claimed"
+    results_dir = root / "entiendo" / "steering" / "results"
+    pending: list[dict] = []
+    for line in queue.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+        except ValueError:
+            continue
+        rid = req.get("id", "")
+        resolved = (results_dir / f"{rid}.json").exists()
+        if resolved:
+            continue
+        if (claimed_dir / rid).exists():
+            return req.get("unit")            # actively being worked — wins
+        pending.append(req)
+    return pending[0].get("unit") if pending else None
+
+
+def main() -> None:
+    if os.environ.get("ENT_HOOK_DISABLE") == "1":
+        _allow()
+
+    try:
+        payload = json.load(sys.stdin)
+    except ValueError:
+        _allow()                              # malformed input — never brick the session
+
+    file_path = (payload.get("tool_input") or {}).get("file_path") or ""
+    if not file_path:
+        _allow()
+
+    target = Path(file_path)
+    if not target.is_absolute():
+        target = Path(payload.get("cwd") or os.getcwd()) / target
+
+    root = _managed_root(target)
+    if root is None:
+        _allow()                              # not a managed repo — fail open
+
+    # plane-owned paths: manifests, the entiendo/ tree, eval fixtures
+    try:
+        rel = Path(os.path.realpath(target)).relative_to(Path(os.path.realpath(root)))
+    except ValueError:
+        _allow()
+    rel_posix = rel.as_posix()
+    if target.name == "entiendo.node.yaml" or rel_posix.startswith(("entiendo/", "evals/")):
+        _allow()
+
+    try:
+        from ent import claims as claims_mod   # the single authority (v6 1.4)
+        graph = json.loads((root / "entiendo" / "graph.json").read_text(encoding="utf-8"))
+    except Exception:
+        _allow()                              # no ent install / unreadable graph — fail open
+
+    nodes = [SimpleNamespace(id=n.get("id", "?"), claims=n.get("claims", []) or [])
+             for n in graph.get("nodes", [])]
+    owner = None
+    for node in nodes:
+        if claims_mod.is_within_claims(root, node, target):
+            owner = node.id
+            break
+
+    steered = _steered_unit(root)
+
+    if owner is None:
+        _deny(f"{rel_posix} is UNCLAIMED — no unit owns it, so the map cannot "
+              "account for this edit. Fix: add it to a unit's `claims` in that "
+              "unit's entiendo.node.yaml and re-run `ent extract` (a boundary "
+              "change needing human sign-off), or edit through an owning unit.")
+    if steered is not None and owner != steered:
+        _deny(f"{rel_posix} belongs to unit '{owner}', but the active steer is "
+              f"for '{steered}'. Edit through the steered unit only — finish or "
+              f"post_verdict the current steer, or steer '{owner}' first.")
+    _allow()
+
+
+if __name__ == "__main__":
+    main()
