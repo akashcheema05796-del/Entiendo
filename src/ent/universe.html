@@ -772,7 +772,8 @@ function openDossier(u){
 
     ${u.description?`<div class="sect"><h3>What it does</h3><div class="describe">${esc(u.description)}</div></div>`:''}
     <div class="sect"><h3>Task</h3><div class="task">${esc(u.task||'—')}</div></div>
-    <div class="sect"><h3>Verdict</h3><span id="verdict" class="verdict" style="background:${hcol}">${esc(u.health)}</span></div>
+    <div class="sect"><h3>Verdict</h3><span id="verdict" class="verdict" style="background:${hcol}">${esc(u.health)}</span>
+      ${u.blessing&&u.blessing.blessedBy?`<span class="pill" title="golden baseline blessed by a human">blessed · ${esc(u.blessing.blessedBy)}${u.blessing.blessedAt?' · '+esc(u.blessing.blessedAt):''}</span>`:''}</div>
     ${interiorSection(u)}
     <div class="sect"><h3>Contract</h3>
       ${(u.invariants&&u.invariants.length)? u.invariants.map(i=>`<div class="inv">${esc(i)}</div>`).join('')

@@ -69,6 +69,8 @@ def _run(args: argparse.Namespace) -> int:
     for node in sorted(nodes, key=lambda n: n.id):
         result = runner(node, root)
         _print_result(result, tier=tier_name, verbose=not args.all)
+        if tier_num == 1:
+            _print_blesser(root, node.id)
         code = 0 if result.advisory else verdicts.exit_code(result.verdict)
         codes.append(code)
 
@@ -77,6 +79,14 @@ def _run(args: argparse.Namespace) -> int:
         if c in codes:
             return c
     return 0
+
+
+def _print_blesser(root: Path, node_id: str) -> None:
+    """Show who blessed the current baseline, so the human gate is visible (V3)."""
+    from .. import baselines
+    rec = baselines.read_bless(root, node_id)
+    if rec and rec.get("blessedBy"):
+        print(f"    baseline blessed by {rec['blessedBy']} on {rec.get('blessedAt', '?')}")
 
 
 def _print_result(result, *, tier: str, verbose: bool) -> None:
