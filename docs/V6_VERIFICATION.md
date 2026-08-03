@@ -116,3 +116,40 @@ problem; the Verdict column states the task disposition explicitly.)
   (dashed); documented in `docs/multi-language.md` ("absence of an edge is not
   proof of no dependency").
 - Tests: `tests/test_v6_phase3.py` (16). Suite 352 → **368**.
+
+### Phase 4 — ent dev, plugin, the brain's golden ✅
+- **4.1 CLOSED** — `tests/frontend/frontend_universe.py`: 11 Playwright tests
+  driving the REAL `ent serve --watch` stack in Chromium (proven green locally
+  against the pinned `/opt/pw-browsers/chromium`, 7.5s): page + summary, all
+  six lenses change the legend, unit dossier (click + keyboard), trace playback
+  advances, timeline scrub, steer round-trip landing on the file queue
+  (CSRF-protected POST end-to-end), POST-without-token → 403, seeded proposal
+  approved through the dossier and applied to disk, broken manifest → auto
+  reload + last-good view + drift banner, empty repo invites `ent init`. NOT
+  collected by default pytest (no `test_` file prefix); optional
+  `frontend` CI job gates on browser presence and never blocks.
+- **4.2 CLOSED** — `server.watched_paths` (manifests + claimed files +
+  `entiendo/history/*.jsonl`) polled every 500ms by a daemon watcher;
+  `/api/version` is a bounded long-poll the page re-arms and
+  `location.reload()`s on change; `resilient_graph` serves the LAST GOOD view
+  with a `drift` flag when extract fails mid-edit (banner in the page);
+  `ent dev` = `serve --watch`; the HTTP server is now ThreadingHTTPServer so
+  long-polls can't starve requests (still 127.0.0.1-only + CSRF).
+- **4.3 CLOSED** — `.claude-plugin/plugin.json` (MCP server `ent mcp`, the
+  `entiendo-operator` skill, the `enforce_claims` PreToolUse hook) +
+  `marketplace.json`; manifests validate + reference real files (tested).
+  `tool_post_verdict` gains `elicit`: an MCP client that supports elicitation
+  settles the approval-gated proposal in-line (approve/reject applied
+  immediately); any failure — no ctx, old SDK, refusal, unrecognised answer —
+  falls back to the web surface with the proposal still awaiting
+  (mock-client tests for all four paths).
+- **4.4 CLOSED** — `evals/refundly.decide/golden_v3.jsonl` (10 rows): 8 the
+  agent gets right (phrasing/whitespace/substring-"order" variants) + 2 that
+  encode IDEAL behaviour it gets wrong (unknown order refunded $0 instead of
+  denied; capitalised "Order" fails to parse) → baseline 0.80, a
+  discriminating benchmark. decide needs no dep stubs (self-contained local
+  stand-ins), so run_tier1 executes it directly. Multi-row injected regression
+  → REGRESSED via paired-bootstrap. `humanBlessed: false` and no bless record
+  — **the dataset stays unblessed for Mehar**.
+- Tests: `tests/test_v6_phase4.py` (13) + `tests/frontend/` (11, optional).
+  Suite 368 → **381**.

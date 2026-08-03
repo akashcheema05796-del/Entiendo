@@ -173,6 +173,8 @@
 <div id="timebar"></div>
 <div id="hint">scroll / pinch = zoom · drag field = pan · / = search · tab = cycle · ? nav</div>
 <div id="snapshot-note">Static snapshot. Run <code>ent serve</code> to steer, re-eval, and revert live.</div>
+<div id="drift-banner" style="display:none; position:fixed; left:50%; transform:translateX(-50%); top:12px; z-index:9;
+  background:rgba(180,120,30,.92); color:#1a1610; font-size:12px; padding:6px 14px; border-radius:6px;"></div>
 <div id="empty"><div><h1>An empty Universe</h1><p>No units are declared yet. Run <code>ent init</code> and <code>ent new</code> to bring the first unit under the plane, then <code>ent render</code>.</p></div></div>
 
 <aside id="dossier"><button class="close" title="close (esc)" onclick="closeDossier()">×</button><div id="dossier-body"></div></aside>
@@ -243,10 +245,31 @@ async function api(method, path, body){
   return { status:r.status, data: await r.json() };
 }
 
+// v6 4.2 — live reload: bounded long-poll of /api/version; a changed token
+// means the tree moved (manifest/claimed file/history) → reload the page.
+// `ent serve` without --watch has no watcher → first non-200 stops politely.
+async function watchVersion(){
+  let since = null;
+  for(;;){
+    try{
+      const r = await fetch('/api/version'+(since===null?'':'?since='+since));
+      if (r.status !== 200) return;
+      const {version} = await r.json();
+      if (since !== null && String(version) !== String(since)){ location.reload(); return; }
+      since = version;
+    }catch(e){ await new Promise(res=>setTimeout(res, 2000)); }
+  }
+}
+
 async function boot(){
   resize();
   view = STATIC ? EMBEDDED : (await api('GET','/api/graph')).data;
   document.getElementById('snapshot-note').style.display = STATIC ? 'block' : 'none';
+  // v6 4.2 — a broken tree serves the last good view + this banner
+  const drift = document.getElementById('drift-banner');
+  if (view.drift){ drift.textContent = '⚠ live view is stale — extract failed: ' + view.drift;
+    drift.style.display = 'block'; } else { drift.style.display = 'none'; }
+  if (!STATIC) watchVersion();
   if (!view.nodes.length){ document.getElementById('empty').style.display='grid'; return; }
   const c = view.coverage||{};
   document.getElementById('summary').textContent =

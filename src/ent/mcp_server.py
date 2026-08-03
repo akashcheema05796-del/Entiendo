@@ -205,16 +205,39 @@ def tool_await_steering(root: Path, timeout_s: float = 25.0) -> dict[str, Any]:
 
 
 def tool_post_verdict(root: Path, request_id: str, outcome: Any,
-                      *, proposal: bool = False) -> dict[str, Any]:
+                      *, proposal: bool = False,
+                      elicit: Any | None = None) -> dict[str, Any]:
     """Write the result of a steering request back to the Universe (its dossier
     flips from 'queued' to this verdict). `outcome` is typically the `apply_edit`
     result (verdict, blast radius, approval status) or a short status string.
 
     With `proposal=True` (for a unit whose `approval.required` is set), the edit is
     routed into a PROPOSAL instead of applied: the diff is captured, the working
-    tree reverts to `before`, and the operator approves/rejects in the Universe."""
+    tree reverts to `before`, and the operator approves/rejects in the Universe.
+
+    `elicit` (v6 4.3, optional): a callable `(message) -> "approve"|"reject"|other`
+    wired from MCP elicitation when the client supports it — the human can settle
+    the proposal in-line. Any other answer, an exception, or no callable at all
+    falls back gracefully to the web surface (the proposal stays awaiting)."""
     if proposal and isinstance(outcome, dict):
-        return steering.propose_from_outcome(root, request_id, outcome)
+        prop = steering.propose_from_outcome(root, request_id, outcome)
+        if prop.get("duplicate"):
+            return prop
+        if elicit is not None:
+            unit = prop.get("unit") or "the unit"
+            try:
+                answer = elicit(
+                    f"'{unit}' is approval-gated. Proposal {request_id} is awaiting "
+                    "approval — approve or reject it now, or leave it for the Universe?")
+            except Exception:
+                answer = None                    # client can't elicit → web fallback
+            if answer == "approve":
+                return {**prop, "status": "approved",
+                        "approval": steering.approve(root, request_id)}
+            if answer == "reject":
+                return {**prop, "status": "rejected",
+                        "approval": steering.reject(root, request_id)}
+        return prop
     return steering.post_verdict(root, request_id, outcome)
 
 
@@ -293,7 +316,8 @@ def serve_mcp(root: Path) -> None:  # pragma: no cover — transport glue only
         return json.dumps(tool_await_steering(root, timeout_s))
 
     @app.tool()
-    def post_verdict(request_id: str, outcome: str, proposal: bool = False) -> str:
+    async def post_verdict(request_id: str, outcome: str, proposal: bool = False,
+                           ctx=None) -> str:
         """Report a steering request's result back to the Universe (its dossier flips
         from 'queued' to this verdict). Pass the `apply_edit` outcome JSON or a short
         status. Set proposal=True when the unit's `approval.required` is set (or the
@@ -303,6 +327,23 @@ def serve_mcp(root: Path) -> None:  # pragma: no cover — transport glue only
             parsed = json.loads(outcome)
         except (json.JSONDecodeError, TypeError):
             parsed = outcome
-        return json.dumps(tool_post_verdict(root, request_id, parsed, proposal=proposal))
+        # v6 4.3 — elicitation: if the MCP client supports it, ask the human to
+        # settle the approval-gated proposal in-line; ANY failure (no ctx, old
+        # SDK, client refusal) falls back to the web surface untouched.
+        answer: str | None = None
+        if proposal and ctx is not None and hasattr(ctx, "elicit"):
+            try:
+                res = await ctx.elicit(
+                    message=f"Steer {request_id} is approval-gated. Approve it now? "
+                            "(approve / reject / leave for the Universe)")
+                text = getattr(res, "value", None) or getattr(res, "content", None) or res
+                answer = str(text).strip().lower()
+                if answer not in ("approve", "reject"):
+                    answer = None
+            except Exception:
+                answer = None
+        elicit = (lambda _msg, _a=answer: _a) if answer else None
+        return json.dumps(tool_post_verdict(root, request_id, parsed,
+                                            proposal=proposal, elicit=elicit))
 
     app.run()  # stdio transport — what Claude Code expects for local servers

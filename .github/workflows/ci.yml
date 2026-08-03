@@ -50,3 +50,33 @@ jobs:
       - name: ent ci (single gate, severity exit codes)
         working-directory: examples/refundly
         run: ent ci
+
+  # v6 4.1 — OPTIONAL browser suite. Gated on a Chromium being present (a
+  # pinned /opt/pw-browsers/chromium or a resolvable Playwright install);
+  # absent → the step reports the skip and the job stays green. Run locally:
+  #   pytest tests/frontend/frontend_universe.py -q
+  frontend:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -e ".[dev]" playwright
+      - name: Frontend suite (if a browser is present)
+        run: |
+          if [ -x "/opt/pw-browsers/chromium" ] || \
+             python -c "from playwright.sync_api import sync_playwright" 2>/dev/null \
+             && python - 2>/dev/null <<'EOF'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              p.chromium.launch().close()
+          EOF
+          then
+            pytest tests/frontend/frontend_universe.py -q
+          else
+            echo "No Chromium available — frontend suite skipped."
+          fi
