@@ -10,6 +10,15 @@ they're reconciled.
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
 - **Tests:** `python -m pytest -q` → **328 passing** (~5s).
 
+**PLAN_v6 (trust hardening) — in progress:** Phase 0 verification ✅
+(`docs/V6_VERIFICATION.md` — all 13 audit questions answered with file:line
+evidence; task 3.3 overlapping-claims CLOSED as already enforced at
+`extractor.py:100-112,346-354`). Confirmed-required: eval sandbox (1.1),
+bootstrap-CI verdicts (1.2), proposal base-hash guard (1.3), single claims
+authority (1.4), claims hook (2.1), tier1 health lens (2.2), append durability
+(3.1), ent ci tier1 (3.2), queue atomicity/CSRF (3.4), live reload (4.2), polish
+(5.x). Phases 1-5 next.
+
 **PLAN_v5 (close the loop) — in progress:** V0 audit ✅ (`PLAN_v5_AUDIT.md`);
 V1 edge verification ✅ — edges flip declared→verified from recorded runtime spans
 (`ent extract --with-spans`), with a `verificationSource`/`observationCount`
