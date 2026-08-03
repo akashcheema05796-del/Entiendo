@@ -88,6 +88,6 @@ def _otel_span(name: str, node_id: str) -> Iterator[None]:
     with tracer.start_as_current_span(name) as span:
         try:
             span.set_attribute(NODE_ID_ATTR, node_id)
-        except Exception:
-            pass
+        except (TypeError, ValueError):     # v6 5.6 — only attribute-contract
+            pass                            # errors; anything else surfaces
         yield

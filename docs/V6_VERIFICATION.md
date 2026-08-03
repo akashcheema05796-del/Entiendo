@@ -153,3 +153,40 @@ problem; the Verdict column states the task disposition explicitly.)
   — **the dataset stays unblessed for Mehar**.
 - Tests: `tests/test_v6_phase4.py` (13) + `tests/frontend/` (11, optional).
   Suite 368 → **381**.
+
+### Phase 5 — polish with teeth ✅
+- **5.1 CLOSED** — `version._strip_secrets`: config lines whose key matches the
+  secret regex (api_key/secret/token/password/credential) contribute the KEY
+  but never the VALUE to the config hash — a rotated secret is not a behaviour
+  change and secret material never reaches a committed artifact (Invariant 6).
+  SPEC §5.4 notes the rule.
+- **5.2/5.3 CLOSED** — `version._normalise`: CRLF→LF for prompt and config
+  buckets before hashing; binary content that doesn't decode is hashed as-is.
+  Nodes that carried CRLF recompute once — recorded as one ordinary version
+  event (the honest record of the rule change; noted in SPEC §5.4).
+- **5.4 CLOSED** — `_measured_budgets` gains `p95Basis`: `"p95"` at n≥20,
+  `"max of N"` below — the dossier renders the label instead of dressing a max
+  up as a percentile.
+- **5.5 CLOSED** — `test_no_env_var_bypass_exists` rewritten behaviourally:
+  every plausible escape-hatch env var set (ENT_ALLOW_NONINTERACTIVE, CI=true,
+  FORCE, YES, …) → non-TTY bless still exits 3 and writes nothing. The old
+  source-string grep proved the absence of a spelling; this proves the absence
+  of the behaviour.
+- **5.6 CLOSED** — `history._composites_for` failures now warn on stderr with
+  node + error (still degrade to None: observation must not break the traced
+  call, Invariant 2); `tracing._otel_span` narrows to (TypeError, ValueError);
+  `extractor._composite_of` narrows to (OSError, ValueError, KeyError,
+  TypeError) — other bugs raise.
+- **5.7 CLOSED** — particle density drops to 1/edge past 100 visible units;
+  particles outside the viewport (with margin) are skipped in the draw loop.
+- **5.9 MOOTED by 4.2** — `build_view`/`serve`/`render` always run a fresh
+  `extract()` (they never read the committed graph.json), and `ent dev`
+  live-reloads on tree changes, so the render surface cannot show a stale
+  graph. The residual — a stale *committed* graph.json artifact — is exactly
+  what `ent extract --check` in CI catches. No separate warning needed.
+- **5.10 CLOSED** — a blessing record whose `blessedBy` is a legacy
+  "unknown"/"none"/empty renders as an amber "unverified historical blessing"
+  pill (with the V3 context in its tooltip), not as a trusted blessing.
+- Tests: `tests/test_v6_phase5.py` (8) + the behavioural bless rewrite.
+  Suite 381 → **389**. **PLAN_v6 complete — the two human items remain:
+  Mehar blesses the goldens; Mehar records the live H5 session.**

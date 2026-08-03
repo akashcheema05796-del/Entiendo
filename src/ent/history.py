@@ -245,7 +245,12 @@ def capture_trace(
 
 
 def _composites_for(root: Path, node_ids: set[str]) -> dict[str, str | None]:
-    """Composite version of each node at capture time (best-effort, never raises)."""
+    """Composite version of each node at capture time (best-effort, never raises).
+
+    Observation must not break the traced call (Invariant 2), so failures here
+    degrade to None — but never silently (v6 5.6): each one is named on stderr,
+    because a trace whose composites are quietly missing lies to the reconciler.
+    """
     out: dict[str, str | None] = {}
     try:
         from .manifest import find_node
@@ -256,6 +261,10 @@ def _composites_for(root: Path, node_ids: set[str]) -> dict[str, str | None]:
         try:
             node = find_node(root, nid)
             out[nid] = compute_version(node, root)["composite"] if node else None
-        except Exception:
+        except Exception as exc:
+            import sys
+            print(f"ent: warning — could not compute composite for '{nid}' "
+                  f"during trace capture: {type(exc).__name__}: {exc}",
+                  file=sys.stderr)
             out[nid] = None
     return out

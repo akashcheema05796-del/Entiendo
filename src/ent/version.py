@@ -14,12 +14,24 @@ Because the version is composite, a single node can be pinned and reverted
 without touching anything else, and the `composite` is what the timeline scrubs
 through. Hashing is deterministic (sorted inputs, content only) so the same tree
 always yields the same version.
+
+Two hashing rules keep the composite honest (v6 5.1–5.3):
+
+  - **Secrets never enter the hash.** Config lines whose key matches the secret
+    regex (api_key / secret / token / password / credential) contribute the KEY
+    but not the VALUE — a rotated secret is not a behaviour change, and secret
+    material must never be folded into an artifact that gets committed.
+  - **Line endings are normalised** (CRLF → LF) for prompt and config buckets,
+    so a checkout on Windows doesn't mint a phantom new version. Nodes whose
+    files carried CRLF will recompute once — the timeline shows that as one
+    ordinary version event, which is the honest record of the rule change.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +45,33 @@ _PROMPT_EXT = {".md", ".txt", ".prompt", ".jinja", ".j2"}
 _CONFIG_EXT = {".yaml", ".yml", ".json", ".toml", ".ini", ".cfg", ".env"}
 
 _SHORT = 12
+
+# v6 5.1 — config keys whose VALUES are secrets: the key still contributes to
+# the hash (renaming it is a change) but the value is replaced with a marker.
+_SECRET_KEY = re.compile(
+    r"^(\s*[\"']?[A-Za-z0-9_.-]*(?:api[-_]?key|secret|token|password|passwd|credential)"
+    r"[A-Za-z0-9_.-]*[\"']?\s*[:=])(.*)$", re.IGNORECASE)
+
+
+def _strip_secrets(text: str) -> str:
+    return "\n".join(
+        m.group(1) + " <secret>" if (m := _SECRET_KEY.match(line)) else line
+        for line in text.split("\n"))
+
+
+def _normalise(data: bytes, *, secrets: bool) -> bytes:
+    """CRLF→LF (5.2/5.3), and secret-value exclusion for config (5.1).
+
+    Binary-ish content that doesn't decode is hashed as-is.
+    """
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data
+    text = text.replace("\r\n", "\n")
+    if secrets:
+        text = _strip_secrets(text)
+    return text.encode("utf-8")
 
 
 def _bucket(suffix: str) -> str | None:
@@ -69,7 +108,10 @@ def compute_version(node: Node, root: Path) -> dict[str, Any]:
         if bucket is None:
             # Uncategorised claimed files still affect behaviour — fold into code.
             bucket = "code"
-        buckets[bucket].append(path.read_bytes())
+        data = path.read_bytes()
+        if bucket in ("prompt", "config"):
+            data = _normalise(data, secrets=(bucket == "config"))
+        buckets[bucket].append(data)
 
     version: dict[str, Any] = {
         "code": _hash_bytes(buckets["code"]),

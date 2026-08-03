@@ -92,6 +92,18 @@ def test_bless_from_non_tty_fails() -> None:
 
 
 def test_no_env_var_bypass_exists() -> None:
-    # guard against a future regression that reintroduces an escape hatch
-    src = (REPO_ROOT / "src" / "ent" / "commands" / "bless.py").read_text()
-    assert "ALLOW_NONINTERACTIVE" not in src and "getenv" not in src and "environ" not in src
+    """Behavioural (v6 5.5): even with every plausible escape-hatch env var set,
+    a non-TTY bless is still refused. A source-string grep only proved the
+    absence of a spelling; this proves the absence of the behaviour."""
+    import os
+    env = {**os.environ,
+           "ENT_ALLOW_NONINTERACTIVE": "1", "ENT_BLESS_OK": "1",
+           "ENT_NONINTERACTIVE": "1", "ALLOW_NONINTERACTIVE": "1",
+           "CI": "true", "FORCE": "1", "YES": "1"}
+    proc = subprocess.run(
+        ["ent", "bless", "refundly.parse_email", "--yes", "--root", str(REFUNDLY)],
+        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30, env=env)
+    assert proc.returncode == 3
+    assert "interactive session" in (proc.stdout + proc.stderr).lower()
+    # and nothing was written — the tree carries no new bless record
+    assert not (REFUNDLY / "entiendo/baselines/refundly.parse_email.bless.json").exists()
