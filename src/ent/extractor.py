@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -221,13 +222,18 @@ def _build_edges(
             extractor = languages.for_file(file)
             if extractor is None:
                 continue
+            # v6 3.5 — honesty about evidence grade: the TS extractor is a
+            # regex PoC, not a compiler-backed resolver, so its edges are
+            # tagged "ts-poc" (rendered declared-grade), never "import".
+            source = ("ts-poc" if getattr(extractor, "name", "") == "typescript"
+                      else "import")
             for imp in extractor.resolved_imports(file, root):
                 target_node = owner.get(_rel(imp.target, root))
                 if not target_node or target_node == node.id:
                     continue
                 e = edge(node.id, target_node)
                 e["verified"] = True
-                e["sources"].add("import")
+                e["sources"].add(source)
                 e["evidence"].append(f"{claim} imports {imp.detail}")
                 if not e["declared"]:
                     e["kinds"].add("calls")
@@ -305,6 +311,44 @@ def _build_edges(
 
 
 # --------------------------------------------------------------------------- #
+# blind spots (v6 3.5) — what static import analysis CANNOT see
+# --------------------------------------------------------------------------- #
+
+# Constructs the AST import walk is blind to: dynamic imports, string-keyed
+# dispatch, and out-of-process / network calls. A hit is a WARNING, never an
+# error — the point is honesty ("absence of an edge is not proof of no
+# dependency"), not a new gate.
+_DYNAMIC_DEP_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("importlib.import_module", re.compile(r"\bimportlib\.import_module\s*\(")),
+    ("__import__", re.compile(r"\b__import__\s*\(")),
+    ("getattr-dispatch", re.compile(r"\bgetattr\s*\([^)\n]*,\s*['\"]")),
+    ("subprocess", re.compile(r"\bsubprocess\b")),
+    ("requests", re.compile(r"\brequests\b")),
+    ("httpx", re.compile(r"\bhttpx\b")),
+    ("urllib", re.compile(r"\burllib\b")),
+)
+
+
+def _dynamic_dep_warnings(nodes: list[Node], root: Path) -> list[dict[str, str]]:
+    """Heuristic pass over claimed .py files for edges the extractor can't see."""
+    warnings: list[dict[str, str]] = []
+    for node in sorted(nodes, key=lambda n: n.id):
+        for claim in node.claims:
+            file = root / claim
+            if file.suffix != ".py" or not file.exists():
+                continue
+            try:
+                text = file.read_text(encoding="utf-8", errors="replace")
+            except OSError:                             # pragma: no cover - defensive
+                continue
+            for name, pattern in _DYNAMIC_DEP_PATTERNS:
+                if pattern.search(text):
+                    warnings.append({"node": node.id, "file": _norm(claim),
+                                     "pattern": name})
+    return warnings
+
+
+# --------------------------------------------------------------------------- #
 # top level
 # --------------------------------------------------------------------------- #
 
@@ -376,6 +420,9 @@ def extract(root: Path, *, spans: dict[tuple[str, str], Any] | None = None) -> E
         "doubleClaimed": doubles,
         "proposedEntrypoints": proposals,
         "unverifiedDeclaredEdges": unverified,
+        # v6 3.5 — constructs static analysis is blind to (dynamic imports,
+        # string dispatch, out-of-process calls). Warnings, never failures.
+        "possibleUndeclaredDynamicDep": _dynamic_dep_warnings(nodes, root),
     }
     return ExtractResult(graph=graph, coverage=coverage, errors=errors)
 

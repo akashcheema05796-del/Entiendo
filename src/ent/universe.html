@@ -234,7 +234,11 @@ let lens='structure', hover=null, selected=null, focusIdx=-1;
 let particles=[], t=0;
 
 async function api(method, path, body){
-  const r = await fetch(path, {method, headers:{'Content-Type':'application/json'},
+  // X-Ent-Csrf echoes the token `ent serve` embedded at render (v6 3.4);
+  // static `ent render` pages have no token (and no server to POST to).
+  const headers = {'Content-Type':'application/json'};
+  if (window.__entCsrf) headers['X-Ent-Csrf'] = window.__entCsrf;
+  const r = await fetch(path, {method, headers,
     body: body?JSON.stringify(body):undefined});
   return { status:r.status, data: await r.json() };
 }
@@ -287,7 +291,11 @@ function buildLayout(){
     const key=a+'->'+b;
     if (!emap[key]) emap[key]={from:a,to:b,kinds:new Set(),verified:false};
     (e.kinds||[]).forEach(k=>emap[key].kinds.add(k));
-    emap[key].verified = emap[key].verified || !!e.verified;
+    // v6 3.5 — the TS extractor is a regex PoC: an edge verified ONLY by it
+    // renders declared-grade (dashed), never solid. Real grades: import/span.
+    const src = e.verificationSource||[];
+    const solid = !!e.verified && !(src.length && src.every(s=>s==='ts-poc'));
+    emap[key].verified = emap[key].verified || solid;
   }
   edges = Object.values(emap).map(e=>({from:e.from,to:e.to,kinds:[...e.kinds],verified:e.verified}));
 
@@ -308,6 +316,7 @@ function unitItem(n){
     task:n.task, description:n.description, invariants:n.invariants||[], claims:n.claims||[],
     sideEffects:n.sideEffects, version:n.version||{}, interior:n.interior,
     budgets:n.budgets||{}, trajectoryVerdict:n.trajectoryVerdict, tier1:n.tier1||null, blessing:n.blessing||null,
+    blindSpots:n.blindSpots||[],
     traffic:(view.traffic||{})[n.id]||0, timeline:(view.timelines||{})[n.id]||[] };
 }
 const RANK={GREEN:0,IMPROVED:0,WITHIN_BAND:1,UNTESTED:2,DEGRADED:3,UNSTABLE:3,AMBER:3,ERROR:4,REGRESSED:5,RED:6};
@@ -788,7 +797,8 @@ function openDossier(u){
     <div class="sect"><h3>Task</h3><div class="task">${esc(u.task||'—')}</div></div>
     <div class="sect"><h3>Verdict</h3><span id="verdict" class="verdict" style="background:${hcol}">${esc(u.health)}</span>
       ${u.blessing&&u.blessing.blessedBy?`<span class="pill" title="golden baseline blessed by a human">blessed · ${esc(u.blessing.blessedBy)}${u.blessing.blessedAt?' · '+esc(u.blessing.blessedAt):''}</span>`:''}
-      ${u.tier1?`<div class="edge">golden: <b>${esc(u.tier1.statVerdict)}</b>${u.tier1.ciLow!=null?` · CI95[${esc(u.tier1.ciLow)}, ${esc(u.tier1.ciHigh)}] · n=${esc(u.tier1.nRows)}`:''}${u.tier1.verdictMethod==='threshold-legacy'?' <span class="pill">threshold-legacy</span>':''}</div>`:''}</div>
+      ${u.tier1?`<div class="edge">golden: <b>${esc(u.tier1.statVerdict)}</b>${u.tier1.ciLow!=null?` · CI95[${esc(u.tier1.ciLow)}, ${esc(u.tier1.ciHigh)}] · n=${esc(u.tier1.nRows)}`:''}${u.tier1.verdictMethod==='threshold-legacy'?' <span class="pill">threshold-legacy</span>':''}</div>`:''}
+      ${(u.blindSpots||[]).length?`<div class="edge" title="static analysis cannot see dynamic imports, string dispatch, or out-of-process calls — absence of an edge is not proof of no dependency">⚠ possible undeclared dynamic deps: ${u.blindSpots.map(w=>esc(w.file)+' ('+esc(w.pattern)+')').join(', ')}</div>`:''}</div>
     ${interiorSection(u)}
     <div class="sect"><h3>Contract</h3>
       ${(u.invariants&&u.invariants.length)? u.invariants.map(i=>`<div class="inv">${esc(i)}</div>`).join('')

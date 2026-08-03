@@ -21,6 +21,7 @@ the queryable index over them and over eval results.
 from __future__ import annotations
 
 import json
+import os
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -48,13 +49,59 @@ def read_events(root: Path) -> list[dict[str, Any]]:
 
 
 def _append(root: Path, event: dict[str, Any]) -> dict[str, Any]:
+    """Durable, locked append (v6 3.1).
+
+    The whole append — seq computation included — happens under an exclusive
+    file lock, and the line is flushed + fsync'd before the lock releases, so
+    concurrent writers can't interleave lines or duplicate `seq`, and a crash
+    mid-append can't leave the log half-written past a durable point. New events
+    carry a schema version `v: 1`; readers tolerate its absence on old events.
+    The file is only ever appended — never rewritten or truncated.
+    """
     path = _events_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    seq = len(read_events(root))
-    event = {"seq": seq, **event}
-    with path.open("a") as fh:
-        fh.write(json.dumps(event, sort_keys=True) + "\n")
+    with path.open("a", encoding="utf-8") as fh:
+        _lock(fh)
+        try:
+            seq = _line_count(path)
+            event = {"seq": seq, "v": 1, **event}
+            fh.write(json.dumps(event, sort_keys=True) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        finally:
+            _unlock(fh)
     return event
+
+
+def _line_count(path: Path) -> int:
+    if not path.exists():
+        return 0
+    with path.open("rb") as fh:
+        return sum(1 for line in fh if line.strip())
+
+
+def _lock(fh: Any) -> None:
+    try:
+        import fcntl
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+    except ImportError:                        # Windows
+        try:
+            import msvcrt
+            msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+        except (ImportError, OSError):
+            pass                               # no locking primitive — best effort
+
+
+def _unlock(fh: Any) -> None:
+    try:
+        import fcntl
+        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    except ImportError:
+        try:
+            import msvcrt
+            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+        except (ImportError, OSError):
+            pass
 
 
 def record(root: Path, event: dict[str, Any]) -> dict[str, Any]:

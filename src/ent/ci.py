@@ -8,6 +8,18 @@ to a single pass/fail — the thing you put in one CI step or a pre-commit hook.
 Pure `run_ci(root) -> CiResult` so it is tested without a subprocess; the CLI
 prints the stages and returns `exit_code`. `--soft` passes through to the
 reconcile stage (drift → warning) for a repo mid-migration.
+
+Exit codes follow the Phase 7 severity table (verdicts.EXIT_CODE), and the
+result is the MAX severity across stages (v6 3.2):
+
+    0  pass / within-band
+    1  RED / REGRESSED         (a check failed, a blessed golden regressed)
+    2  ERROR                   (harness failure, invalid manifest, drift)
+    4  UNSTABLE / DEGRADED     (too noisy to judge, or over budget)
+
+The tier1 stage gates on BLESSED goldens only — an unblessed or stale dataset
+is advisory and never blocks (§8: gating power comes from a human having looked
+at the rows, never from the AI's own data).
 """
 
 from __future__ import annotations
@@ -23,6 +35,15 @@ class Stage:
     ok: bool
     detail: str
     warnings: list[str] = field(default_factory=list)
+    # Explicit exit severity (verdicts.EXIT_CODE). None → derived: 0 if ok else 1,
+    # so pre-v6 stages keep their pass/fail behaviour unchanged.
+    severity: int | None = None
+
+    @property
+    def exit_severity(self) -> int:
+        if self.severity is not None:
+            return self.severity
+        return 0 if self.ok else 1
 
 
 @dataclass
@@ -35,11 +56,13 @@ class CiResult:
 
     @property
     def exit_code(self) -> int:
-        return 0 if self.ok else 1
+        # Max severity across stages — a REGRESSED golden (1) and an UNSTABLE
+        # one (4) exit 4; one flat pass/fail bit would hide the distinction.
+        return max((s.exit_severity for s in self.stages), default=0)
 
 
 def run_ci(root: Path, *, soft: bool = False, min_coverage: float | None = None) -> CiResult:
-    """Run validate → reconcile (→ coverage) → eval, collapsed to one pass/fail."""
+    """Run validate → reconcile (→ coverage) → eval → tier1, exit = max severity."""
     from .extractor import extract
 
     root = Path(root)
@@ -48,6 +71,7 @@ def run_ci(root: Path, *, soft: bool = False, min_coverage: float | None = None)
     if min_coverage is not None:
         stages.append(_coverage_stage(ext, min_coverage))
     stages.append(_eval_stage(root))
+    stages.append(_tier1_stage(root))
     return CiResult(stages=stages)
 
 
@@ -102,8 +126,50 @@ def _eval_stage(root: Path) -> Stage:
     summary = (f"{counts[verdicts.GREEN]} green, {counts[verdicts.UNTESTED]} untested, "
                f"{counts[verdicts.RED]} red, {counts[verdicts.ERROR]} error")
     if failing:
-        return Stage("eval", False, f"{summary} — {', '.join(failing)}")
+        severity = 2 if counts[verdicts.ERROR] else 1     # ERROR outranks RED (v6 3.2)
+        return Stage("eval", False, f"{summary} — {', '.join(failing)}", severity=severity)
     return Stage("eval", True, summary)
+
+
+def _tier1_stage(root: Path) -> Stage:
+    """Golden runs on BLESSED datasets only (v6 3.2).
+
+    An unblessed or content-drifted dataset never blocks — it is counted as
+    advisory and not even executed here (tier1 permits real I/O; CI spends that
+    only where a human has signed the rows). Severity per verdict comes from
+    verdicts.EXIT_CODE and the stage carries the max.
+    """
+    from . import baselines, verdicts
+    from .evals.runner import run_tier1
+    from .manifest import Node, discover, load
+
+    gated: list[str] = []
+    advisory = 0
+    severity = 0
+    for path in discover(root):
+        node = Node.from_manifest(load(path), path)
+        golden = next((e for e in node.raw.get("evals", {}).get("tier1", [])
+                       if e.get("type") == "golden"), None)
+        if golden is None:
+            continue
+        dataset = Path(root) / golden["dataset"] if golden.get("dataset") else None
+        blessed = (golden.get("humanBlessed") is True and dataset is not None
+                   and baselines.blessing_valid(root, node.id, dataset))
+        if not blessed:
+            advisory += 1
+            continue
+        verdict = run_tier1(node, root).verdict
+        severity = max(severity, verdicts.exit_code(verdict))
+        gated.append(f"{node.id}:{verdict}")
+
+    if not gated and not advisory:
+        return Stage("tier1", True, "no goldens configured")
+    parts = []
+    if gated:
+        parts.append(f"{len(gated)} blessed golden(s) — {', '.join(gated)}")
+    if advisory:
+        parts.append(f"{advisory} advisory (unblessed — never blocks)")
+    return Stage("tier1", severity == 0, "; ".join(parts), severity=severity)
 
 
 def summary_lines(result: CiResult) -> list[str]:
@@ -114,5 +180,6 @@ def summary_lines(result: CiResult) -> list[str]:
         for w in s.warnings:
             lines.append(f"      ⚠ {w}")
     lines.append("")
-    lines.append("✓ ent ci passed" if result.ok else "✗ ent ci failed")
+    code = result.exit_code
+    lines.append("✓ ent ci passed" if result.ok else f"✗ ent ci failed (exit {code})")
     return lines

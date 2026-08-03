@@ -114,6 +114,14 @@ def _run(args: argparse.Namespace) -> int:
         for f in cov["unaccounted"]:
             print(f"    ? {f}")
 
+    # v6 3.5 — blind-spot warnings: constructs static analysis cannot see.
+    # Advisory only; absence of an edge is not proof of no dependency.
+    blind = graph.get("possibleUndeclaredDynamicDep", [])
+    if blind:
+        print("\n  possible undeclared dynamic deps (static analysis is blind here):")
+        for w in blind:
+            print(f"    ? {w['node']}: {w['file']} uses {w['pattern']}")
+
     # V1: declared edges no span has confirmed yet (only when --with-spans ran).
     unverified = graph.get("unverifiedDeclaredEdges", [])
     if getattr(args, "with_spans", None) is not None and unverified:

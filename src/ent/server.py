@@ -165,11 +165,30 @@ def _revert(root: Path, node_id: str) -> tuple[int, dict]:
 # http server
 # --------------------------------------------------------------------------- #
 
+def check_csrf(header_value: str | None, token: str) -> bool:
+    """Handler-level CSRF check (v6 3.4) — pure so it is unit-tested without a
+    socket. POSTs must echo the per-process token minted at page render; a
+    cross-origin page can *send* a POST to 127.0.0.1 but cannot read the token
+    out of our HTML, so it can never pass this check."""
+    import hmac
+    return bool(header_value) and hmac.compare_digest(str(header_value), token)
+
+
+def inject_csrf(html: str, token: str) -> str:
+    """Embed the CSRF token in the page: a <meta> for inspection and
+    window.__entCsrf for the api() helper. Pure string transform (testable)."""
+    tag = (f'<meta name="ent-csrf" content="{token}">'
+           f"<script>window.__entCsrf={json.dumps(token)}</script>")
+    return html.replace("<head>", "<head>\n" + tag, 1)
+
+
 def serve(root: Path, port: int = 7373, *, client: Any | None = None) -> None:  # pragma: no cover
+    import secrets
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     root = Path(root).resolve()
-    app_html = build_app_html().encode()
+    csrf_token = secrets.token_hex(16)               # per-process, minted at start
+    app_html = inject_csrf(build_app_html(), csrf_token).encode()
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, payload: Any, content_type: str) -> None:
@@ -188,6 +207,11 @@ def serve(root: Path, port: int = 7373, *, client: Any | None = None) -> None:  
                 self._send(status, payload, "application/json")
 
         def do_POST(self) -> None:
+            # CSRF gate (v6 3.4) — enforced HERE so handle_api stays pure.
+            if not check_csrf(self.headers.get("X-Ent-Csrf"), csrf_token):
+                self._send(403, {"error": "missing or invalid X-Ent-Csrf token"},
+                           "application/json")
+                return
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length) if length else b""
             body = json.loads(raw) if raw else {}

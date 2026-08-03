@@ -3,10 +3,12 @@
 The single step a CI job or a pre-commit hook runs. Wraps the three gates that
 already exist so you don't wire three commands and three exit codes.
 
-Exit codes:
-  0  all gates pass
-  1  a gate failed (invalid manifest, drift, or a RED/ERROR unit)
-  2  environment problem (deps missing)
+Exit codes (Phase 7 severity table, max across stages — v6 3.2):
+  0  all gates pass / within band
+  1  RED unit or a REGRESSED blessed golden
+  2  ERROR (harness failure, invalid manifest, drift) or deps missing
+  4  UNSTABLE / DEGRADED blessed golden (too noisy to judge, or over budget)
+Unblessed goldens are advisory — they never block.
 """
 
 from __future__ import annotations
