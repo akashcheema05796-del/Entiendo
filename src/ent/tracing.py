@@ -38,6 +38,7 @@ class Span:
     status: str = "ok"  # "ok" | "error"
     cost_usd: float | None = None
     tokens: int | None = None
+    parent: str | None = None  # node_id of the enclosing span (caller), if any
     attributes: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -48,6 +49,7 @@ class Span:
             "status": self.status,
             "cost_usd": self.cost_usd,
             "tokens": self.tokens,
+            "parent": self.parent,
             "attributes": {NODE_ID_ATTR: self.node_id, **self.attributes},
         }
 

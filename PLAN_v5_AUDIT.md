@@ -169,3 +169,37 @@ floor is **299**. Keep all 299 green; add per phase.)
 None of these findings *invalidate* a phase — V1–V3 proceed with the adjustments
 noted above. V4 (live H5 recording) remains human-driven; Claude Code does the
 pre-flight audit + runbook.
+
+---
+
+## Closing verification (re-audit after "done")
+
+Per the skeptical-verification norm — assume the first "done" is wrong until
+re-checked against the tree.
+
+### V1 — edge verification (spans → extractor) ✅
+
+- **Enriched capture (Option 1 taken):** `Span.parent` (`tracing.py`), set from the
+  open span in `@ent.node()` (`instrument.py`); `capture_trace` records each hop's
+  `parent` + `compositeVersion` (`history.py`). The refundly trace fixture was
+  regenerated with those fields (decide is the parent of its tool hops).
+- **Ingestion:** `src/ent/spans.py` `observe()/observe_root()/observe_path()` →
+  `ObservedEdge{observationCount, lastVerifiedAt, callerComposite}`.
+- **Verification + tri-state:** `extract(root, spans=…)` (`extractor.py`) —
+  declared+import edges plus a span pass; edge carries `verified`,
+  `verificationSource` (`import`/`span`), `observationCount`, `lastVerifiedAt`.
+  Undeclared-observed is drift (build failure), same as an undeclared import.
+- **Staleness (V1.6):** a span verifies only when its recorded `callerComposite`
+  equals the caller's *current* composite (`_composite_of`); a code change reverts
+  the edge to declared — test `test_stale_observation_does_not_verify`.
+- **`--with-spans`:** `ent extract --with-spans [PATH]` (default = project
+  history); the Universe (`build_view`) verifies from project spans by default, so
+  a span-confirmed edge renders solid and a declared-only edge stays dashed
+  (`universe.html:376`, already present); the dossier shows source + count + last
+  seen (`edgeLine`). `unverifiedDeclaredEdges` is emitted in `graph.json` (config
+  edges excluded — never runtime calls).
+- **Acceptance:** on `examples/refundly` the four pipeline call/write edges verify
+  from recorded spans; `decide→policy` (config) stays tentative; a fabricated
+  never-fired edge stays tentative and is listed in `unverifiedDeclaredEdges`;
+  changing a node's code reverts its verified edges. `tests/test_v1_edge_verification.py`
+  (9). **Full suite 308 green** (299 + 9).

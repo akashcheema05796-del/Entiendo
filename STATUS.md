@@ -8,7 +8,14 @@ they're reconciled.
 - **Version:** `0.1.0` (pre-release)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **299 passing** (~3s).
+- **Tests:** `python -m pytest -q` → **308 passing** (~5s).
+
+**PLAN_v5 (close the loop) — in progress:** V0 audit ✅ (`PLAN_v5_AUDIT.md`);
+V1 edge verification ✅ — edges flip declared→verified from recorded runtime spans
+(`ent extract --with-spans`), with a `verificationSource`/`observationCount`
+tri-state and a staleness rule (a code change reverts verification until
+re-observed). V2 (golden-set spread), V3 (blessedBy + kill the CI bless-bypass),
+V4 (H5 pre-flight + runbook) next.
 
 ## Implemented
 

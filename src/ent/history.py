@@ -179,6 +179,7 @@ def capture_trace(
 
     with tracing.capture() as spans:
         yield spans
+    composites = _composites_for(root, {s.node_id for s in spans})
     hops = [
         {
             "node": s.node_id,
@@ -186,7 +187,28 @@ def capture_trace(
             "status": s.status,
             "cost_usd": s.cost_usd,
             "tokens": s.tokens,
+            # V1: caller + the caller/callee composite at observation time, so the
+            # reconciler can verify edges from spans and expire them on drift.
+            "parent": s.parent,
+            "compositeVersion": composites.get(s.node_id),
         }
         for s in spans
     ]
     append_trace(root, hops, trace_id=trace_id, commit=commit, ts=ts)
+
+
+def _composites_for(root: Path, node_ids: set[str]) -> dict[str, str | None]:
+    """Composite version of each node at capture time (best-effort, never raises)."""
+    out: dict[str, str | None] = {}
+    try:
+        from .manifest import find_node
+        from .version import compute_version
+    except ModuleNotFoundError:
+        return out
+    for nid in node_ids:
+        try:
+            node = find_node(root, nid)
+            out[nid] = compute_version(node, root)["composite"] if node else None
+        except Exception:
+            out[nid] = None
+    return out

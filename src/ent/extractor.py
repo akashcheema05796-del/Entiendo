@@ -36,6 +36,7 @@ from typing import Any
 from . import languages
 from .evals.entrypoint import entrypoint_spec, propose_entrypoint, scan_decorated
 from .manifest import MANIFEST_FILENAME, _SKIP_DIRS, Node, discover, load
+from .version import compute_version
 
 GRAPH_ARTIFACT = "entiendo/graph.json"
 COVERAGE_ARTIFACT = "entiendo/coverage.json"
@@ -180,15 +181,18 @@ def _build_edges(
     nodes: list[Node],
     owner: dict[str, str],
     root: Path,
+    observed: dict[tuple[str, str], Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     node_ids = {n.id for n in nodes}
+    by_id = {n.id: n for n in nodes}
     errors: list[str] = []
     pairs: dict[tuple[str, str], dict[str, Any]] = {}
 
     def edge(frm: str, to: str) -> dict[str, Any]:
         return pairs.setdefault(
             (frm, to),
-            {"kinds": set(), "declared": False, "verified": False, "evidence": []},
+            {"kinds": set(), "declared": False, "verified": False, "evidence": [],
+             "sources": set(), "observationCount": 0, "lastVerifiedAt": None},
         )
 
     # Declared edges from manifests.
@@ -223,9 +227,34 @@ def _build_edges(
                     continue
                 e = edge(node.id, target_node)
                 e["verified"] = True
+                e["sources"].add("import")
                 e["evidence"].append(f"{claim} imports {imp.detail}")
                 if not e["declared"]:
                     e["kinds"].add("calls")
+
+    # Actual edges from recorded runtime spans (V1) — the runtime source. An
+    # observed edge verifies a DECLARED edge; a stale observation (the caller's
+    # code changed since it was recorded) does not verify — it expires until
+    # re-observed. An observed-but-undeclared edge is drift, same as an import.
+    for (frm, to), obs in (observed or {}).items():
+        current = _composite_of(by_id.get(frm), root)
+        fresh = obs.callerComposite is not None and obs.callerComposite == current
+        e = pairs.get((frm, to))
+        if e is None or not e["declared"]:
+            if fresh:                                   # observed a call nobody declared
+                e = edge(frm, to)
+                e["verified"] = True
+                e["sources"].add("span")
+                errors.append(
+                    f"{DRIFT_PREFIX} undeclared dependency {frm} -> {to} "
+                    f"(observed: runtime span) — declare it in {frm}'s manifest or remove it")
+            continue
+        e["evidence"].append(f"observed in {obs.observationCount} trace(s)")
+        if fresh:
+            e["verified"] = True
+            e["sources"].add("span")
+            e["observationCount"] = obs.observationCount
+            e["lastVerifiedAt"] = obs.lastVerifiedAt
 
     # Interior tool registry (Phase D §14.3): a tool that crosses a border must
     # have a matching DECLARED edge. An edge-crossing tool with no edge = drift.
@@ -264,6 +293,10 @@ def _build_edges(
             "kinds": sorted(e["kinds"]),
             "declared": e["declared"],
             "verified": e["verified"],
+            # tri-state metadata (V1): who verified it, how often, when last seen.
+            "verificationSource": sorted(e["sources"]),
+            "observationCount": e["observationCount"],
+            "lastVerifiedAt": e["lastVerifiedAt"],
             "evidence": sorted(set(e["evidence"])),
         }
         for (frm, to), e in sorted(pairs.items())
@@ -291,13 +324,27 @@ def _node_summary(node: Node) -> dict[str, Any]:
     }
 
 
-def extract(root: Path) -> ExtractResult:
-    """Build the graph + coverage for a project and reconcile against reality."""
+def _composite_of(node: Node | None, root: Path) -> str | None:
+    """Current composite version of a node (for span-staleness), or None."""
+    if node is None:
+        return None
+    try:
+        return compute_version(node, root).get("composite")
+    except Exception:                                   # pragma: no cover - defensive
+        return None
+
+
+def extract(root: Path, *, spans: dict[tuple[str, str], Any] | None = None) -> ExtractResult:
+    """Build the graph + coverage for a project and reconcile against reality.
+
+    `spans` (from `ent.spans.observe*`) verifies declared edges from recorded
+    runtime observations, on top of static import analysis (V1).
+    """
     root = Path(root).resolve()
     nodes = _load_nodes(root)
 
     owner, doubles = _ownership(nodes)
-    edges, edge_errors = _build_edges(nodes, owner, root)
+    edges, edge_errors = _build_edges(nodes, owner, root, observed=spans)
     coverage = _coverage(root, owner)
 
     errors: list[str] = []
@@ -313,12 +360,22 @@ def extract(root: Path) -> ExtractResult:
     proposals, entry_errors = _entrypoints(nodes, root)
     errors.extend(entry_errors)
 
+    # Declared edges no runtime span has confirmed (V1) — the honest gap between
+    # "declared" and "verified". Config edges are never runtime calls, so exclude
+    # them: they can't be span-verified and would be permanent noise here.
+    unverified = [
+        {"from": e["from"], "to": e["to"], "kinds": e["kinds"]}
+        for e in edges
+        if e["declared"] and not e["verified"] and e["kinds"] != ["config"]
+    ]
+
     graph = {
         "apiVersion": "entiendo/v1",
         "nodes": [_node_summary(n) for n in sorted(nodes, key=lambda n: n.id)],
         "edges": edges,
         "doubleClaimed": doubles,
         "proposedEntrypoints": proposals,
+        "unverifiedDeclaredEdges": unverified,
     }
     return ExtractResult(graph=graph, coverage=coverage, errors=errors)
 
