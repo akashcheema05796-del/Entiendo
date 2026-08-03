@@ -1,0 +1,9 @@
+{"name": "clear-alpha-num", "input": {"email": "please refund order A123", "reason": "damaged"}, "expect": {"orderId": "A123", "reason": "damaged"}}
+{"name": "clear-suffix", "input": {"email": "refund for order XYZ99", "reason": "late"}, "expect": {"orderId": "XYZ99", "reason": "late"}}
+{"name": "clear-uppercase", "input": {"email": "ORDER zz1 refund please", "reason": "wrong item"}, "expect": {"orderId": "zz1", "reason": "wrong item"}}
+{"name": "clear-numeric", "input": {"email": "order 5567 never arrived", "reason": "missing"}, "expect": {"orderId": "5567", "reason": "missing"}}
+{"name": "clear-mixed", "input": {"email": "return order abc9 damaged", "reason": "damaged"}, "expect": {"orderId": "abc9", "reason": "damaged"}}
+{"name": "clear-camel", "input": {"email": "order Qty42 wrong item", "reason": "wrong item"}, "expect": {"orderId": "Qty42", "reason": "wrong item"}}
+{"name": "clear-longid", "input": {"email": "please refund order K1000", "reason": "changed mind"}, "expect": {"orderId": "K1000", "reason": "changed mind"}}
+{"name": "hard-order-number-phrase", "input": {"email": "cancel order number 7788", "reason": "duplicate"}, "expect": {"orderId": "7788", "reason": "duplicate"}}
+{"name": "hard-hash-prefix", "input": {"email": "order #B456 please", "reason": "defective"}, "expect": {"orderId": "B456", "reason": "defective"}}

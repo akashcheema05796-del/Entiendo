@@ -22,5 +22,17 @@ evals:
   tier0:
     - type: invariant_check
     - {type: smoke, fixture: evals/refundly.parse_email/smoke.jsonl}
+  tier1:
+    # A golden set that spans difficulty (clear cases + two the naive regex gets
+    # wrong: an "order number N" phrase and a '#'-prefixed id). Baseline lands at
+    # 0.78 — a real discriminating benchmark, not a saturated 1.0. humanBlessed
+    # stays false until Mehar reviews and runs `ent bless` (V3).
+    - type: golden
+      dataset: evals/refundly.parse_email/golden_v3.jsonl
+      humanBlessed: false
+      metric: exact_match
+      baseline: 0.7778
+      minRuns: 3
+      significance: 0.05
 observability:
   spanName: refundly.parse_email
