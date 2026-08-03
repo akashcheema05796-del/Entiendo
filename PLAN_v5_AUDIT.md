@@ -203,3 +203,27 @@ re-checked against the tree.
   never-fired edge stays tentative and is listed in `unverifiedDeclaredEdges`;
   changing a node's code reverts its verified edges. `tests/test_v1_edge_verification.py`
   (9). **Full suite 308 green** (299 + 9).
+
+### V2 — golden-set spread + significance proof ✅
+
+- **Node choice:** `refundly.parse_email` — the only refundly node cleanly runnable
+  in isolation (a pure function; `decide` needs neighbour stubs / real I/O, so it
+  is not tier1-scorable without a harness). Reported per the audit's V2 risk.
+- **Bug-class (c):** confirmed **absent** — `metric(out, row["expect"])` compares
+  to the expected value, not to itself (`test_metric_compares_to_expected_not_self`,
+  `test_exact_match_hand_computed`, `test_f1_hand_computed` lock it out).
+- **Golden set:** `examples/refundly/evals/refundly.parse_email/golden_v3.jsonl` —
+  9 rows (7 clear + 2 the naive regex gets wrong: an "order number N" phrase and a
+  `#`-prefixed id). `exact_match` baseline **0.7778**, strictly inside (0.75, 0.92).
+  All rows `humanBlessed: false` (Mehar blesses in V3 — not self-blessed).
+- **Validator adjustment:** `humanBlessed: false` was rejected outright; relaxed so
+  the explicit *proposed* state is valid (runs advisory-only), while a **missing**
+  key still errors — matching "AI proposes rows, never blesses" without forbidding
+  the intermediate state. `test_validation.py` updated.
+- **Significance:** `run_tier1` honors minRuns+significance (`runner.py:313`);
+  verdict carries full per-signal detail (mean/spread/baseline/delta) — no collapse.
+  Harness: a real regression variant (case-sensitive parse) → **REGRESSED**; a
+  cosmetic variant → **WITHIN_BAND** (`test_v2_golden_spread.py`, deterministic).
+- **Acceptance:** baseline in (0, 1); injected regression → REGRESSED; noise →
+  within band; per-signal detail shown. `tests/test_v2_golden_spread.py` (8) +
+  `test_validation.py` split (+1). **Full suite 316 green** (308 + 8).

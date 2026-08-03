@@ -79,12 +79,27 @@ def test_claim_on_missing_file_fails(tmp_path: Path) -> None:
     assert any("ghost.py" in e and "does not exist" in e for e in report.results[0].errors)
 
 
-def test_unblessed_golden_fails(tmp_path: Path) -> None:
+def test_unblessed_golden_is_valid_proposed_state(tmp_path: Path) -> None:
+    # humanBlessed: false is the valid *proposed* state (AI authors rows, human
+    # blesses later); it runs advisory-only until `ent bless` (SPEC §5.2).
     body = WELL_FORMED + """\
   tier1:
     - type: golden
       dataset: evals/x.jsonl
       humanBlessed: false
+"""
+    manifest = _write(tmp_path, body)
+    report = validate_paths([manifest], root=tmp_path)
+    assert report.ok, report.results[0].errors
+
+
+def test_golden_without_blessing_key_fails(tmp_path: Path) -> None:
+    # a golden set must declare its blessing state explicitly — the missing key,
+    # not `false`, is the error.
+    body = WELL_FORMED + """\
+  tier1:
+    - type: golden
+      dataset: evals/x.jsonl
 """
     manifest = _write(tmp_path, body)
     report = validate_paths([manifest], root=tmp_path)

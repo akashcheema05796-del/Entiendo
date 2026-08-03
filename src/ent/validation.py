@@ -172,8 +172,17 @@ def _check_invariants_wellformed(manifest: dict[str, Any], result: FileResult) -
 
 def _check_human_blessed(manifest: dict[str, Any], result: FileResult) -> None:
     for i, golden in enumerate(manifest.get("evals", {}).get("tier1", [])):
-        if golden.get("type") == "golden" and golden.get("humanBlessed") is not True:
+        if golden.get("type") != "golden":
+            continue
+        # A golden set must declare its blessing state explicitly. `false` is the
+        # valid *proposed* state — the AI may author rows and set false; it runs
+        # advisory-only until a human runs `ent bless` (the eval runner enforces
+        # the gate, and blessing requires a real signature). Only `true` gates a
+        # merge, and a hand-written `true` without a matching bless record still
+        # falls back to advisory. So the missing key — not `false` — is the error
+        # (SPEC.md §5.2: the AI may propose rows, not bless them).
+        if "humanBlessed" not in golden:
             result.errors.append(
-                f"evals.tier1[{i}]: golden datasets require humanBlessed: true "
-                "(SPEC.md §5.2 — the AI may propose rows, not bless them)"
+                f"evals.tier1[{i}]: golden datasets must declare humanBlessed "
+                "(false while proposed, true once a human blesses) — SPEC.md §5.2"
             )
