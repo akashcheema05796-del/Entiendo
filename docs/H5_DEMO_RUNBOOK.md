@@ -19,13 +19,13 @@ point of H5: an irreversible unit whose edits must be signed.
 
 ## Setup (once)
 
-Work on a **scratch copy** so the repo stays clean and the demo is repeatable:
+Work on a **scratch copy** so the repo stays clean and the demo is repeatable —
+one command builds it (and rebuilds it between takes):
 
 ```bash
-cp -r examples/refundly /tmp/refundly-demo
+scripts/demo_reset.sh            # → /tmp/refundly-demo, graph extracted
 cd /tmp/refundly-demo
-ent extract          # sanity: graph reconciles
-ent serve --operator # prints the operator start command; opens the Universe (:7373)
+ent serve --operator             # prints the operator start command; opens the Universe (:7373)
 ```
 
 In a second terminal, in the same directory, start the workload:
@@ -81,12 +81,24 @@ claude               # Claude Code
 - History carries `proposal: created` then `proposal: approved` events with the
   unit id and proposal id.
 
+## Guardrails you may see live (v6 — expected behaviour, not bugs)
+
+- **Stale-proposal guard:** if anything touches `src/gateway/client.py` while
+  the proposal is open, **Approve refuses** with `proposal stale: …` and writes
+  nothing. That is the base-hash guard doing its job — reset and re-take.
+- **Sandboxed evals:** `ent eval` runs entrypoints in a bounded child process
+  (wall-clock timeout + memory limits). A hung unit shows `TIER0_TIMEOUT`
+  instead of hanging the session. `--no-sandbox` opts out if ever needed.
+- **Claims hook:** in a hooked Claude Code session, an edit outside the steered
+  unit's claims is **mechanically denied** (`.claude/hooks/enforce_claims.py`)
+  with a message naming the owning unit — the boundary is enforced, not asked.
+
 ## Reset (repeat the take)
 
-The scratch copy makes reset trivial — just recreate it:
+One command, from the repo root:
 
 ```bash
-rm -rf /tmp/refundly-demo && cp -r examples/refundly /tmp/refundly-demo
+scripts/demo_reset.sh            # rm + re-copy + ent extract
 ```
 
 If you ran it **in-place** in the repo instead (not recommended), reset with:

@@ -50,3 +50,31 @@ problem; the Verdict column states the task disposition explicitly.)
   is a symlink out of the repo authorises nothing). Routed:
   `mcp_server.tool_apply_edit`, `server._edit`, `editloop.check_boundary`.
 - Tests: `tests/test_v6_phase1.py` (15). Suite 328 → **343**.
+
+### Phase 2 — enforced boundary, honest health ✅
+- **2.1 CLOSED** — `.claude/hooks/enforce_claims.py` (PreToolUse, matcher
+  `Edit|Write|MultiEdit`, registered in `.claude/settings.json`): resolves the
+  owning unit from `entiendo/graph.json` via `ent.claims` (the 1.4 authority);
+  denies unclaimed files always, and other units' files while a steer is active
+  (steered = claimed-but-unresolved first, else oldest pending). Fail-open by
+  design: unmanaged repos (no graph.json), missing ent install, malformed
+  payloads, and plane-owned paths (manifests / `entiendo/` / `evals/`) all
+  allow — the hook governs unit interiors in managed trees, and must never
+  brick an ordinary session. `ENT_HOOK_DISABLE=1` bypass.
+- **2.2 CLOSED** — `render._tier1_latest` reads `evals.jsonl` → each unit view
+  carries `tier1` (statVerdict + ciLow/ciHigh + nRows + verdictMethod);
+  `universe.html` health lens draws the significance ring (REGRESSED red,
+  DEGRADED amber, UNSTABLE amber-pulse; tier0 RED wins; WITHIN_BAND calm — no
+  ring), dossier shows `golden: <verdict> · CI95[..] · n=..`, legend says
+  "red only on statistically meaningful movement".
+- **2.3 CLOSED** — `tests/test_h5_live_bridge.py`: the full Bridge loop driven
+  as a client would, with edit content GENERATED from the returned node context
+  (no pre-stored diff): enqueue → claim → context → apply_edit → proposal →
+  visible via GET /api/proposals → approve via POST → file changed + history
+  events (`proposal created/approved`).
+- **2.4 delivered (code half)** — `scripts/demo_reset.sh` (one-command scratch
+  rebuild, proven), runbook refreshed with the v6 guardrails (stale-proposal
+  refusal, sandboxed evals, the claims hook) + reset section. **The live
+  recording remains Mehar's** — STATUS keeps the residual open.
+- Tests: `tests/test_v6_phase2.py` (8) + `test_h5_live_bridge.py` (1). Suite
+  343 → **352**.
