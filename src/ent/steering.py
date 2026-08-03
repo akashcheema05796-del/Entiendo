@@ -22,6 +22,7 @@ transport (mirrors `server.handle_api` / `mcp_server`).
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
 from pathlib import Path
@@ -91,15 +92,23 @@ def pending(root: Path) -> list[dict[str, Any]]:
 def claim_next(root: Path) -> dict[str, Any] | None:
     """Take the oldest pending request and mark it claimed. Returns it, or None.
 
-    Claiming is a marker file so a second poller (or a repeated `await_steering`)
-    does not hand out the same request twice.
+    Claiming is ATOMIC (v6 3.4): the marker file is created with
+    O_CREAT | O_EXCL, so when two consumers race for the same request exactly
+    one wins — the kernel's exclusive-create is the arbiter, not a
+    check-then-write window. The loser simply moves on to the next request.
     """
     for r in _read_queue(root):
         rid = r["id"]
         if _is_claimed(root, rid) or _result_path(root, rid).exists():
             continue
         _ensure(root)
-        (_root(root) / "claimed" / rid).write_text(str(_now()), encoding="utf-8")
+        marker = _root(root) / "claimed" / rid
+        try:
+            fd = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            continue                       # lost the race — another consumer won
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(str(_now()))
         return {**r, "status": "claimed"}
     return None
 
@@ -121,12 +130,18 @@ def await_steering(root: Path, timeout_s: float = 25.0, poll_interval: float = 0
 
 
 def post_verdict(root: Path, request_id: str, outcome: Any) -> dict[str, Any]:
-    """Record the workload's result for a request. Returns the stored result."""
+    """Record the workload's result for a request. Returns the stored result.
+
+    Idempotent (v6 3.4): a result already on disk wins — a retried MCP call or
+    a double-posting workload gets `{"duplicate": True}` back and causes no
+    second write (and, upstream, no second history event or proposal).
+    """
     _ensure(root)
+    path = _result_path(root, request_id)
+    if path.exists():
+        return {"duplicate": True, "id": request_id}
     result = {"id": request_id, "outcome": outcome, "ts": _now()}
-    _result_path(root, request_id).write_text(
-        json.dumps(result, indent=2), encoding="utf-8"
-    )
+    path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 
 
@@ -172,7 +187,13 @@ def propose_from_outcome(root: Path, request_id: str, outcome: dict[str, Any]) -
     `outcome` is the `apply_edit` result (carrying diffs + verdicts + behaviour
     delta). The working tree is reverted to `before` for each changed file, so the
     gated change is NOT live until approved. Returns the stored proposal.
+
+    Idempotent (v6 3.4): if a result for this request already exists, the first
+    post won — no tree revert, no second proposal, no duplicate history event.
     """
+    if _result_path(root, request_id).exists():
+        return {"duplicate": True, "id": request_id}
+
     diffs = outcome.get("diffs", {}) or {}
     unit = (outcome.get("outcome", {}) or {}).get("nodeId") or outcome.get("unit")
 

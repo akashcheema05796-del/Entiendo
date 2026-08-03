@@ -41,3 +41,12 @@ jobs:
       - name: Eval refundly (reflex incl. trajectory invariants)
         working-directory: examples/refundly
         run: ent eval --all
+
+      # `ent ci` exits with the MAX severity across its stages (v6 3.2):
+      #   0 pass/within-band · 1 RED/REGRESSED · 2 ERROR · 4 UNSTABLE/DEGRADED
+      # The tier1 stage gates on BLESSED goldens only; unblessed datasets are
+      # advisory and never block. The example goldens stay unblessed until a
+      # human runs `ent bless`, so this is exit 0 today — the wiring is the point.
+      - name: ent ci (single gate, severity exit codes)
+        working-directory: examples/refundly
+        run: ent ci

@@ -78,3 +78,41 @@ problem; the Verdict column states the task disposition explicitly.)
   recording remains Mehar's** — STATUS keeps the residual open.
 - Tests: `tests/test_v6_phase2.py` (8) + `test_h5_live_bridge.py` (1). Suite
   343 → **352**.
+
+### Phase 3 — durability & atomicity ✅
+- **3.1 CLOSED** — `history._append` holds an exclusive `fcntl.flock`
+  (`msvcrt.locking` fallback; plain append if neither) for the WHOLE append:
+  `seq` is computed under the lock (`_line_count`), the line is `flush()`ed +
+  `os.fsync()`d before unlock, and new events carry `v: 1` (readers tolerate
+  absence). Concurrent-writer test: 24 events from 6 processes → gapless unique
+  seq, zero torn lines. The file is still only ever appended (V0.3's good half
+  preserved).
+- **3.2 CLOSED** — `ci.run_ci` gains a `tier1` stage on BLESSED goldens only
+  (manifest `humanBlessed: true` AND `baselines.blessing_valid` signature
+  match); unblessed/stale datasets are counted advisory and not even executed —
+  they can never block. `Stage` gains `severity`/`exit_severity`;
+  `CiResult.exit_code` is the MAX across stages per the Phase 7 table
+  (0 pass · 1 RED/REGRESSED · 2 ERROR · 4 UNSTABLE/DEGRADED); noted in
+  `.github/workflows/ci.yml`. Fixture blessing in tests is a `write_bless` test
+  record in a throwaway copy — the real refundly/greenfield goldens stay
+  unblessed for Mehar.
+- **3.3 CLOSED** (Phase 0) — overlap already enforced at
+  `extractor.py:100-112,346-354`; no change.
+- **3.4 CLOSED** — `steering.claim_next` claims via
+  `os.open(claimed/<rid>, O_CREAT|O_EXCL)`: the kernel arbitrates, exactly one
+  concurrent consumer wins (8-process race test). `post_verdict` and
+  `propose_from_outcome` are idempotent: an existing `results/<id>.json` →
+  `{"duplicate": true}`, no overwrite, no second revert/proposal/history event.
+  `ent serve` POSTs now require `X-Ent-Csrf` (token minted per process,
+  embedded as `window.__entCsrf` + `<meta name="ent-csrf">`; enforced in
+  `do_POST` via the pure `check_csrf` so `handle_api` stays pure; 403
+  otherwise); bind verified `127.0.0.1` only.
+- **3.5 CLOSED** — `extractor._dynamic_dep_warnings` flags
+  `importlib.import_module` / `__import__` / getattr-dispatch / `subprocess` /
+  `requests` / `httpx` / `urllib` in claimed .py files →
+  `possibleUndeclaredDynamicDep` in graph.json, printed by `ent extract`, shown
+  in the dossier (warnings, never failures). TS-extractor edges are tagged
+  `verificationSource: "ts-poc"` (not `"import"`) and render declared-grade
+  (dashed); documented in `docs/multi-language.md` ("absence of an edge is not
+  proof of no dependency").
+- Tests: `tests/test_v6_phase3.py` (16). Suite 352 → **368**.

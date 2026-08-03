@@ -38,6 +38,7 @@ def build_view(root: Path) -> dict[str, Any]:
             traffic[hop["node"]] = traffic.get(hop["node"], 0) + 1
     measured = _measured_budgets(trace_events)
     tier1_latest = _tier1_latest(root)
+    blind = result.graph.get("possibleUndeclaredDynamicDep", [])
 
     by_id = {n.id: n for n in nodes}
     node_views = []
@@ -66,6 +67,9 @@ def build_view(root: Path) -> dict[str, Any]:
             "blessing": _blessing(root, gnode["id"]),
             # latest tier1 statistical verdict + CI (v6 2.2) — significance on the map
             "tier1": tier1_latest.get(gnode["id"]),
+            # extractor blind spots (v6 3.5) — dynamic constructs the import
+            # walk can't see; the dossier shows them as honesty, not alarm
+            "blindSpots": [w for w in blind if w["node"] == gnode["id"]],
         }
         interior = raw.get("interior")
         if interior:                         # agentic units only (audit finding 1)

@@ -83,6 +83,22 @@ tsconfig is unchanged. tsconfig is read with light JSONC tolerance (comments +
 trailing commas); `extends` chains aren't followed yet. See
 `tests/test_ts_tsconfig.py`.
 
+## Blind spots — absence of an edge is not proof of no dependency (v6 3.5)
+
+Static import analysis only sees what is written as an import. It is blind to
+dynamic imports (`importlib.import_module`, `__import__`), string-keyed
+dispatch (`getattr(mod, "name")`), and anything that leaves the process
+(`subprocess`, `requests`, `httpx`, `urllib`). `ent extract` now runs a
+heuristic pass over claimed Python files and flags these constructs as
+`possibleUndeclaredDynamicDep` entries in `graph.json` — printed by the CLI
+and shown in the unit's dossier. They are **warnings, never failures**: the
+point is honesty about what the extractor cannot see, not a new gate.
+
+For the same reason, edges derived by the TypeScript regex spike carry
+`verificationSource: "ts-poc"` instead of `"import"` and render
+declared-grade (dashed) in the Universe — a PoC's evidence must not look
+compiler-verified.
+
 ## Deliberately out of scope (where a real implementation goes next)
 
 The spike proves the seam, not a production TS story. In priority order:
