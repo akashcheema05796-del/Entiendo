@@ -756,7 +756,14 @@ function drawLegend(){
 function openDossier(u){
   if (!u) return; const hcol=healthHex(u);
   const outs=view.edges.filter(e=>e.from===u.id), ins=view.edges.filter(e=>e.to===u.id);
-  const edgeLine=e=>`<div class="edge"><span class="k">${esc(e.kinds.join('/'))}</span> ${esc(e.to||e.from)}${e.verified?' <span class="v">✓</span>':''}</div>`;
+  const edgeLine=e=>{
+    const src=(e.verificationSource||[]);
+    const badge = e.verified
+      ? ` <span class="v">✓ ${src.includes('span')?'span×'+(e.observationCount||0):'import'}</span>`
+      : ' <span class="pill">declared · unobserved</span>';
+    const seen = e.lastVerifiedAt ? `<span class="muted" style="font-size:10px"> last ${esc(e.lastVerifiedAt)}</span>` : '';
+    return `<div class="edge"><span class="k">${esc(e.kinds.join('/'))}</span> ${esc(e.to||e.from)}${badge}${seen}</div>`;
+  };
   const fp=u.version||{};
   const body=`
     <h2>${esc(u.name||u.id)}</h2>

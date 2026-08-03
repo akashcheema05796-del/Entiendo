@@ -43,7 +43,11 @@ def node(node_id: str, *, span_name: str | None = None) -> Callable[[F], F]:
             if handled:
                 return stubbed
 
-            span = Span(node_id=node_id, name=name)
+            # the span currently open is this call's caller — record it so a
+            # recorded trace carries true caller→callee edges (V1 span verification).
+            _parent = tracing._current.get()
+            span = Span(node_id=node_id, name=name,
+                        parent=_parent.node_id if _parent else None)
             span_token = tracing._current.set(span)
             start = time.perf_counter()
             try:

@@ -25,7 +25,10 @@ def build_view(root: Path) -> dict[str, Any]:
     """Assemble the render model: nodes + edges + health + versions + timelines."""
     root = Path(root)
     nodes = [Node.from_manifest(load(p), p) for p in discover(root)]
-    result = extract(root)
+    # The Universe verifies edges from the project's own recorded spans (V1) —
+    # so a declared edge a runtime trace confirmed renders solid, not tentative.
+    from . import spans
+    result = extract(root, spans=spans.observe_root(root))
 
     # Trace data first (H0.1): the UI plays traces back and shows measured budgets.
     trace_events = history.traces(root)

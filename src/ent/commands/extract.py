@@ -54,7 +54,26 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
         metavar="PCT",
         help="fail if claimed+acknowledged coverage is below PCT%% (ramp target)",
     )
+    p.add_argument(
+        "--with-spans",
+        nargs="?",
+        const="__project__",
+        default=None,
+        metavar="PATH",
+        help="verify declared edges from recorded spans (default: the project's "
+             "own history; or pass an events.jsonl path)",
+    )
     p.set_defaults(handler=_run)
+
+
+def _observed_spans(root: Path, with_spans: str | None):
+    """Resolve --with-spans to an observed-edge map, or None when not requested."""
+    if with_spans is None:
+        return None
+    from .. import spans as spans_mod
+    if with_spans == "__project__":
+        return spans_mod.observe_root(root)
+    return spans_mod.observe_path(Path(with_spans))
 
 
 def _run(args: argparse.Namespace) -> int:
@@ -65,7 +84,8 @@ def _run(args: argparse.Namespace) -> int:
         if not report.ok:
             print("ent extract: manifests are invalid — run `ent validate` first.")
             return 2
-        result = extract(root)
+        observed = _observed_spans(root, getattr(args, "with_spans", None))
+        result = extract(root, spans=observed)
     except ModuleNotFoundError as exc:
         print(f"ent extract: missing dependency — {exc}. Try: pip install -e '.[dev]'")
         return 2
@@ -93,6 +113,13 @@ def _run(args: argparse.Namespace) -> int:
         print("\n  unaccounted files (claim them, or list in entiendo/unclaimed.txt):")
         for f in cov["unaccounted"]:
             print(f"    ? {f}")
+
+    # V1: declared edges no span has confirmed yet (only when --with-spans ran).
+    unverified = graph.get("unverifiedDeclaredEdges", [])
+    if getattr(args, "with_spans", None) is not None and unverified:
+        print("\n  declared but never observed in a span (tentative):")
+        for u in unverified:
+            print(f"    ~ {u['from']} -> {u['to']} ({'/'.join(u['kinds'])})")
 
     # coverage ramp target (--min-coverage): a threshold a migrating team raises.
     min_cov = getattr(args, "min_coverage", None)
