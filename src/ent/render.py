@@ -61,6 +61,8 @@ def build_view(root: Path) -> dict[str, Any]:
             # budgets: declared + measured-from-traces (H0.1 / audit finding 2)
             "budgets": {**declared_budgets, "measured": measured.get(gnode["id"])},
             "trajectoryVerdict": _trajectory_verdict(result0),
+            # who blessed this unit's golden baseline (V3) — the human gate, visible
+            "blessing": _blessing(root, gnode["id"]),
         }
         interior = raw.get("interior")
         if interior:                         # agentic units only (audit finding 1)
@@ -89,6 +91,15 @@ def build_view(root: Path) -> dict[str, Any]:
         "traffic": traffic,
         "commits": commits,          # the Timeline scrubber's axis (H3)
     }
+
+
+def _blessing(root: Path, node_id: str) -> dict[str, Any] | None:
+    """The current baseline's blesser + date (V3), or None if unblessed."""
+    from . import baselines
+    rec = baselines.read_bless(root, node_id)
+    if not rec:
+        return None
+    return {"blessedBy": rec.get("blessedBy"), "blessedAt": rec.get("blessedAt")}
 
 
 def _commit_axis(timelines: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:

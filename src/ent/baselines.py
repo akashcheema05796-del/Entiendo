@@ -83,6 +83,12 @@ def write_bless(
     root: Path, node_id: str, *, dataset_rel: str, sha: str, rows: int,
     blessed_by: str, blessed_at: str,
 ) -> Path:
+    # A blessing must carry a real identity (V3) — "unknown" is not writable.
+    from .identity import is_valid_blesser
+    if not is_valid_blesser(blessed_by):
+        raise ValueError(
+            f"refusing to write a blessing with no real blesser (got {blessed_by!r}) — "
+            "resolve an identity via --as / entiendo/config.toml / git user.email")
     record = {
         "dataset": dataset_rel,
         "datasetSha256": sha,

@@ -227,3 +227,29 @@ re-checked against the tree.
 - **Acceptance:** baseline in (0, 1); injected regression → REGRESSED; noise →
   within band; per-signal detail shown. `tests/test_v2_golden_spread.py` (8) +
   `test_validation.py` split (+1). **Full suite 316 green** (308 + 8).
+
+### V3 — accountability: blessedBy + kill the CI bypass ✅
+
+- **Identity chain (`identity.py`):** `resolve_identity(root, explicit)` resolves
+  `--as` → `entiendo/config.toml` `[user] email|name` (tomllib, guarded for 3.10)
+  → `git config user.email`; raises `IdentityError` if none. `"unknown"` (and
+  `""`, `"none"`, `"null"`) never validate.
+- **CI bypass closed (`bless.py`):** `ent bless` now requires `sys.stdin.isatty()`
+  — even with `--yes` — and exits **3** in a non-TTY with "Blessing requires an
+  interactive session." **No env-var escape hatch** (a test asserts `bless.py`
+  contains no `environ`/`getenv`/`ALLOW_NONINTERACTIVE`). `--by` kept as a hidden
+  alias for `--as`.
+- **Write guard (`baselines.write_bless`):** refuses a blessing with an invalid
+  blesser — `"unknown"` is not writable.
+- **Surfacing:** `ent eval --tier 1` prints "baseline blessed by X on DATE";
+  `build_view` adds `blessing` per unit and the Universe dossier shows a
+  `blessed · <who>` pill.
+- **Migration note (append-only respected):** existing history / bless records are
+  **not** rewritten — the `"unknown"` guard applies only to *new* writes. Any
+  pre-V3 record that still reads `blessedBy: "unknown"` is a historical fact left
+  in place; re-run `ent bless` (interactively) to record a real identity going
+  forward.
+- **Acceptance:** blessing from a CI-like (non-TTY) environment is impossible;
+  every new baseline carries a real identity; the identity is visible in the CLI
+  and the Universe dossier. `tests/test_v3_blessedby.py` (9). **Full suite 325
+  green** (316 + 9).
