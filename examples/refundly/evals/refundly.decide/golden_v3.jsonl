@@ -1,0 +1,10 @@
+{"name": "within-policy-clear", "input": {"email": "please refund order o1"}, "expect": {"decision": "refund", "amount": 42, "trajectory": ["parse", "order_lookup", "read_policy", "issue_refund", "write_ledger"]}}
+{"name": "over-amount-denied", "input": {"email": "please refund order o2"}, "expect": {"decision": "deny", "amount": 500, "trajectory": ["parse", "order_lookup", "read_policy", "write_ledger"]}}
+{"name": "unknown-order-should-deny", "input": {"email": "refund order o3"}, "expect": {"decision": "deny", "amount": 0, "trajectory": ["parse", "order_lookup", "read_policy", "write_ledger"]}}
+{"name": "capitalised-Order-should-parse", "input": {"email": "Order o1 needs a refund"}, "expect": {"decision": "refund", "amount": 42, "trajectory": ["parse", "order_lookup", "read_policy", "issue_refund", "write_ledger"]}}
+{"name": "trailing-thanks", "input": {"email": "refund order o1 thanks"}, "expect": {"decision": "refund", "amount": 42, "trajectory": ["parse", "order_lookup", "read_policy", "issue_refund", "write_ledger"]}}
+{"name": "phrasing-refunded-now", "input": {"email": "we need order o2 refunded now"}, "expect": {"decision": "deny", "amount": 500, "trajectory": ["parse", "order_lookup", "read_policy", "write_ledger"]}}
+{"name": "dispute-phrasing", "input": {"email": "customer disputes order o1 charge"}, "expect": {"decision": "refund", "amount": 42, "trajectory": ["parse", "order_lookup", "read_policy", "issue_refund", "write_ledger"]}}
+{"name": "order-inside-reorder", "input": {"email": "reorder o1 refund please"}, "expect": {"decision": "refund", "amount": 42, "trajectory": ["parse", "order_lookup", "read_policy", "issue_refund", "write_ledger"]}}
+{"name": "extra-whitespace", "input": {"email": "refund order   o1"}, "expect": {"decision": "refund", "amount": 42, "trajectory": ["parse", "order_lookup", "read_policy", "issue_refund", "write_ledger"]}}
+{"name": "partial-refund-request-still-denied", "input": {"email": "please refund order o2 partially"}, "expect": {"decision": "deny", "amount": 500, "trajectory": ["parse", "order_lookup", "read_policy", "write_ledger"]}}

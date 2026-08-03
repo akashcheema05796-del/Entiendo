@@ -162,6 +162,93 @@ def _revert(root: Path, node_id: str) -> tuple[int, dict]:
 
 
 # --------------------------------------------------------------------------- #
+# live reload (v6 4.2) — the map follows the tree, not the other way round
+# --------------------------------------------------------------------------- #
+
+WATCH_POLL_S = 0.5           # poll cadence; doubles as the debounce window
+
+
+def watched_paths(root: Path) -> list[Path]:
+    """What `ent dev` watches: manifests, claimed files, history artifacts.
+
+    Best-effort — a manifest that stops parsing mid-edit must not kill the
+    watcher (its mtime change still triggers the reload that surfaces the error).
+    """
+    from .manifest import Node, discover, load
+
+    root = Path(root)
+    paths: list[Path] = []
+    try:
+        for mp in discover(root):
+            paths.append(mp)
+            try:
+                node = Node.from_manifest(load(mp), mp)
+            except Exception:
+                continue
+            paths.extend(root / c for c in node.claims)
+    except Exception:                                   # pragma: no cover - defensive
+        pass
+    hist = root / "entiendo" / "history"
+    if hist.exists():
+        paths.extend(sorted(hist.glob("*.jsonl")))
+    return paths
+
+
+def snapshot_mtimes(paths: list[Path]) -> dict[str, int | None]:
+    """mtime_ns per path (None = missing) — the watcher's change detector."""
+    snap: dict[str, int | None] = {}
+    for p in paths:
+        try:
+            snap[str(p)] = p.stat().st_mtime_ns
+        except OSError:
+            snap[str(p)] = None
+    return snap
+
+
+def resilient_graph(status: int, payload: dict[str, Any],
+                    last_good: dict[str, Any] | None,
+                    ) -> tuple[int, dict[str, Any], dict[str, Any] | None]:
+    """Extract failure mid-edit → serve the LAST GOOD view + a drift flag.
+
+    Returns (status, payload, new_last_good). A half-typed manifest must not
+    blank the canvas; the page shows a banner until the tree parses again.
+    """
+    if status == 200:
+        return 200, payload, payload
+    if last_good is not None:
+        return 200, {**last_good,
+                     "drift": str(payload.get("error", "extract failed"))}, last_good
+    return status, payload, last_good
+
+
+class _Watcher:  # pragma: no cover — thread glue; the pieces above are unit-tested
+    """Background mtime poller. `version` bumps on any watched change."""
+
+    def __init__(self, root: Path) -> None:
+        import threading
+        self.root = Path(root)
+        self.version = 0
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def _run(self) -> None:
+        import time as _time
+        last = snapshot_mtimes(watched_paths(self.root))
+        while not self._stop.is_set():
+            _time.sleep(WATCH_POLL_S)
+            cur = snapshot_mtimes(watched_paths(self.root))
+            if cur != last:
+                last = cur
+                self.version += 1
+
+
+# --------------------------------------------------------------------------- #
 # http server
 # --------------------------------------------------------------------------- #
 
@@ -182,13 +269,24 @@ def inject_csrf(html: str, token: str) -> str:
     return html.replace("<head>", "<head>\n" + tag, 1)
 
 
-def serve(root: Path, port: int = 7373, *, client: Any | None = None) -> None:  # pragma: no cover
+def serve(root: Path, port: int = 7373, *, client: Any | None = None,
+          watch: bool = False) -> None:  # pragma: no cover
     import secrets
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+    import time as _time
+    # Threading matters (v6 4.2): the /api/version long-poll parks a connection
+    # for up to 25s — on a single-threaded server that would starve every other
+    # request. Still loopback-only.
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.parse import parse_qs, urlparse
 
     root = Path(root).resolve()
     csrf_token = secrets.token_hex(16)               # per-process, minted at start
     app_html = inject_csrf(build_app_html(), csrf_token).encode()
+
+    watcher = _Watcher(root) if watch else None
+    if watcher:
+        watcher.start()
+    last_good: list[dict[str, Any] | None] = [None]  # box so Handler can rebind
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, payload: Any, content_type: str) -> None:
@@ -202,9 +300,23 @@ def serve(root: Path, port: int = 7373, *, client: Any | None = None) -> None:  
         def do_GET(self) -> None:
             if self.path == "/" or self.path == "":
                 self._send(200, app_html, "text/html; charset=utf-8")
-            else:
-                status, payload = handle_api(root, "GET", self.path, None, client=client)
-                self._send(status, payload, "application/json")
+                return
+            # live reload (v6 4.2): bounded long-poll — returns when the tree
+            # changes or after ~25s, whichever first.
+            if watcher and urlparse(self.path).path == "/api/version":
+                qs = parse_qs(urlparse(self.path).query)
+                since = qs.get("since", [""])[0]
+                deadline = _time.time() + 25.0
+                while (str(watcher.version) == since and _time.time() < deadline):
+                    _time.sleep(0.25)
+                self._send(200, {"version": watcher.version}, "application/json")
+                return
+            status, payload = handle_api(root, "GET", self.path, None, client=client)
+            if urlparse(self.path).path == "/api/graph":
+                # a broken tree serves the last good view + a drift banner
+                status, payload, last_good[0] = resilient_graph(status, payload,
+                                                                last_good[0])
+            self._send(status, payload, "application/json")
 
         def do_POST(self) -> None:
             # CSRF gate (v6 3.4) — enforced HERE so handle_api stays pure.
@@ -221,7 +333,7 @@ def serve(root: Path, port: int = 7373, *, client: Any | None = None) -> None:  
         def log_message(self, *args: Any) -> None:
             pass
 
-    server = HTTPServer(("127.0.0.1", port), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"entiendo edit surface on http://127.0.0.1:{port}  (Ctrl-C to stop)")
     try:
         server.serve_forever()

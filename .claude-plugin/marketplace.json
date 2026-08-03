@@ -1,0 +1,13 @@
+{
+  "name": "entiendo-marketplace",
+  "owner": {
+    "name": "Entiendo"
+  },
+  "plugins": [
+    {
+      "name": "entiendo",
+      "source": "./",
+      "description": "The Entiendo control plane: MCP server (get_graph, get_node_context, apply_edit, run_eval, the Bridge await_steering/post_verdict), the entiendo-operator skill for driving steered edits through units, and the enforce_claims PreToolUse hook that mechanically denies out-of-claims edits in managed repos."
+    }
+  ]
+}
