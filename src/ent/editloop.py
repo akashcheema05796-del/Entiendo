@@ -129,12 +129,18 @@ class BoundaryResult:
 
 
 def check_boundary(node: Node, changed_paths: list[str], root: Path) -> BoundaryResult:
-    """Verify every changed path is claimed by this node (SPEC.md §6 step 3)."""
-    claims = {Path(c).as_posix() for c in node.claims}
+    """Verify every changed path is claimed by this node (SPEC.md §6 step 3).
+
+    Routed through the single claims authority (v6 1.4): realpath + repo
+    containment + resolved-claim membership, so a symlink or `../` cannot slip
+    past what used to be a string comparison.
+    """
+    from . import claims as claims_mod
     inside, violations = [], []
     for raw in changed_paths:
-        rel = _relativise(raw, root)
-        (inside if rel in claims else violations).append(rel)
+        rel = claims_mod.claimed_rel(root, node, raw)
+        (inside.append(rel) if rel is not None
+         else violations.append(_relativise(raw, root)))
     return BoundaryResult(not violations, sorted(inside), sorted(violations))
 
 

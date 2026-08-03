@@ -26,3 +26,27 @@ problem; the Verdict column states the task disposition explicitly.)
 - **Confirmed-required:** 1.1, 1.3, 1.4 (Phase 1); 2.2 (Phase 2); 3.1 (fsync/lock half), 3.2, 3.4 (Phase 3); 4.2 (Phase 4); 5.1, 5.2/5.3, 5.6, 5.7 (Phase 5).
 - **Closed:** **3.3** (overlapping claims already a hard extract failure, `extractor.py:100-112,346-354`).
 - Not part of the 13 but load-bearing for Phase 3: the append-only norm is already honoured (V0.3) — 3.1 needs only durability (fsync + lock + `v` field), not a dedup rewrite fix.
+
+## Phase closure notes
+
+### Phase 1 — honest verdicts, safe writes ✅
+- **1.1 CLOSED** — `src/ent/sandbox.py`: whole-eval child process (same code path,
+  so stubs/invariants/trajectory unchanged), wall-clock timeout (5s/30s,
+  `evals.timeoutMs` override) → `TIER0_TIMEOUT`; POSIX rlimits (AS 512MB, CPU,
+  NOFILE, NPROC) → over-alloc bounded (MemoryError). Default for `ent eval`
+  (`--no-sandbox` opts out); internal read paths + explicit `entrypoint=`
+  overrides stay in-process by design (closures can't cross a process boundary).
+- **1.2 CLOSED** — `runner._bootstrap_verdict`: paired bootstrap over golden rows
+  (10k resamples, fixed seed) with CI bounds + n + minDetectableEffect in
+  stats/history; baselines store `rowScores` (write_pending/accept carry it);
+  legacy baselines fall back tagged `verdictMethod: threshold-legacy`. Bonus
+  honesty: a 1-row regression at n=9 is UNSTABLE (underpowered), not a false
+  REGRESSED — the old threshold would have over-claimed.
+- **1.3 CLOSED** — `steering.propose_from_outcome` records `baseSha256` per
+  touched file; `approve` re-hashes ALL files before ANY write and refuses the
+  whole apply on mismatch ("proposal stale: <file>"), proposal left open.
+- **1.4 CLOSED** — `src/ent/claims.py` (`claimed_rel`/`is_within_claims`:
+  realpath + `commonpath` containment + resolved-claim membership; a claim that
+  is a symlink out of the repo authorises nothing). Routed:
+  `mcp_server.tool_apply_edit`, `server._edit`, `editloop.check_boundary`.
+- Tests: `tests/test_v6_phase1.py` (15). Suite 328 → **343**.

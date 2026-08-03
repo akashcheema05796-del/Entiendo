@@ -111,8 +111,18 @@ def _edit(root: Path, node_id: str, instruction: str, client: Any | None) -> tup
     except agent.AgentUnavailable as exc:
         return 503, {"error": f"editing model unavailable: {exc}"}
 
+    from . import claims as claims_mod
+    from .manifest import find_node as _find
+    node = _find(root, node_id)
+
     diffs: dict[str, dict[str, str]] = {}
-    for rel, new_content in proposal["files"].items():
+    for raw_rel, new_content in proposal["files"].items():
+        # the single claims authority (v6 1.4): the agent's own filter is a
+        # courtesy — the WRITE is gated on realpath + containment + claims.
+        rel = claims_mod.claimed_rel(root, node, raw_rel)
+        if rel is None:
+            proposal["rejected"].append(raw_rel)
+            continue
         before = ctx.claimed_files.get(rel, "")
         diffs[rel] = {"before": before, "after": new_content}
         _backup(root, node_id, rel, before)
@@ -120,10 +130,10 @@ def _edit(root: Path, node_id: str, instruction: str, client: Any | None) -> tup
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(new_content)
 
-    outcome = review_edit(root, node_id, list(proposal["files"]))
+    outcome = review_edit(root, node_id, list(diffs))
     return 200, {
         "summary": proposal["summary"],
-        "changed": sorted(proposal["files"]),
+        "changed": sorted(diffs),
         "rejected": proposal["rejected"],
         "diffs": diffs,
         "outcome": outcome.as_dict(),
