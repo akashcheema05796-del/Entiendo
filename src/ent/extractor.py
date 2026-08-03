@@ -374,8 +374,8 @@ def _composite_of(node: Node | None, root: Path) -> str | None:
         return None
     try:
         return compute_version(node, root).get("composite")
-    except Exception:                                   # pragma: no cover - defensive
-        return None
+    except (OSError, ValueError, KeyError, TypeError):  # v6 5.6 — a half-written
+        return None                                     # tree; other bugs raise
 
 
 def extract(root: Path, *, spans: dict[tuple[str, str], Any] | None = None) -> ExtractResult:

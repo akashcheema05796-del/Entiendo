@@ -381,12 +381,20 @@ function step(){
 }
 
 function seedParticles(){ particles=[]; if (RM) return;
-  for (const e of edges){ const n=e.verified?3:2;
+  // v6 5.7 — scale honesty: past ~100 visible units, per-edge particle counts
+  // drop to one so a big map stays smooth instead of pretty-but-unusable.
+  const dense = units.length > 100;
+  for (const e of edges){ const n=dense?1:(e.verified?3:2);
     for (let i=0;i<n;i++) particles.push({e, p:i/n, speed:e.verified?0.008:0.0035}); } }
 function drawParticles(){ if (RM) return;
+  // viewport in world coords (with a margin) — offscreen particles still move
+  // but are never drawn (v6 5.7).
+  const pad=40/cam.scale, x0=-cam.x/cam.scale-pad, y0=-cam.y/cam.scale-pad,
+        x1=(W-cam.x)/cam.scale+pad, y1=(H-cam.y)/cam.scale+pad;
   for (const pt of particles){ const a=byId[pt.e.from], b=byId[pt.e.to]; if(!a||!b) continue;
     pt.p+=pt.speed; if (pt.p>1) pt.p-=1; if (isDimmed(pt.e)) continue;
     const x=a.x+(b.x-a.x)*pt.p, y=a.y+(b.y-a.y)*pt.p;
+    if (x<x0||x>x1||y<y0||y>y1) continue;
     ctx.beginPath(); ctx.arc(x,y, pt.e.verified?2.2/cam.scale+0.6:1.4/cam.scale+0.4, 0, Math.PI*2);
     ctx.fillStyle = pt.e.verified?'rgba(242,239,230,.9)':'rgba(138,147,173,.5)'; ctx.fill(); } }
 
@@ -819,7 +827,10 @@ function openDossier(u){
     ${u.description?`<div class="sect"><h3>What it does</h3><div class="describe">${esc(u.description)}</div></div>`:''}
     <div class="sect"><h3>Task</h3><div class="task">${esc(u.task||'—')}</div></div>
     <div class="sect"><h3>Verdict</h3><span id="verdict" class="verdict" style="background:${hcol}">${esc(u.health)}</span>
-      ${u.blessing&&u.blessing.blessedBy?`<span class="pill" title="golden baseline blessed by a human">blessed · ${esc(u.blessing.blessedBy)}${u.blessing.blessedAt?' · '+esc(u.blessing.blessedAt):''}</span>`:''}
+      ${u.blessing&&u.blessing.blessedBy?(
+        ['unknown','none','null',''].includes(String(u.blessing.blessedBy).toLowerCase())
+          ? `<span class="pill" title="recorded before blessings required a real identity (V3) — treat with the same caution as unblessed" style="color:var(--signal-amber)">unverified historical blessing</span>`
+          : `<span class="pill" title="golden baseline blessed by a human">blessed · ${esc(u.blessing.blessedBy)}${u.blessing.blessedAt?' · '+esc(u.blessing.blessedAt):''}</span>`):''}
       ${u.tier1?`<div class="edge">golden: <b>${esc(u.tier1.statVerdict)}</b>${u.tier1.ciLow!=null?` · CI95[${esc(u.tier1.ciLow)}, ${esc(u.tier1.ciHigh)}] · n=${esc(u.tier1.nRows)}`:''}${u.tier1.verdictMethod==='threshold-legacy'?' <span class="pill">threshold-legacy</span>':''}</div>`:''}
       ${(u.blindSpots||[]).length?`<div class="edge" title="static analysis cannot see dynamic imports, string dispatch, or out-of-process calls — absence of an edge is not proof of no dependency">⚠ possible undeclared dynamic deps: ${u.blindSpots.map(w=>esc(w.file)+' ('+esc(w.pattern)+')').join(', ')}</div>`:''}</div>
     ${interiorSection(u)}
@@ -876,7 +887,7 @@ function budgetSection(u){
   const burn=budgetBurn(u), over=burn!=null&&burn>1;
   const rows=[];
   if (b.costPerCallUsd!=null) rows.push(`cost ${m&&m.avgCostUsd!=null?'$'+m.avgCostUsd:'—'} / $${b.costPerCallUsd} budget`);
-  if (b.p95LatencyMs!=null) rows.push(`p95 ${m&&m.p95LatencyMs!=null?m.p95LatencyMs+'ms':'—'} / ${b.p95LatencyMs}ms budget`);
+  if (b.p95LatencyMs!=null) rows.push(`${m&&m.p95Basis?m.p95Basis:'p95'} ${m&&m.p95LatencyMs!=null?m.p95LatencyMs+'ms':'—'} / ${b.p95LatencyMs}ms budget`);
   return `<div class="sect"><h3>Budget${over?' <span class="pill" style="color:var(--signal-amber)">over</span>':''}</h3>`
     + rows.map(r=>`<div class="edge">${esc(r)}</div>`).join('')
     + `<div style="color:var(--muted);font-size:11px">spend is health, same as correctness</div></div>`;

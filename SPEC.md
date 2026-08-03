@@ -267,6 +267,8 @@ A node scores 0.87. Was it 0.89 yesterday? That is noise, not a regression. Ever
 ### 5.4 Node-level revert
 Because a node version is a *composite* hash (code + prompt + config + model), you can pin and revert one node without touching anything else — and replay yesterday's inputs against today's version to see exactly what moved. Without these two capabilities the whole tool is decoration.
 
+Hashing rules (v6): config lines whose key matches the secret regex (api_key / secret / token / password / credential) contribute the key but never the value — a rotated secret is not a behaviour change, and secret material must never reach a committed artifact (Invariant 6). Prompt and config content is line-ending-normalised (CRLF → LF) before hashing so a Windows checkout doesn't mint a phantom version; files that carried CRLF recompute once, recorded as one ordinary version event.
+
 ---
 
 ## 6. The scoped edit loop (L5)

@@ -195,6 +195,10 @@ def _measured_budgets(traces: list[dict[str, Any]]) -> dict[str, dict[str, Any]]
             "calls": len(lat),
             "avgLatencyMs": round(sum(lat) / len(lat), 3) if lat else None,
             "p95LatencyMs": round(_percentile(lat, 95), 3) if lat else None,
+            # label honesty (v6 5.4): below ~20 samples the 95th percentile IS
+            # the max — say so instead of dressing a max up as a percentile.
+            "p95Basis": (("p95" if len(lat) >= 20 else f"max of {len(lat)}")
+                         if lat else None),
             "avgCostUsd": round(sum(cost) / len(cost), 6) if cost else None,
             "totalCostUsd": round(sum(cost), 6) if cost else None,
         }
