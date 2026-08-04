@@ -47,7 +47,8 @@ component with a contract, a composite version, tiered evals, and history.
 - Runtime deps stay minimal (pyyaml, jsonschema); heavier deps live behind
   optional extras. Prefer boring, inspectable storage (git, JSON, Parquet/DuckDB)
   over services. Stdlib `http.server` for serving — no web framework.
-- `pip install -e ".[dev]"` then `python -m pytest -q` (129+ tests, ~1.5s).
+- `pip install -e ".[dev]"` then `python -m pytest -q` (389 tests, ~9s; plus an
+  optional Playwright suite: `pytest tests/frontend/frontend_universe.py`).
 
 ## MCP
 

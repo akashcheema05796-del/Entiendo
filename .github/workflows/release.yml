@@ -1,0 +1,51 @@
+# Release: build + publish to PyPI on a version tag (v0.2.0, v0.3.0, …).
+#
+# Uses PyPI Trusted Publishing (OIDC) — no API token is stored in the repo.
+# INERT until a human configures the publisher on pypi.org:
+#   pypi.org → project "entiendo" → Publishing → add GitHub publisher
+#   (owner: akashdatageek, repo: Entiendo, workflow: release.yml,
+#    environment: pypi).
+# Until then, tag pushes simply build and attach artifacts + SBOM.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build sdist + wheel
+        run: |
+          pip install build cyclonedx-bom
+          python -m build
+      - name: SBOM for the release
+        run: |
+          pip install dist/*.whl
+          cyclonedx-py environment -o dist/sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi                # created when Trusted Publishing is set up
+    permissions:
+      id-token: write                # OIDC — the whole point: no stored secrets
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Remove non-package files
+        run: rm -f dist/sbom.cdx.json
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
