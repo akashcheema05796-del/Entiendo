@@ -62,7 +62,12 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install (runtime deps only)
-        run: pip install -e . pip-audit cyclonedx-bom
+        # setuptools ships preinstalled on the runner and is part of the audited
+        # environment — keep it current so the audit reports OUR tree's health,
+        # not the runner image's (e.g. PYSEC-2026-3447 in setuptools 79).
+        run: |
+          pip install --upgrade pip setuptools
+          pip install -e . pip-audit cyclonedx-bom
       - name: Audit dependencies
         run: pip-audit
       - name: Generate SBOM (CycloneDX)
