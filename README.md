@@ -38,6 +38,32 @@ scaffold.
 
 ---
 
+## Quickstart — under a minute to your first Universe
+
+Measured on a clean virtualenv (2-core Linux container): install 8.7s, first
+graph 0.2s, full eval pass 0.6s.
+
+```bash
+pip install entiendo            # or, from a checkout: pip install -e ".[dev]"
+
+# try it on the bundled example
+cp -r examples/refundly /tmp/refundly && cd /tmp/refundly
+ent extract                     # → entiendo/graph.json + coverage, reconciled
+ent eval --all                  # → every unit executes its reflex evals
+ent dev                         # → the Universe on http://127.0.0.1:7373,
+                                #   live-reloading as you edit
+```
+
+From there: click a unit → read its dossier → hit **Steer** and let a Claude
+Code operator (`ent serve --operator`) make the change through the unit's
+claims, with the verdict and blast radius surfacing in the map.
+
+**Platform support:** macOS and Linux are first-class. On Windows, the core
+works with degraded guarantees — history locking falls back from `fcntl` to
+`msvcrt`, and the eval sandbox skips POSIX rlimits (timeouts still apply) —
+so **WSL2 is the recommended way to run Entiendo on Windows**. Nothing
+crashes natively; you just lose the memory/CPU caps.
+
 ## Status: L0 → L5 + Phase 7 + the v4 Universe implemented
 
 All six phases (SPEC.md §8), **Phase 7 (real evals)**, and the whole **v4 layer**

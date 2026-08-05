@@ -36,9 +36,14 @@ _SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", ".mypy_cac
 def schema_path() -> Path:
     """Absolute path to the bundled node JSON-Schema.
 
-    Resolved relative to the repo root so tests and the validator agree on a
-    single source of truth.
+    Installed wheels carry the schema INSIDE the package (ent/schemas/ — see
+    the pyproject force-include); a repo checkout finds the same file at the
+    repo root. Package copy wins so `pip install entiendo` works outside a
+    checkout; the repo copy stays the single source of truth for edits.
     """
+    packaged = Path(__file__).resolve().parent / "schemas" / "node.schema.json"
+    if packaged.exists():
+        return packaged
     # src/ent/manifest.py → repo root is two parents up from src/ent.
     return Path(__file__).resolve().parents[2] / "schemas" / "node.schema.json"
 

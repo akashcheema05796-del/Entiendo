@@ -5,7 +5,11 @@ the project can do, update this file in the same PR — narrative docs (README,
 SPEC, LEXICON, `docs/`) should agree with it. If they drift, this file wins until
 they're reconciled.
 
-- **Version:** `0.1.0` (pre-release)
+- **Version:** `0.2.0` (first public beta — see `CHANGELOG.md`; Apache-2.0;
+  wheel ships the manifest schema so a clean `pip install` works outside a
+  checkout; CI runs pip-audit + publishes a CycloneDX SBOM; `release.yml`
+  publishes to PyPI via Trusted Publishing once the publisher is configured
+  on pypi.org)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
 - **Tests:** `python -m pytest -q` → **389 passing** (~9s), plus an optional

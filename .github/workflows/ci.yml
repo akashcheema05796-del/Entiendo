@@ -51,6 +51,33 @@ jobs:
         working-directory: examples/refundly
         run: ent ci
 
+  # Supply-chain honesty for a trust-first tool: audit the dependency tree and
+  # publish a CycloneDX SBOM as a build artifact on every run.
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install (runtime deps only)
+        # setuptools ships preinstalled on the runner and is part of the audited
+        # environment — keep it current so the audit reports OUR tree's health,
+        # not the runner image's (e.g. PYSEC-2026-3447 in setuptools 79).
+        run: |
+          pip install --upgrade pip setuptools
+          pip install -e . pip-audit cyclonedx-bom
+      - name: Audit dependencies
+        run: pip-audit
+      - name: Generate SBOM (CycloneDX)
+        run: cyclonedx-py environment -o sbom.cdx.json
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
   # v6 4.1 — OPTIONAL browser suite. Gated on a Chromium being present (a
   # pinned /opt/pw-browsers/chromium or a resolvable Playwright install);
   # absent → the step reports the skip and the job stays green. Run locally:
