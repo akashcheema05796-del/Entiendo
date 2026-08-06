@@ -144,6 +144,28 @@
   #empty code { font-family:var(--font-mono); color:var(--annotation); }
   .close { position:absolute; top:14px; right:16px; cursor:pointer; color:var(--muted);
     border:0; background:transparent; font-size:22px; line-height:1; }
+  /* ── Liquid-glass chrome (doc §1) — the material lives on the CHROME, never
+     on nodes, and never carries meaning. Gradient tint + specular inset +
+     1px glass border everywhere; backdrop blur+saturate only where supported
+     (the box-shadow recipe alone still reads as glass on Safari/Firefox). */
+  #lenses, #tools button, #recollapse, #legend, #hint, #timebar, #search, #minimap {
+    background: linear-gradient(180deg, rgba(16,19,30,.58), rgba(9,11,19,.74));
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 18px 44px rgba(0,0,0,.45),
+      inset 0 1px 1px rgba(255,255,255,.13),
+      inset 0 -8px 20px rgba(255,255,255,.03);
+  }
+  #dossier {
+    background: linear-gradient(180deg, rgba(14,17,27,.82), rgba(9,11,19,.9));
+    border-left: 1px solid rgba(255,255,255,.12);
+    box-shadow: -18px 0 44px rgba(0,0,0,.4), inset 1px 0 1px rgba(255,255,255,.08);
+  }
+  @supports (backdrop-filter: blur(1px)) {
+    #lenses, #tools button, #recollapse, #legend, #hint, #timebar, #search {
+      backdrop-filter: blur(16px) saturate(1.5);
+    }
+    #dossier { backdrop-filter: blur(20px) saturate(1.4); }
+  }
 </style>
 </head>
 <body>
@@ -166,6 +188,7 @@
 <div id="tools">
   <button id="btn-search" title="Search (/)">⌕ search</button>
   <button id="btn-fit" title="Fit to view (0)">⊡ fit</button>
+  <button id="btn-layout" title="Toggle constellation / layered dependency layout">⌗ constellation</button>
   <button id="recollapse" title="Collapse all groups">⊟ groups</button>
 </div>
 
@@ -231,8 +254,11 @@ function flyTo(wx, wy, scale){
 function fitToView(){
   if (!units.length) return;
   let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
-  for (const u of units){ minx=Math.min(minx,u.x-u.r); miny=Math.min(miny,u.y-u.r);
-    maxx=Math.max(maxx,u.x+u.r); maxy=Math.max(maxy,u.y+u.r); }
+  for (const u of units){                      // in layered mode fit the TARGET
+    const px=(layoutMode==='layered'&&u._tx!=null)?u._tx:u.x;   // slots, not the
+    const py=(layoutMode==='layered'&&u._ty!=null)?u._ty:u.y;   // mid-flight pos
+    minx=Math.min(minx,px-u.r); miny=Math.min(miny,py-u.r);
+    maxx=Math.max(maxx,px+u.r); maxy=Math.max(maxy,py+u.r); }
   const w=maxx-minx||1, h=maxy-miny||1;
   const s=clampScale(Math.min((W-140)/w, (H-160)/h, 1.4));
   flyTo((minx+maxx)/2, (miny+maxy)/2, s);
@@ -338,6 +364,46 @@ function buildLayout(){
   });
   byId={}; units.forEach(u=>byId[u.id]=u);
   seedParticles();
+  if (layoutMode==='layered') assignLayeredTargets();
+}
+
+// ── Deterministic layered layout (doc §6) — hand-rolled Sugiyama-lite, no ──
+// CDN: longest-path layering over dependency edges, one barycenter ordering
+// pass. Same input → same picture, always; units GLIDE to their slots
+// (Magic-Move), physics resumes when you toggle back to constellation.
+let layoutMode='constellation';
+function assignLayeredTargets(){
+  const ids=units.map(u=>u.id), idset=new Set(ids), depth={};
+  ids.forEach(i=>depth[i]=0);
+  for (let p=0;p<ids.length;p++){ let moved=false;      // Bellman-style passes,
+    for (const e of edges){                             // bounded — cycles safe
+      if (!idset.has(e.from)||!idset.has(e.to)) continue;
+      if (depth[e.to] < depth[e.from]+1 && depth[e.from]+1 < ids.length){
+        depth[e.to]=depth[e.from]+1; moved=true; } }
+    if (!moved) break; }
+  const cols=new Map();
+  for (const id of ids){ const d=depth[id]; if(!cols.has(d)) cols.set(d,[]); cols.get(d).push(id); }
+  const ks=[...cols.keys()].sort((a,b)=>a-b), order={};
+  ks.forEach((k,ci)=>{
+    let col=cols.get(k).sort();
+    if (ci>0){                                          // barycenter of feeders
+      const score=id=>{ const ns=edges.filter(e=>e.to===id&&depth[e.from]===ks[ci-1])
+        .map(e=>order[e.from]).filter(v=>v!=null);
+        return ns.length? ns.reduce((a,b)=>a+b,0)/ns.length : 1e9; };
+      col=col.map(id=>[score(id),id]).sort((a,b)=>a[0]-b[0]||(a[1]<b[1]?-1:1)).map(x=>x[1]); }
+    col.forEach((id,ri)=>order[id]=ri);
+    cols.set(k,col); });
+  const gapX=Math.min(240, Math.max(150,(W-320)/Math.max(ks.length-1,1))), gapY=118;
+  const x0=(W - gapX*(ks.length-1))/2;
+  ks.forEach((k,ci)=>{ const col=cols.get(k);
+    col.forEach((id,ri)=>{ const u=byId[id]; if(!u) return;
+      u._tx = x0 + ci*gapX; u._ty = H/2 + (ri-(col.length-1)/2)*gapY; }); });
+}
+function setLayout(m){
+  layoutMode=m;
+  const b=document.getElementById('btn-layout');
+  if (b) b.textContent = m==='layered' ? '⌗ layered' : '⌗ constellation';
+  if (m==='layered'){ assignLayeredTargets(); setTimeout(fitToView, 60); }
 }
 
 function unitItem(n){
@@ -369,6 +435,12 @@ function budgetBurn(u){
 // Physics (world coords)
 // --------------------------------------------------------------------------- //
 function step(){
+  if (layoutMode==='layered'){                 // frozen slots; units glide in
+    const k = RM?1:0.16;
+    for (const u of units){ if (u===dragging || u._tx==null) continue;
+      u.x+=(u._tx-u.x)*k; u.y+=(u._ty-u.y)*k; u.vx=u.vy=0; }
+    return;
+  }
   const cx=W/2, cy=H/2;
   for (const u of units){
     if (u===dragging) continue;
@@ -416,9 +488,19 @@ function isDimmed(item){
 // --------------------------------------------------------------------------- //
 // Draw
 // --------------------------------------------------------------------------- //
+// Magic-Move (doc §5): lens switches interpolate emphasis on springs — the six
+// lenses are one object being re-lit, never six screens crossfading.
+function mixHex(a,b,k){
+  if (k<=0.02) return a; if (k>=0.98) return b;
+  if (!/^#[0-9a-f]{6}$/i.test(a) || !/^#[0-9a-f]{6}$/i.test(b)) return k<0.5?a:b;
+  const pa=parseInt(a.slice(1),16), pb=parseInt(b.slice(1),16);
+  const ch=s=>{ const va=(pa>>s)&255, vb=(pb>>s)&255; return Math.round(va+(vb-va)*k); };
+  return '#'+((ch(16)<<16)|(ch(8)<<8)|ch(0)).toString(16).padStart(6,'0');
+}
+
 function drawEdge(e){ const a=byId[e.from], b=byId[e.to]; if(!a||!b) return;
   const dim=isDimmed(e), thick = lens==='flow' ? 0.8+Math.min((a.traffic||0),6)*0.5 : (e.verified?1.4:1);
-  ctx.save(); ctx.globalAlpha=dim?0.07:(e.verified?0.5:0.26);
+  ctx.save(); ctx.globalAlpha=springTo(e,'_a', dim?0.07:(e.verified?0.5:0.26), 0.2);
   ctx.strokeStyle=e.verified?cvar('--annotation'):cvar('--muted'); ctx.lineWidth=thick/cam.scale;
   ctx.setLineDash(e.verified?[]:[4/cam.scale,5/cam.scale]);
   ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
@@ -451,7 +533,11 @@ function drawUnit(u){
   const dim=isDimmed(u), selectedTint = selected && blast.has(u.id);
   const hcol=healthHex(u), kcol=kindHex(u);
   const form = u.container ? 'container' : (KIND_FORM[u.nodeKind]||'chip');
-  ctx.save(); ctx.globalAlpha=dim?0.16:1;
+  ctx.save();
+  // Magic-Move: emphasis rides a spring, so lens switches re-light the same
+  // object instead of snapping between six screens.
+  const A = springTo(u,'_a', dim?0.16:1, 0.22);
+  ctx.globalAlpha=A;
 
   // rise on hover/selection: the body scales up a touch and the halo widens.
   const rise = springTo(u,'_rise', (hover===u || selected===u.id) ? 1 : 0);
@@ -464,19 +550,20 @@ function drawUnit(u){
   // budget-burn arc (cost/latency measured vs declared) — amber when over.
   const burn=budgetBurn(u);
   if (burn!=null){ const over=burn>1; ctx.strokeStyle=over?cvar('--signal-amber'):cvar('--muted');
-    ctx.globalAlpha=dim?0.2:0.9; ctx.lineWidth=2.5;
+    ctx.globalAlpha=A*0.9; ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.arc(u.x,u.y,u.r+5,-Math.PI/2,-Math.PI/2+Math.min(burn,1)*Math.PI*2); ctx.stroke();
-    ctx.globalAlpha=dim?0.16:1; }
+    ctx.globalAlpha=A; }
 
-  if (selectedTint){ ctx.strokeStyle=cvar('--signal-amber'); ctx.globalAlpha=dim?0.2:0.9;
+  if (selectedTint){ ctx.strokeStyle=cvar('--signal-amber'); ctx.globalAlpha=A*0.9;
     ctx.lineWidth=2; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.arc(u.x,u.y,u.r+8,0,Math.PI*2);
-    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=dim?0.16:1; }
+    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=A; }
 
-  const bodyCol = (lens==='health'||lens==='timeline') ? healthColourAt(u) : kcol;
+  const hk = springTo(u,'_hk', (lens==='health'||lens==='timeline')?1:0, 0.16);
+  const bodyCol = mixHex(kcol, healthColourAt(u), hk);
   ctx.lineWidth=1.6; ctx.strokeStyle=bodyCol;
   ctx.fillStyle=bodyCol+(u.container?'1c':(form==='tag'?'18':'2a'));  // config recedes
   drawSilhouette(form, u.x, u.y, r);
-  drawKindGlyph(form, u.x, u.y, r, bodyCol, dim);
+  drawKindGlyph(form, u.x, u.y, r, bodyCol, A);
   drawStatusRing(u, r, dim);               // health as shape, not just colour
 
   // agentic interior: satellites on an orbit ring — the signature element (H4).
@@ -513,13 +600,13 @@ function drawUnit(u){
     else if (sv==='DEGRADED') ringCol=cvar('--signal-amber');
     else if (sv==='UNSTABLE'){ ringCol=cvar('--signal-amber'); pulse=true; }
     if (ringCol){ ctx.save(); ctx.strokeStyle=ringCol;
-      ctx.globalAlpha = pulse && !RM ? (Math.sin(t*0.12)*0.35+0.55) : (dim?0.16:0.9);
+      ctx.globalAlpha = pulse && !RM ? (Math.sin(t*0.12)*0.35+0.55) : A*0.9;
       ctx.lineWidth=2.2; ctx.beginPath(); ctx.arc(u.x,u.y,u.r+5.5,0,Math.PI*2);
       ctx.stroke(); ctx.restore(); } }
 
   if (u.approvalRequired){ const waiting=pendingApproval.has(u.id);
     ctx.save(); ctx.strokeStyle=cvar('--annotation');
-    ctx.globalAlpha = (waiting && !RM) ? (Math.sin(t*0.15)*0.4+0.6) : (dim?0.16:1);
+    ctx.globalAlpha = (waiting && !RM) ? (Math.sin(t*0.15)*0.4+0.6) : A;
     ctx.lineWidth = waiting?3:2;
     // a waiting proposal draws a full pulsing gold ring; otherwise a small gate arc.
     ctx.beginPath(); ctx.arc(u.x,u.y,u.r+3, waiting?0:-0.9, waiting?Math.PI*2:-0.1); ctx.stroke(); ctx.restore(); }
@@ -532,7 +619,7 @@ function drawUnit(u){
     ctx.beginPath(); ctx.arc(u.x,u.y,u.r+6+16*(1-a),0,Math.PI*2); ctx.stroke(); ctx.restore(); }
 
   // label (group names + unit names use the display serif via canvas font)
-  ctx.globalAlpha=dim?0.35:1; ctx.fillStyle=cvar('--starlight');
+  ctx.globalAlpha=Math.min(1, A*2.2); ctx.fillStyle=cvar('--starlight');
   ctx.font=`${u.container?13:11}px ${u.container?"'Fraunces',serif":"var(--font-body),sans-serif"}`;
   ctx.textAlign='center';
   ctx.fillText(u.container?`${u.group} (${u.count})`:shortName(u), u.x, u.y+u.r+15);
@@ -591,9 +678,9 @@ function hexPath(x,y,r){ ctx.beginPath();
 
 // Vector micro-glyph per kind (second redundant channel) — pure strokes, no
 // text, drawn only when close enough to matter.
-function drawKindGlyph(form,x,y,r,col,dim){
+function drawKindGlyph(form,x,y,r,col,alpha){
   if (cam.scale<0.7 || form==='container') return;
-  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=dim?0.16:0.85; ctx.lineWidth=1.3;
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=alpha*0.85; ctx.lineWidth=1.3;
   const s=r*0.32;
   if (form==='chip'){                       // ⟨⟩ — runs logic
     ctx.beginPath(); ctx.moveTo(x-s*0.4,y-s); ctx.lineTo(x-s*1.1,y); ctx.lineTo(x-s*0.4,y+s);
@@ -621,7 +708,7 @@ function drawStatusRing(u,r,dim){
                UNTESTED:'dotted',ERROR:'broken',
                UNSTABLE:'marching',DEGRADED:'marching'}[u.health];
   if (!style || style==='solid') return;                 // calm states stay calm
-  ctx.save(); ctx.strokeStyle=healthHex(u); ctx.globalAlpha=dim?0.16:0.85; ctx.lineWidth=1.4;
+  ctx.save(); ctx.strokeStyle=healthHex(u); ctx.globalAlpha=(u._a??1)*0.85; ctx.lineWidth=1.4;
   const rr=r+2.5;
   if (style==='double'){ ctx.beginPath(); ctx.arc(u.x,u.y,rr,0,Math.PI*2); ctx.stroke();
     ctx.beginPath(); ctx.arc(u.x,u.y,rr+3,0,Math.PI*2); ctx.stroke(); }
@@ -802,6 +889,8 @@ window.addEventListener('keydown', e=>{
 });
 document.getElementById('btn-search').addEventListener('click', openSearch);
 document.getElementById('btn-fit').addEventListener('click', fitToView);
+document.getElementById('btn-layout').addEventListener('click',
+  ()=>setLayout(layoutMode==='layered'?'constellation':'layered'));
 document.getElementById('recollapse').addEventListener('click', ()=>{ expanded=new Set(); buildLayout(); fitToView(); });
 
 // --------------------------------------------------------------------------- //
