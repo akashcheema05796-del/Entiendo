@@ -107,6 +107,17 @@ def test_page_loads_and_shows_the_summary(page) -> None:
     assert not page.is_visible("#snapshot-note")
 
 
+def test_canvas_fills_the_viewport(page) -> None:
+    # canvas is a replaced element — a bare inset:0 leaves it at its intrinsic
+    # 300x150 and the map renders as a corner stamp (regression guard).
+    size = page.evaluate("""(() => { const c = document.getElementById('universe');
+        return [c.clientWidth, c.clientHeight, innerWidth, innerHeight]; })()""")
+    assert size[0] == size[2] and size[1] == size[3], f"canvas {size[:2]} != viewport {size[2:]}"
+    # ...and the camera actually framed the graph (fit ran against real dims)
+    scale = page.evaluate("cam.scale")
+    assert scale > 0.3, f"boot fit collapsed to minimum zoom (scale={scale})"
+
+
 def test_all_six_lenses_change_the_legend(page) -> None:
     legends = {}
     for lens in ["structure", "flow", "trace", "health", "timeline", "blast"]:

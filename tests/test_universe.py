@@ -43,12 +43,19 @@ def test_universe_is_the_render_surface() -> None:
     assert "the Universe" in html
 
 
-def test_kind_forms_and_gold_diamond() -> None:
+def test_kind_forms_are_distinct_silhouettes() -> None:
     html = build_universe(None)
-    # orb / ringed / dashed / gold diamond / container — the kind-form vocabulary
-    for form in ("orb", "ring", "ring2", "dashed", "diamond", "container"):
-        assert form in html
-    assert "--gold" in html                   # external is the gold diamond
+    # Deep-Space Instrument: silhouette-first kind encoding —
+    # chip / cylinder / hex / tag / cut-corner / container
+    for form in ("chip", "cylinder", "hex", "tag", "cut", "container"):
+        assert f"'{form}'" in html
+    assert "drawSilhouette" in html and "drawKindGlyph" in html
+    # external stays gold and is the ONLY dashed silhouette
+    assert "--gold" in html
+    # health is shape too, never colour alone (status-ring styles)
+    assert "drawStatusRing" in html
+    for style in ("double", "dotted", "broken", "marching"):
+        assert style in html
 
 
 def test_flow_particles_and_verified_vs_declared() -> None:
