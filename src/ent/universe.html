@@ -26,7 +26,10 @@
   body { font:400 13.5px/1.5 var(--font-body); color:var(--starlight);
     background:radial-gradient(1400px 900px at 32% 18%, var(--field2), var(--field) 72%);
     touch-action:none; -webkit-user-select:none; user-select:none; }
-  #universe { position:fixed; inset:0; display:block; }
+  /* canvas is a REPLACED element: inset:0 alone does not stretch it — without
+     explicit width/height it stays at its intrinsic 300×150 and the whole map
+     renders as a corner stamp. */
+  #universe { position:fixed; inset:0; display:block; width:100%; height:100%; }
   #universe:focus-visible { outline:none; }
 
   header { position:fixed; top:0; left:0; right:0; z-index:5; display:flex; gap:16px;
@@ -190,8 +193,12 @@ const STATIC = EMBEDDED !== null;
 const RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const COLLAPSE_THRESHOLD = 12;
 
-const KIND_FORM = { compute:'orb', state:'ring', schema:'ring2', config:'dashed',
-                    external:'diamond', pipeline:'container' };   // gold diamond = external
+// Deep-Space Instrument: silhouette-first kind encoding (redundant with hue +
+// glyph, so no single channel is load-bearing — CatPAW/CHI-2026 guidance).
+//   compute=chip · state=cylinder · schema=hex(strata) · config=tag(recedes)
+//   external=cut-corner dashed (the only dashed silhouette) · pipeline=container
+const KIND_FORM = { compute:'chip', state:'cylinder', schema:'hex', config:'tag',
+                    external:'cut', pipeline:'container' };
 const KIND_COLOUR = { compute:'--compute', state:'--state', schema:'--schema',
                       config:'--config', external:'--external', pipeline:'--pipeline' };
 const HEALTH_COLOUR = { green:'--green', red:'--red', amber:'--amber', degraded:'--amber', grey:'--grey' };
@@ -421,17 +428,38 @@ function drawEdge(e){ const a=byId[e.from], b=byId[e.to]; if(!a||!b) return;
     ctx.fillText((e.kinds||[]).join('/'), (a.x+b.x)/2, (a.y+b.y)/2 - 3); }
   ctx.restore(); }
 
+// Pre-rendered glow sprites (MDN: avoid per-frame gradients/shadowBlur). One
+// 64px radial sprite per colour, drawn scaled — the halo costs one drawImage.
+const _glowCache = new Map();
+function glowSprite(col){
+  let s=_glowCache.get(col);
+  if (!s){ s=document.createElement('canvas'); s.width=s.height=64;
+    const c=s.getContext('2d'), g=c.createRadialGradient(32,32,8,32,32,32);
+    g.addColorStop(0,col+'77'); g.addColorStop(1,col+'00');
+    c.fillStyle=g; c.fillRect(0,0,64,64); _glowCache.set(col,s); }
+  return s;
+}
+
+// Hover/selection rise — a tiny critically-damped spring per unit (the
+// Apple-feel primitive; response≈0.3, no bounce). Hand-rolled, ~6 lines.
+function springTo(u, key, target, speed){
+  const v=u[key]??0; u[key]=v+(target-v)*(RM?1:(speed||0.18));
+  return u[key];
+}
+
 function drawUnit(u){
   const dim=isDimmed(u), selectedTint = selected && blast.has(u.id);
   const hcol=healthHex(u), kcol=kindHex(u);
-  const form = u.container ? 'container' : (KIND_FORM[u.nodeKind]||'orb');
+  const form = u.container ? 'container' : (KIND_FORM[u.nodeKind]||'chip');
   ctx.save(); ctx.globalAlpha=dim?0.16:1;
 
-  let glow=u.r+10;
+  // rise on hover/selection: the body scales up a touch and the halo widens.
+  const rise = springTo(u,'_rise', (hover===u || selected===u.id) ? 1 : 0);
+  const r = u.r * (1 + 0.07*rise);
+
+  let glow=r+10+4*rise;
   if (!RM && (u.health==='RED'||u.health==='REGRESSED')) glow+=Math.sin(t*0.12)*4+4;
-  const g=ctx.createRadialGradient(u.x,u.y,u.r*0.4,u.x,u.y,glow);
-  g.addColorStop(0,hcol+'77'); g.addColorStop(1,hcol+'00');
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(u.x,u.y,glow,0,Math.PI*2); ctx.fill();
+  ctx.drawImage(glowSprite(hcol), u.x-glow, u.y-glow, glow*2, glow*2);
 
   // budget-burn arc (cost/latency measured vs declared) — amber when over.
   const burn=budgetBurn(u);
@@ -446,17 +474,10 @@ function drawUnit(u){
 
   const bodyCol = (lens==='health'||lens==='timeline') ? healthColourAt(u) : kcol;
   ctx.lineWidth=1.6; ctx.strokeStyle=bodyCol;
-  ctx.fillStyle=bodyCol+(u.container?'1c':'2a');
-  if (form==='diamond'){ ctx.fillStyle=cvar('--annotation')+'2a'; ctx.strokeStyle=cvar('--annotation');
-    ctx.beginPath(); ctx.moveTo(u.x,u.y-u.r); ctx.lineTo(u.x+u.r,u.y); ctx.lineTo(u.x,u.y+u.r);
-    ctx.lineTo(u.x-u.r,u.y); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-  else if (form==='dashed'){ ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2);
-    ctx.fill(); ctx.stroke(); ctx.setLineDash([]); }
-  else if (form==='ring'||form==='ring2'){ ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(u.x,u.y,u.r-5,0,Math.PI*2); ctx.stroke();
-    if (form==='ring2'){ ctx.beginPath(); ctx.arc(u.x,u.y,u.r-9,-0.6,1.2); ctx.stroke(); } }
-  else if (form==='container'){ const s=u.r; roundRect(u.x-s,u.y-s,s*2,s*2,12); ctx.fill(); ctx.stroke(); }
-  else { ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+  ctx.fillStyle=bodyCol+(u.container?'1c':(form==='tag'?'18':'2a'));  // config recedes
+  drawSilhouette(form, u.x, u.y, r);
+  drawKindGlyph(form, u.x, u.y, r, bodyCol, dim);
+  drawStatusRing(u, r, dim);               // health as shape, not just colour
 
   // agentic interior: satellites on an orbit ring — the signature element (H4).
   // Each satellite is a registry tool, tethered across the border to the edge it
@@ -530,8 +551,94 @@ function shortName(u){ const p=u.id.split('.'); return p[p.length-1]; }
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r);
   ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
+// ── Deep-Space silhouettes: each kind reads by SHAPE at any zoom ─────────── //
+function drawSilhouette(form,x,y,r){
+  if (form==='chip'){                       // compute — rounded chip
+    roundRect(x-r*0.92,y-r*0.92,r*1.84,r*1.84,r*0.34); ctx.fill(); ctx.stroke(); }
+  else if (form==='cylinder'){              // state — the universal DB barrel
+    const w=r*0.94, h=r*0.78, e=r*0.30;
+    ctx.beginPath(); ctx.ellipse(x,y-h,w,e,0,Math.PI,0); ctx.lineTo(x+w,y+h);
+    ctx.ellipse(x,y+h,w,e,0,0,Math.PI); ctx.lineTo(x-w,y-h); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x,y-h,w,e,0,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha*=0.55;                  // stored-volume level line
+    ctx.beginPath(); ctx.ellipse(x,y+h*0.35,w,e,0,0,Math.PI); ctx.stroke();
+    ctx.globalAlpha/=0.55; }
+  else if (form==='hex'){                   // schema — hexagon, versioned strata
+    hexPath(x,y,r); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha*=0.45; hexPath(x+3,y+3,r); ctx.stroke();
+    hexPath(x+6,y+6,r); ctx.globalAlpha*=0.6; ctx.stroke(); ctx.globalAlpha=1; }
+  else if (form==='tag'){                   // config — notched tag; context, not action
+    const w=r*0.98, h=r*0.72, n=r*0.34;
+    ctx.beginPath(); ctx.moveTo(x-w+n,y-h); ctx.lineTo(x+w,y-h); ctx.lineTo(x+w,y+h);
+    ctx.lineTo(x-w+n,y+h); ctx.lineTo(x-w,y); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x-w+n*0.9,y,r*0.09,0,Math.PI*2); ctx.stroke(); }
+  else if (form==='cut'){                   // external — the ONLY dashed silhouette
+    ctx.fillStyle=cvar('--annotation')+'22'; ctx.strokeStyle=cvar('--annotation');
+    const w=r*0.94, c=r*0.55;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(x-w,y-w); ctx.lineTo(x+w-c,y-w); ctx.lineTo(x+w,y-w+c);
+    ctx.lineTo(x+w,y+w); ctx.lineTo(x-w,y+w); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.setLineDash([]); }
+  else if (form==='container'){ roundRect(x-r,y-r,r*2,r*2,12); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha*=0.5; roundRect(x-r+4,y-r+4,r*2-8,r*2-8,9); ctx.stroke(); ctx.globalAlpha*=2; }
+  else { ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+}
+function hexPath(x,y,r){ ctx.beginPath();
+  for (let i=0;i<6;i++){ const a=Math.PI/6+i*Math.PI/3;
+    const px=x+Math.cos(a)*r, py=y+Math.sin(a)*r;
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py); } ctx.closePath(); }
+
+// Vector micro-glyph per kind (second redundant channel) — pure strokes, no
+// text, drawn only when close enough to matter.
+function drawKindGlyph(form,x,y,r,col,dim){
+  if (cam.scale<0.7 || form==='container') return;
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=dim?0.16:0.85; ctx.lineWidth=1.3;
+  const s=r*0.32;
+  if (form==='chip'){                       // ⟨⟩ — runs logic
+    ctx.beginPath(); ctx.moveTo(x-s*0.4,y-s); ctx.lineTo(x-s*1.1,y); ctx.lineTo(x-s*0.4,y+s);
+    ctx.moveTo(x+s*0.4,y-s); ctx.lineTo(x+s*1.1,y); ctx.lineTo(x+s*0.4,y+s); ctx.stroke(); }
+  else if (form==='hex'){                   // stacked strata lines
+    ctx.beginPath(); for (const dy of [-s,0,s]){ ctx.moveTo(x-s,y+dy); ctx.lineTo(x+s,y+dy); } ctx.stroke(); }
+  else if (form==='cut'){                   // antenna — a signal from outside
+    ctx.beginPath(); ctx.moveTo(x,y+s); ctx.lineTo(x,y-s*0.4); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,y-s*0.5,s*0.55,-2.6,-0.55); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,y-s*0.5,s*1.0,-2.6,-0.55); ctx.stroke(); }
+  else if (form==='tag'){                   // gear tick ring
+    ctx.beginPath(); ctx.arc(x+r*0.15,y,s*0.6,0,Math.PI*2); ctx.stroke();
+    for (let i=0;i<4;i++){ const a=i*Math.PI/2+Math.PI/4;
+      ctx.beginPath(); ctx.moveTo(x+r*0.15+Math.cos(a)*s*0.7,y+Math.sin(a)*s*0.7);
+      ctx.lineTo(x+r*0.15+Math.cos(a)*s*1.0,y+Math.sin(a)*s*1.0); ctx.stroke(); } }
+  ctx.restore();
+}
+
+// Health as SHAPE, not just colour (colour-blind-safe channel): a status ring
+// whose STYLE is the state — solid=GREEN · double=RED · dotted=UNTESTED ·
+// broken=ERROR · marching=UNSTABLE/DEGRADED. Colour still reinforces.
+function drawStatusRing(u,r,dim){
+  const style={GREEN:'solid',WITHIN_BAND:'solid',IMPROVED:'solid',
+               RED:'double',REGRESSED:'double',
+               UNTESTED:'dotted',ERROR:'broken',
+               UNSTABLE:'marching',DEGRADED:'marching'}[u.health];
+  if (!style || style==='solid') return;                 // calm states stay calm
+  ctx.save(); ctx.strokeStyle=healthHex(u); ctx.globalAlpha=dim?0.16:0.85; ctx.lineWidth=1.4;
+  const rr=r+2.5;
+  if (style==='double'){ ctx.beginPath(); ctx.arc(u.x,u.y,rr,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(u.x,u.y,rr+3,0,Math.PI*2); ctx.stroke(); }
+  else if (style==='dotted'){ ctx.setLineDash([1.5,4]);
+    ctx.beginPath(); ctx.arc(u.x,u.y,rr,0,Math.PI*2); ctx.stroke(); }
+  else if (style==='broken'){ ctx.setLineDash([7,6]);
+    ctx.beginPath(); ctx.arc(u.x,u.y,rr,0,Math.PI*2); ctx.stroke(); }
+  else if (style==='marching'){ ctx.setLineDash([4,4]); ctx.lineDashOffset=RM?0:-t*0.15;
+    ctx.beginPath(); ctx.arc(u.x,u.y,rr,0,Math.PI*2); ctx.stroke(); }
+  ctx.restore();
+}
+
 function loop(ts){
   t++; step();
+  if (cam.inertia){ cam.x+=cam.inertia[0]; cam.y+=cam.inertia[1];
+    cam.inertia[0]*=0.92; cam.inertia[1]*=0.92;
+    if (Math.hypot(cam.inertia[0],cam.inertia[1])<0.4) cam.inertia=null; }
   if (cam.flight){ const f=cam.flight;
     cam.x+=(f.x-cam.x)*0.14; cam.y+=(f.y-cam.y)*0.14; cam.scale+=(f.scale-cam.scale)*0.14;
     if (Math.hypot(f.x-cam.x,f.y-cam.y)<0.5 && Math.abs(f.scale-cam.scale)<0.005){ Object.assign(cam,f); cam.flight=null; } }
@@ -597,7 +704,7 @@ function hit(sx,sy){ const [wx,wy]=screenToWorld(sx,sy);
   for (let i=units.length-1;i>=0;i--){ const u=units[i]; if (Math.hypot(wx-u.x,wy-u.y)<=u.r+4) return u; } return null; }
 
 canvas.addEventListener('pointerdown', e=>{
-  canvas.setPointerCapture(e.pointerId); canvas.focus();
+  canvas.setPointerCapture(e.pointerId); canvas.focus(); cam.inertia=null;
   pointers.set(e.pointerId, {x:e.offsetX,y:e.offsetY});
   if (pointers.size===2){ const p=[...pointers.values()]; pinchDist=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y); dragging=null; panning=false; return; }
   const u=hit(e.offsetX,e.offsetY);
@@ -608,12 +715,18 @@ canvas.addEventListener('pointermove', e=>{
   if (pointers.size===2){ const p=[...pointers.values()]; const d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
     if (pinchDist){ zoomAt((p[0].x+p[1].x)/2,(p[0].y+p[1].y)/2, d/pinchDist); } pinchDist=d; return; }
   if (dragging){ const [wx,wy]=screenToWorld(e.offsetX,e.offsetY); dragging.x=wx; dragging.y=wy; dragging.vx=dragging.vy=0; dragMoved=true; hover=dragging; return; }
-  if (panning){ cam.x+=e.offsetX-panLast[0]; cam.y+=e.offsetY-panLast[1]; panLast=[e.offsetX,e.offsetY]; cam.flight=null; return; }
+  if (panning){ const dx=e.offsetX-panLast[0], dy=e.offsetY-panLast[1];
+    cam.x+=dx; cam.y+=dy; camVel=[dx,dy];        // remember velocity for inertia
+    panLast=[e.offsetX,e.offsetY]; cam.flight=null; return; }
   hover=hit(e.offsetX,e.offsetY); canvas.style.cursor=hover?'pointer':'default';
 });
+// Kinetic inertia: release a pan and the field keeps drifting, friction ~0.92
+// per frame — the Apple-feel throw. Reduced-motion users get a hard stop.
+let camVel=[0,0];
 function endPointer(e){ pointers.delete(e.pointerId);
   if (dragging && !dragMoved) onClick(dragging);
-  dragging=null; panning=false; if (pointers.size<2) pinchDist=0; }
+  if (panning && !RM && Math.hypot(camVel[0],camVel[1])>2) cam.inertia=[...camVel];
+  dragging=null; panning=false; camVel=[0,0]; if (pointers.size<2) pinchDist=0; }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('pointerleave', ()=>{ if(!dragging&&!panning) hover=null; });
@@ -786,8 +899,9 @@ function healthColourAt(u){
 }
 function drawLegend(){
   const el=document.getElementById('legend');
-  if (lens==='health'){ el.innerHTML='<b>Health</b>'+[['green','GREEN'],['amber','degraded / over-budget'],['red','RED'],['grey','untested']]
+  if (lens==='health'){ el.innerHTML='<b>Health</b>'+[['green','GREEN · solid'],['amber','degraded / over-budget · marching dashes'],['red','RED · double ring'],['grey','untested · dotted']]
       .map(([c,l])=>`<div class="row"><span class="g" style="background:${cvar('--'+c)}"></span>${l}</div>`).join('')
+      + '<div class="row">ring STYLE carries the state — never colour alone</div>'
       + '<div class="row">thin arc = spend/latency vs budget</div>'
       + '<div class="row">ring = golden verdict — red only on statistically meaningful movement</div>'; }
   else if (lens==='flow'){ el.innerHTML='<b>Flow</b><div class="row"><span class="g" style="background:var(--annotation)"></span>verified · bright/fast · thicker = more traffic</div>'
@@ -798,8 +912,8 @@ function drawLegend(){
       + '<div class="row">failed hop halts the comet and pulses red</div>'; }
   else if (lens==='timeline'){ el.innerHTML='<b>Timeline</b><div class="row">scrub below to move every unit to its fingerprint at that commit</div>'
       + '<div class="row">gold label = composite band · click a dossier tick to replay</div>'; }
-  else { el.innerHTML='<b>Structure</b>'+[['compute','orb'],['state','ringed'],['schema','ring+band'],
-      ['config','dashed'],['external','gold diamond'],['pipeline','container']]
+  else { el.innerHTML='<b>Structure</b>'+[['compute','chip ⟨⟩'],['state','cylinder'],['schema','hex · strata'],
+      ['config','tag · recedes'],['external','cut corner · dashed'],['pipeline','container']]
       .map(([k,f])=>`<div class="row"><span class="g" style="background:${cvar('--'+k)}"></span>${k} · ${f}</div>`).join(''); }
 }
 
