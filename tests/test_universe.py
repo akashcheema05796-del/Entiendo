@@ -174,3 +174,11 @@ def test_fifty_node_view_renders_with_group_collapse() -> None:
     data = _embedded(html)
     assert len(data["nodes"]) == 50
     assert len({n["group"] for n in data["nodes"]}) == 6
+
+
+def test_city_lens_is_wired() -> None:
+    html = build_universe(None)
+    # v7 Code City: territory = truth — area is real file mass
+    assert 'data-lens="city"' in html
+    assert "buildCity" in html and "drawCity" in html and "cityHit" in html
+    assert "claimedFileCount" in html          # mass comes from expanded claims
