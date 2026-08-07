@@ -298,6 +298,12 @@ async function watchVersion(){
 async function boot(){
   resize();
   view = STATIC ? EMBEDDED : (await api('GET','/api/graph')).data;
+  // v7 — refuse to render a payload this page was not written for
+  if (!view || view.payloadVersion !== 2){
+    document.body.textContent = 'entiendo: unsupported payload version '
+      + (view && view.payloadVersion) + ' — re-run `ent render` with this version of ent.';
+    return;
+  }
   document.getElementById('snapshot-note').style.display = STATIC ? 'block' : 'none';
   // v6 4.2 — a broken tree serves the last good view + this banner
   const drift = document.getElementById('drift-banner');
