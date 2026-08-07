@@ -166,6 +166,43 @@
     }
     #dossier { backdrop-filter: blur(20px) saturate(1.4); }
   }
+
+  /* ── v7 windowed workspace: LUs as floating windows over the map ── */
+  .win { position:fixed; z-index:20; width:400px; max-height:72vh; display:flex;
+    flex-direction:column; border-radius:11px; overflow:hidden;
+    background: linear-gradient(180deg, rgba(14,17,27,.88), rgba(9,11,19,.94));
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow: 0 22px 54px rgba(0,0,0,.5), inset 0 1px 1px rgba(255,255,255,.1); }
+  .win.focused { border-color: var(--annotation); }
+  .win header { position:static; width:auto; inset:auto; background:none; height:auto;
+    display:flex; align-items:center; gap:8px; padding:8px 10px;
+    cursor:grab; user-select:none; border-bottom:1px solid var(--hairline); }
+  .win header .hdot { width:9px; height:9px; border-radius:50%; flex:none; }
+  .win header .nm { font-family:var(--font-display); font-size:14px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .win header .fp { font-family:var(--font-mono); font-size:10px; color:var(--muted); margin-left:auto; }
+  .win header button { background:none; border:0; color:var(--muted); cursor:pointer;
+    font-size:13px; padding:2px 5px; }
+  .win header button:hover, .win header button:focus-visible { color:var(--starlight); outline:1px solid var(--annotation); }
+  .win .wtabs { display:flex; border-bottom:1px solid var(--hairline); }
+  .win .wtabs button { flex:1; background:none; border:0; color:var(--muted); cursor:pointer;
+    font-size:11px; padding:6px 2px; font-family:var(--font-body); }
+  .win .wtabs button.on { color:var(--annotation); box-shadow: inset 0 -2px 0 var(--annotation); }
+  .win .wtabs button:focus-visible { outline:1px solid var(--annotation); }
+  .win .wbody { overflow:auto; padding:10px 12px; font-size:12px; line-height:1.5; }
+  .win .wbody pre { font-family:var(--font-mono); font-size:11px; white-space:pre-wrap; margin:0; }
+  .win .warn { color: var(--signal-amber); }
+  .win .vok { color: var(--signal-green); }
+  .win .row2 { display:flex; justify-content:space-between; gap:8px; }
+  .win .bar { height:5px; background:#ffffff14; border-radius:3px; margin:2px 0 8px; }
+  .win .bar i { display:block; height:100%; border-radius:3px; background:var(--annotation); }
+  #dock { position:fixed; left:50%; transform:translateX(-50%); bottom:52px; z-index:19;
+    display:flex; gap:6px; }
+  #dock .chip { display:flex; align-items:center; gap:6px; padding:5px 10px; cursor:pointer;
+    border-radius:999px; font-size:11.5px; color:var(--starlight);
+    background: linear-gradient(180deg, rgba(16,19,30,.7), rgba(9,11,19,.85));
+    border:1px solid rgba(255,255,255,.12); }
+  #dock .chip:focus-visible { outline:1px solid var(--annotation); }
 </style>
 </head>
 <body>
@@ -200,6 +237,7 @@
 <div id="timebar"></div>
 <div id="hint">scroll / pinch = zoom · drag field = pan · / = search · tab = cycle · ? nav</div>
 <div id="snapshot-note">Static snapshot. Run <code>ent serve</code> to steer, re-eval, and revert live.</div>
+<div id="dock"></div>
 <div id="drift-banner" style="display:none; position:fixed; left:50%; transform:translateX(-50%); top:12px; z-index:9;
   background:rgba(180,120,30,.92); color:#1a1610; font-size:12px; padding:6px 14px; border-radius:6px;"></div>
 <div id="empty"><div><h1>An empty Universe</h1><p>No units are declared yet. Run <code>ent init</code> and <code>ent new</code> to bring the first unit under the plane, then <code>ent render</code>.</p></div></div>
@@ -294,6 +332,139 @@ async function watchVersion(){
     }catch(e){ await new Promise(res=>setTimeout(res, 2000)); }
   }
 }
+
+
+// ─── v7 windowed workspace: each LU is a floating window over the map ────── //
+// Windows render ENTIRELY from the embedded payload (no fetch); positions are
+// user state, never graph state; the dossier stays the action surface.
+const wins=new Map(); let winZ=30, focusedWin=null;
+const WIN_CAP=6, WTABS=['manifest','contract','evals','history','blast'];
+function nodeOf(id){ return view.nodes.find(n=>n.id===id); }
+function openWindow(id){
+  if (wins.has(id)){ const w=wins.get(id); if (w.minimized) restoreWin(id); focusWin(id); return; }
+  if ([...wins.values()].filter(w=>!w.minimized).length >= WIN_CAP){
+    const lru=[...wins.values()].filter(w=>!w.minimized).sort((a,b)=>a.z-b.z)[0];
+    if (lru) minimizeWin(lru.id);
+  }
+  const n=nodeOf(id); if (!n) return;
+  const el=document.createElement('div'); el.className='win'; el.dataset.unit=id;
+  const cascade=wins.size%5;
+  el.style.left=(90+cascade*36)+'px'; el.style.top=(70+cascade*32)+'px';
+  el.innerHTML = `<header>
+      <span class="hdot" style="background:${cvar('--'+(n.healthColour||'grey'))}"></span>
+      <span class="nm">${esc(shortName({id}))}</span>
+      <span class="fp">${esc((n.version&&n.version.composite||'').slice(0,10))}</span>
+      <button class="wmin" title="minimize">–</button>
+      <button class="wclose" title="close">×</button></header>
+    <div class="wtabs">${WTABS.map(tb=>`<button data-tab="${tb}">${tb}</button>`).join('')}</div>
+    <div class="wbody"></div>`;
+  document.body.appendChild(el);
+  const w={id, el, tab:'manifest', minimized:false, z:++winZ};
+  wins.set(id, w); el.style.zIndex=w.z;
+  el.addEventListener('pointerdown', ()=>focusWin(id));
+  el.querySelector('.wclose').addEventListener('click', e=>{ e.stopPropagation(); closeWin(id); });
+  el.querySelector('.wmin').addEventListener('click', e=>{ e.stopPropagation(); minimizeWin(id); });
+  el.querySelectorAll('.wtabs button').forEach(b=>b.addEventListener('click', ()=>setWinTab(id, b.dataset.tab)));
+  let drag=null;   // drag by chrome only — tabs/body/buttons stay interactive
+  el.addEventListener('pointerdown', e=>{
+    if (e.target.closest('.wtabs,.wbody,button')) return;
+    drag=[e.clientX-el.offsetLeft, e.clientY-el.offsetTop]; focusWin(id);
+    try{ el.setPointerCapture(e.pointerId); }catch(_){ /* synthetic pointers */ } });
+  el.addEventListener('pointermove', e=>{ if(!drag) return;
+    el.style.left=Math.max(0, Math.min(innerWidth-120, e.clientX-drag[0]))+'px';
+    el.style.top =Math.max(48, Math.min(innerHeight-60, e.clientY-drag[1]))+'px'; });
+  el.addEventListener('pointerup', ()=>{ if (drag){ drag=null; saveWorkspaceSoon(); } });
+  setWinTab(id, 'manifest'); focusWin(id);
+}
+function focusWin(id){ const w=wins.get(id); if(!w) return;
+  focusedWin=id; w.z=++winZ; w.el.style.zIndex=w.z;
+  wins.forEach(o=>o.el.classList.toggle('focused', o.id===id));
+  winFocusCoupling(id);
+}
+function closeWin(id){ const w=wins.get(id); if(!w) return;
+  w.el.remove(); wins.delete(id); if (focusedWin===id) focusedWin=null;
+  renderDock(); saveWorkspaceSoon(); }
+function minimizeWin(id){ const w=wins.get(id); if(!w) return;
+  w.minimized=true; w.el.style.display='none'; renderDock(); saveWorkspaceSoon(); }
+function restoreWin(id){ const w=wins.get(id); if(!w) return;
+  w.minimized=false; w.el.style.display='flex'; focusWin(id); renderDock(); saveWorkspaceSoon(); }
+function renderDock(){ const d=document.getElementById('dock'); if(!d) return;
+  d.innerHTML=[...wins.values()].filter(w=>w.minimized).map(w=>{ const n=nodeOf(w.id)||{};
+    return `<button class="chip" data-dock="${esc(w.id)}"><span class="hdot" style="width:8px;height:8px;border-radius:50%;background:${cvar('--'+(n.healthColour||'grey'))}"></span>${esc(shortName({id:w.id}))}</button>`; }).join('');
+  d.querySelectorAll('[data-dock]').forEach(b=>b.addEventListener('click', ()=>restoreWin(b.dataset.dock)));
+}
+function setWinTab(id, tab){ const w=wins.get(id); if(!w) return;
+  w.tab=tab; w.el.querySelectorAll('.wtabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
+  w.el.querySelector('.wbody').innerHTML = winTabHtml(nodeOf(id), tab);
+  winFocusCoupling(id); saveWorkspaceSoon();
+}
+function winTabHtml(n, tab){
+  if (!n) return '';
+  if (tab==='manifest'){
+    const claims=n.claims||[], fx=n.sideEffects, warnFx=(fx==='irreversible'||fx==='writes');
+    return `<pre>id: ${esc(n.id)}
+kind: ${esc(n.nodeKind)}
+group: ${esc(n.group||'—')}
+owner: ${esc(n.owner||'—')}
+status: ${esc(n.status||'—')}
+sideEffects: <span class="${warnFx?'warn':''}">${esc(fx||'none')}</span>
+approvalRequired: <span class="${n.approvalRequired?'warn':''}">${n.approvalRequired?'true':'false'}</span></pre>
+    <div style="margin-top:8px"><b>claims (${n.claimedFileCount??claims.length})</b>
+    ${claims.length? `<pre>${claims.map(esc).join('\n')}</pre>`
+      : n.nodeKind==='external' ? '<div class="warn">external unit — claims no files by design</div>'
+      : '<div class="warn">zero claims</div>'}</div>`;
+  }
+  if (tab==='contract'){
+    const inv=n.invariants||[], nb=n.neighbours||{out:[],in:[]};
+    const line=e=>`<div class="row2"><span>${esc(e.id)} <span style="color:var(--muted)">${esc(e.rel)}</span></span>
+      <span class="${e.verified?'vok':'warn'}">${e.verified?'✓ verified':'declared, unverified'}</span></div>`;
+    return `<b>invariants</b>${inv.length?`<pre>${inv.map(esc).join('\n')}</pre>`:'<div class="warn">no invariants declared</div>'}
+      <div style="margin-top:8px"><b>depends on</b>${nb.out.map(line).join('')||'<div style="color:var(--muted)">none</div>'}</div>
+      <div style="margin-top:8px"><b>depended on by</b>${nb.in.map(line).join('')||'<div style="color:var(--muted)">none</div>'}</div>`;
+  }
+  if (tab==='evals'){
+    const ev=n.evals||{}, t0=ev.tier0||{}, t1=ev.tier1;
+    const b=n.budgets||{}, m=b.measured;
+    const bar=(cur,lim)=> lim ? `<div class="bar"><i style="width:${Math.min(100,(cur||0)/lim*100)}%"></i></div>` : '';
+    let html=`<b>tier0 (reflex)</b><div class="row2"><span>${t0.passed??'—'} / ${t0.total??'—'} checks pass</span><span>${esc(t0.verdict||'')}</span></div>`;
+    if (t1){
+      html+=`<div style="margin-top:8px"><b>tier1 (golden)</b>
+        <div class="row2"><span>score</span><span>${t1.score}</span></div>
+        <div class="row2"><span>baseline</span><span>${t1.baseline}</span></div>
+        <div class="row2"><span>delta</span><span>${t1.delta}</span></div>
+        <div class="row2"><span>runs · rows</span><span>${t1.runs??'—'} · ${t1.nRows??'—'}</span></div>
+        <div class="row2"><span>CI95</span><span>[${t1.ciLow}, ${t1.ciHigh}]</span></div>
+        <div class="row2"><span>significant</span><span class="${t1.significant?'warn':'vok'}">${t1.significant}</span></div>
+        <div class="row2"><span>spread</span><span>${t1.spread}</span></div>
+        <div class="row2"><span>verdict</span><span>${esc(t1.verdictLabel||'')}</span></div>
+        ${t1.spread===0?'<div class="warn">⚠ zero spread — this golden set cannot discriminate</div>':''}</div>`;
+    } else html+=`<div style="margin-top:8px;color:var(--muted)">no tier1 golden run recorded</div>`;
+    if (b.p95LatencyMs!=null) html+=`<div style="margin-top:8px"><b>budget: latency</b>
+      <div class="row2"><span>${m&&m.p95LatencyMs!=null?m.p95LatencyMs+'ms':'—'}</span><span>/ ${b.p95LatencyMs}ms</span></div>${bar(m&&m.p95LatencyMs, b.p95LatencyMs)}</div>`;
+    if (b.costPerCallUsd!=null) html+=`<div><b>budget: cost</b>
+      <div class="row2"><span>${m&&m.avgCostUsd!=null?'$'+m.avgCostUsd:'—'}</span><span>/ $${b.costPerCallUsd}</span></div>${bar(m&&m.avgCostUsd, b.costPerCallUsd)}</div>`;
+    return html;
+  }
+  if (tab==='history'){
+    const rows=n.history||[];
+    if (!rows.length) return '<div style="color:var(--muted)">no history recorded yet</div>';
+    return rows.map(r=>`<div class="row2" style="border-bottom:1px solid var(--hairline);padding:3px 0">
+      <span style="font-family:var(--font-mono);font-size:10.5px">${esc(r.version||'—')}</span>
+      <span>${esc(r.summary||'')}${r.evalSummary?' · '+esc(r.evalSummary):''}</span>
+      <span style="color:var(--muted);font-size:10.5px">${esc((r.iso||'').slice(0,10))} · ${r.blessedBy?esc(r.blessedBy):'unblessed'}</span></div>`).join('');
+  }
+  if (tab==='blast'){
+    const down=[...computeBlast(n.id)];
+    if (!down.length) return '<div style="color:var(--muted)">no downstream dependents</div>';
+    return down.map(id=>{ const d=nodeOf(id)||{};
+      const risky=(d.sideEffects==='writes'||d.sideEffects==='irreversible');
+      return `<div class="row2"><span>${esc(id)}</span>
+        <span class="${risky?'warn':''}">${risky?('⚠ '+esc(d.sideEffects)):esc(d.sideEffects||'none')}</span></div>`; }).join('');
+  }
+  return '';
+}
+function winFocusCoupling(id){ /* Phase 3 wires focus → canvas */ }
+function saveWorkspaceSoon(){ /* Phase 4 persists to disk via ent dev */ }
 
 async function boot(){
   resize();
@@ -945,7 +1116,7 @@ canvas.addEventListener('dblclick', e=>{ // dbl-click a group hull re-collapses;
   else if (!u) fitToView();
 });
 
-function onClick(u){ if (u.container){ expanded.add(u.group); buildLayout(); return; } select(u.id); }
+function onClick(u){ if (u.container){ expanded.add(u.group); buildLayout(); return; } select(u.id); openWindow(u.id); }
 let blastCoupling={};
 function select(id){ if (typeof stopSteerPoll==='function') stopSteerPoll();
   selected=id; blast=new Set(computeBlast(id)); focusIdx=units.findIndex(u=>u.id===id);

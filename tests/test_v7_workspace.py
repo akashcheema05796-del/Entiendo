@@ -103,3 +103,24 @@ def test_payload_unverified_edges(tmp_path: Path) -> None:
 def test_page_refuses_unknown_payload_version() -> None:
     html = (REPO_ROOT / "src/ent/universe.html").read_text()
     assert "payloadVersion !== 2" in html and "unsupported payload version" in html
+
+
+# --------------------------------------------------------------------------- #
+# Phase 2 — window layer (structural; behaviour in tests/frontend/)
+# --------------------------------------------------------------------------- #
+
+def test_universe_contains_window_layer() -> None:
+    html = (REPO_ROOT / "src/ent/universe.html").read_text()
+    assert "openWindow" in html and ".win {" in html and "className='win'" in html
+    assert "WIN_CAP=6" in html                    # 7th window minimizes LRU
+    assert "setPointerCapture" in html            # header drag, captured
+
+
+def test_universe_tab_ids() -> None:
+    html = (REPO_ROOT / "src/ent/universe.html").read_text()
+    assert "'manifest','contract','evals','history','blast'" in html.replace('"', "'")
+
+
+def test_universe_no_localstorage() -> None:
+    # workspace persistence is Phase 4, ON DISK — never localStorage
+    assert "localStorage" not in (REPO_ROOT / "src/ent/universe.html").read_text()

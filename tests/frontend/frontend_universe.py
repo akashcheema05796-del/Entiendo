@@ -256,3 +256,27 @@ def test_empty_repo_invites_ent_init(env, tmp_path) -> None:
         page.close()
         proc.terminate()
         proc.wait(timeout=10)
+
+
+def test_windows_open_drag_and_tab(env, page) -> None:
+    # v7: three windows at once — the thing a detail pane structurally cannot do
+    for uid in ("refundly.decide", "refundly.gateway", "refundly.parse_email"):
+        page.evaluate(f"openWindow('{uid}')")
+    page.wait_for_timeout(300)
+    assert page.evaluate("[...wins.values()].filter(w=>!w.minimized).length") == 3
+    win = page.locator('.win[data-unit="refundly.decide"]')
+    page.evaluate("focusWin('refundly.decide')")     # raise above the cascade
+    # tabs switch and populate from the payload — zero network requests
+    win.locator('.wtabs button[data-tab="evals"]').click()
+    assert "tier0" in win.locator(".wbody").text_content()
+    win.locator('.wtabs button[data-tab="contract"]').click()
+    body = win.locator(".wbody").text_content()
+    assert "verified" in body or "unverified" in body
+    # drag by header moves it
+    before = page.evaluate("document.querySelector('.win[data-unit=\"refundly.decide\"]').offsetLeft")
+    box = win.locator("header").bounding_box()
+    page.mouse.move(box["x"] + 60, box["y"] + 12)
+    page.mouse.down(); page.mouse.move(box["x"] + 260, box["y"] + 160, steps=4); page.mouse.up()
+    after = page.evaluate("document.querySelector('.win[data-unit=\"refundly.decide\"]').offsetLeft")
+    assert after != before
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
