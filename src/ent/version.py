@@ -100,7 +100,8 @@ def compute_version(node: Node, root: Path) -> dict[str, Any]:
     root = Path(root)
     buckets: dict[str, list[bytes]] = {"code": [], "prompt": [], "config": []}
 
-    for claim in sorted(node.claims):
+    from .claims import expand_claims
+    for claim in sorted(expand_claims(root, node.claims)):
         path = root / claim
         if not path.exists() or not path.is_file():
             continue

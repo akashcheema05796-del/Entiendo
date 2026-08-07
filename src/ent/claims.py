@@ -20,6 +20,40 @@ import os
 from pathlib import Path
 from typing import Any
 
+_GLOB_MAGIC = ("*", "?", "[")
+
+
+def is_glob(claim: str) -> bool:
+    return any(ch in claim for ch in _GLOB_MAGIC)
+
+
+def expand_claims(root: Path, claims: Any) -> list[str]:
+    """Claims, with glob patterns expanded to the files they match (v7).
+
+    A monorepo unit can claim `src/agents/**/*.ts` instead of enumerating
+    thousands of paths. Expansion is against the CURRENT tree — a glob claims
+    exactly what exists when it is resolved, so a freshly created file is
+    covered on the next resolution, and a glob never authorises anything the
+    tree doesn't contain. Literal claims pass through untouched (missing
+    literal files stay listed — downstream decides what missing means).
+    Deterministic: sorted, de-duplicated, repo-relative posix.
+    """
+    root = Path(root)
+    out: list[str] = []
+    seen: set[str] = set()
+    for claim in claims or []:
+        if is_glob(str(claim)):
+            matches = sorted(p for p in root.glob(str(claim)) if p.is_file())
+            for m in matches:
+                rel = m.relative_to(root).as_posix()
+                if rel not in seen:
+                    seen.add(rel); out.append(rel)
+        else:
+            rel = Path(str(claim)).as_posix()
+            if rel not in seen:
+                seen.add(rel); out.append(rel)
+    return out
+
 
 def _real(p: Path | str) -> str:
     return os.path.realpath(str(p))
@@ -40,7 +74,7 @@ def resolved_claims(root: Path, node: Any) -> dict[str, str]:
     """
     root_real = _real(root)
     out: dict[str, str] = {}
-    for claim in getattr(node, "claims", []) or []:
+    for claim in expand_claims(root, getattr(node, "claims", []) or []):
         claim_real = _real(Path(root) / claim)
         if _inside(claim_real, root_real):
             out[claim_real] = Path(claim).as_posix()

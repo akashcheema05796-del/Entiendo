@@ -153,7 +153,90 @@ def _match_alias(pattern: str, spec: str) -> str | None:
     return "" if spec == pattern else None
 
 
+# --------------------------------------------------------------------------- #
+# workspace packages (v7) — pnpm/npm monorepos import siblings BY NAME
+# --------------------------------------------------------------------------- #
+
+_WS_CACHE: dict[str, dict[str, Path]] = {}
+
+
+def _workspace_map(root: Path) -> dict[str, Path]:
+    """package name → package dir for every workspace member, cached per root.
+
+    Reads pnpm-workspace.yaml `packages:` globs and package.json `workspaces`;
+    without this, every `import "@scope/pkg"` between siblings is INVISIBLE to
+    the map — the worst kind of missing edge, because it looks like decoupling.
+    """
+    key = str(root.resolve())
+    if key in _WS_CACHE:
+        return _WS_CACHE[key]
+    globs: list[str] = []
+    pw = root / "pnpm-workspace.yaml"
+    if pw.exists():
+        in_packages = False
+        for line in pw.read_text(errors="replace").splitlines():
+            if not line.startswith((" ", "\t", "-")):    # a new top-level key
+                in_packages = line.strip().startswith("packages:")
+                continue
+            line = line.strip()
+            if in_packages and line.startswith("- "):
+                globs.append(line[2:].strip().strip("'\""))
+    pj = root / "package.json"
+    if pj.exists():
+        try:
+            ws = json.loads(pj.read_text()).get("workspaces")
+            globs += ws if isinstance(ws, list) else (ws or {}).get("packages", [])
+        except (json.JSONDecodeError, OSError):
+            pass
+    out: dict[str, Path] = {}
+    for g in globs:
+        g = g.rstrip("/")
+        if not g or g.startswith("!"):                   # exclusions/blank: skip
+            continue
+        try:
+            dirs = [root] if g == "." else list(root.glob(g))
+        except (OSError, ValueError, IndexError, NotImplementedError):
+            continue                                     # hostile pattern — skip
+        for d in dirs:
+            mp = d / "package.json"
+            if not mp.is_file():
+                continue
+            try:
+                name = json.loads(mp.read_text()).get("name")
+            except (json.JSONDecodeError, OSError):
+                continue
+            if name:
+                out[name] = d
+    _WS_CACHE[key] = out
+    return out
+
+
+def _resolve_workspace(spec: str, root: Path) -> Path | None:
+    """Resolve `@scope/pkg` or `@scope/pkg/subpath` to a sibling workspace file."""
+    ws = _workspace_map(root)
+    if not ws:
+        return None
+    parts = spec.split("/")
+    for cut in (2, 1):                       # scoped names use two segments
+        name, sub = "/".join(parts[:cut]), "/".join(parts[cut:])
+        d = ws.get(name)
+        if d is None:
+            continue
+        root_r = root.resolve()
+        for base in ((d / sub) if sub else None, d / "src" / sub if sub else None,
+                     d / "src" / "index", d / "index"):
+            if base is None:
+                continue
+            resolved = _resolve_module_path(base, root_r)
+            if resolved is not None:
+                return resolved
+    return None
+
+
 def _resolve_alias(spec: str, root: Path) -> Path | None:
+    ws = _resolve_workspace(spec, root)
+    if ws is not None:
+        return ws
     base_dir, paths = _load_tsconfig(root)
     if base_dir is None:
         return None                                     # no tsconfig → external, drop

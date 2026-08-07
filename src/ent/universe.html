@@ -1035,7 +1035,8 @@ function openDossier(u){
           ? `<span class="pill" title="recorded before blessings required a real identity (V3) — treat with the same caution as unblessed" style="color:var(--signal-amber)">unverified historical blessing</span>`
           : `<span class="pill" title="golden baseline blessed by a human">blessed · ${esc(u.blessing.blessedBy)}${u.blessing.blessedAt?' · '+esc(u.blessing.blessedAt):''}</span>`):''}
       ${u.tier1?`<div class="edge">golden: <b>${esc(u.tier1.statVerdict)}</b>${u.tier1.ciLow!=null?` · CI95[${esc(u.tier1.ciLow)}, ${esc(u.tier1.ciHigh)}] · n=${esc(u.tier1.nRows)}`:''}${u.tier1.verdictMethod==='threshold-legacy'?' <span class="pill">threshold-legacy</span>':''}</div>`:''}
-      ${(u.blindSpots||[]).length?`<div class="edge" title="static analysis cannot see dynamic imports, string dispatch, or out-of-process calls — absence of an edge is not proof of no dependency">⚠ possible undeclared dynamic deps: ${u.blindSpots.map(w=>esc(w.file)+' ('+esc(w.pattern)+')').join(', ')}</div>`:''}</div>
+      ${(u.blindSpots||[]).length?`<div class="edge" title="static analysis cannot see dynamic imports, string dispatch, or out-of-process calls — absence of an edge is not proof of no dependency">⚠ possible undeclared dynamic deps: ${u.blindSpots.map(w=>esc(w.file)+' ('+esc(w.pattern)+')').join(', ')}</div>`:''}
+      ${(view.dependencyCycles||[]).filter(c=>c.includes(u.id)).map(c=>`<div class="edge" style="color:var(--signal-amber)" title="strongly-connected dependency group — these units import each other; no layering can untangle them">⟳ dependency cycle with: ${esc(c.filter(x=>x!==u.id).join(', '))}</div>`).join('')}</div>
     ${interiorSection(u)}
     <div class="sect"><h3>Contract</h3>
       ${(u.invariants&&u.invariants.length)? u.invariants.map(i=>`<div class="inv">${esc(i)}</div>`).join('')
