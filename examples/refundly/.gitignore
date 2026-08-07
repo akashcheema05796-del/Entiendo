@@ -9,3 +9,7 @@
 
 # entiendo/history/events.jsonl IS tracked here — it ships the synthetic traces
 # that Flow / Trace / cost-vs-budget render against (H1 reference data).
+
+# v7 workspace layouts are personal by default;
+# committing one is a deliberate choice for shared layouts.
+/entiendo/workspace.json

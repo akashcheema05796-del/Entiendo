@@ -316,3 +316,29 @@ def test_tether_focus_coupling_and_autopan(env, page) -> None:
     # the map stayed generated: graph.json byte-identical after all of this
     assert (env.root / "entiendo" / "graph.json").read_bytes() == graph_before
     page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+
+
+def test_workspace_persists_and_restores(env, page) -> None:
+    # v7 phase 4 — arrange, wait out the debounce, reload: layout restored.
+    # POST without the CSRF token must be rejected (Handler-level guard).
+    assert page.evaluate("""async () => (await fetch('/api/workspace', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({version:1, windows:[]})})).status""") == 403
+    page.evaluate("openWindow('refundly.ledger')")
+    page.evaluate("""(()=>{ const w=wins.get('refundly.ledger');
+        w.el.style.left='222px'; w.el.style.top='111px';
+        setWinTab('refundly.ledger','history'); })()""")
+    page.wait_for_timeout(900)                     # 500ms debounce + write
+    ws_file = env.root / "entiendo" / "workspace.json"
+    assert ws_file.exists()
+    saved = json.loads(ws_file.read_text())
+    win = next(w for w in saved["windows"] if w["id"] == "refundly.ledger")
+    assert win["x"] == 222 and win["tab"] == "history"
+    page.reload()
+    page.wait_for_selector("#summary:not(:empty)", timeout=10_000)
+    page.wait_for_timeout(400)
+    assert page.evaluate("wins.has('refundly.ledger')")
+    assert page.evaluate("wins.get('refundly.ledger').tab") == "history"
+    assert page.evaluate("document.querySelector('.win[data-unit=\"refundly.ledger\"]').offsetLeft") == 222
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+    page.wait_for_timeout(700)                     # let the close debounce flush

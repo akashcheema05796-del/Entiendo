@@ -509,7 +509,39 @@ function drawTethers(){
   }
   ctx.restore();
 }
-function saveWorkspaceSoon(){ /* Phase 4 persists to disk via ent dev */ }
+// v7 phase 4 — persist layout to entiendo/workspace.json through ent dev
+// (CSRF-guarded POST). Static pages can't persist: show a note, not an error.
+let _wsTimer=null, _wsNoted=false;
+function workspaceState(){
+  return {version:1, lens, pan:{x:Math.round(cam.x), y:Math.round(cam.y)},
+    windows:[...wins.values()].map(w=>({id:w.id, x:w.el.offsetLeft, y:w.el.offsetTop,
+      tab:w.tab, minimized:w.minimized}))};
+}
+function saveWorkspaceSoon(){
+  clearTimeout(_wsTimer);
+  _wsTimer=setTimeout(async ()=>{
+    if (STATIC){ wsNote(); return; }
+    try{ const r=await api('POST','/api/workspace', workspaceState());
+         if (r.status!==200) wsNote(); }
+    catch(e){ wsNote(); }
+  }, 500);
+}
+function wsNote(){ if (_wsNoted) return; _wsNoted=true;
+  const d=document.createElement('div');
+  d.id='wsnote'; d.textContent='layout not persisted — run ent dev to save workspaces';
+  d.style.cssText='position:fixed;left:16px;top:52px;z-index:6;font-size:10.5px;color:var(--muted)';
+  document.body.appendChild(d); setTimeout(()=>d.remove(), 6000); }
+function applyWorkspace(ws){
+  if (!ws || ws.version!==1) return;
+  if (ws.lens) setLens(ws.lens);
+  if (ws.pan){ cam.flight=null; cam.x=ws.pan.x; cam.y=ws.pan.y; }
+  for (const w of (ws.windows||[])){
+    openWindow(w.id); const win=wins.get(w.id); if (!win) continue;
+    win.el.style.left=w.x+'px'; win.el.style.top=w.y+'px';
+    if (w.tab) setWinTab(w.id, w.tab);
+    if (w.minimized) minimizeWin(w.id);
+  }
+}
 
 async function boot(){
   resize();
@@ -537,6 +569,7 @@ async function boot(){
   drawLegend();
   fitToView();
   applyUrlState();
+  applyWorkspace(view.workspace);   // v7 — restore the saved investigation layout
   requestAnimationFrame(loop);
 }
 
@@ -1256,6 +1289,7 @@ window.addEventListener('hashchange', ()=>{ if (!_writingUrl && view) applyUrlSt
 // --------------------------------------------------------------------------- //
 document.querySelectorAll('.lens').forEach(b=>b.addEventListener('click', ()=>setLens(b.dataset.lens)));
 function setLens(l){ lens=l;
+  if (typeof saveWorkspaceSoon==='function') saveWorkspaceSoon();
   if (l==='city'){ cityBuilt=false; buildCity();
     flyTo(W/2, H/2, Math.min(1, (W-40)/W)); }
   document.querySelectorAll('.lens').forEach(x=>x.classList.toggle('active', x.dataset.lens===l));

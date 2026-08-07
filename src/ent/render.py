@@ -106,7 +106,26 @@ def build_view(root: Path) -> dict[str, Any]:
         "traces": [_trace_view(t) for t in trace_events],
         "traffic": traffic,
         "commits": commits,          # the Timeline scrubber's axis (H3)
+        # v7 phase 4 — saved window layout (user state; stale unit ids dropped)
+        "workspace": _load_workspace(root, {n["id"] for n in node_views}),
     }
+
+
+def _load_workspace(root: Path, known_ids: set[str]) -> dict[str, Any] | None:
+    """entiendo/workspace.json if present and sane; unknown unit ids are
+    dropped silently (a deleted LU must not crash the page)."""
+    path = Path(root) / "entiendo" / "workspace.json"
+    if not path.exists():
+        return None
+    try:
+        ws = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return None
+    if not isinstance(ws, dict) or ws.get("version") != 1:
+        return None
+    ws["windows"] = [w for w in (ws.get("windows") or [])
+                     if isinstance(w, dict) and w.get("id") in known_ids]
+    return ws
 
 
 def _evals_rollup(result0: Any, t1: dict[str, Any] | None) -> dict[str, Any]:

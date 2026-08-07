@@ -52,6 +52,17 @@ def handle_api(root: Path, method: str, path: str, body: dict[str, Any] | None,
                 return 404, {"error": f"no node '{unit}'"}
             return 200, steering.enqueue(root, unit, instruction)
 
+        # v7 phase 4 — workspace persistence: user state (window layout, lens,
+        # pan), never graph state. Boring on-disk JSON, git-ignorable.
+        if parts == ["api", "workspace"] and method == "POST":
+            ws = body or {}
+            if ws.get("version") != 1:
+                return 400, {"error": "workspace version must be 1"}
+            wpath = root / "entiendo" / "workspace.json"
+            wpath.parent.mkdir(parents=True, exist_ok=True)
+            wpath.write_text(json.dumps(ws, indent=2, sort_keys=True) + "\n")
+            return 200, {"saved": True}
+
         if parts == ["api", "steering"] and method == "GET":
             return 200, steering.poll(root)
 

@@ -124,3 +124,49 @@ def test_universe_tab_ids() -> None:
 def test_universe_no_localstorage() -> None:
     # workspace persistence is Phase 4, ON DISK — never localStorage
     assert "localStorage" not in (REPO_ROOT / "src/ent/universe.html").read_text()
+
+
+# --------------------------------------------------------------------------- #
+# Phase 4 — workspace persistence (user state on disk, never graph state)
+# --------------------------------------------------------------------------- #
+
+def _ws(windows):
+    return {"version": 1, "lens": "health", "pan": {"x": 10, "y": 20},
+            "windows": windows}
+
+
+def test_workspace_roundtrip(refundly: Path) -> None:
+    from ent.server import handle_api
+    ws = _ws([{"id": "refundly.decide", "x": 120, "y": 90,
+               "tab": "evals", "minimized": False}])
+    status, out = handle_api(refundly, "POST", "/api/workspace", ws)
+    assert status == 200 and out["saved"]
+    restored = build_view(refundly)["workspace"]
+    assert restored["lens"] == "health" and restored["pan"] == {"x": 10, "y": 20}
+    assert restored["windows"][0]["x"] == 120 and restored["windows"][0]["tab"] == "evals"
+
+
+def test_workspace_rejects_unknown_node_ids(refundly: Path) -> None:
+    (refundly / "entiendo").mkdir(exist_ok=True)
+    (refundly / "entiendo/workspace.json").write_text(json.dumps(
+        _ws([{"id": "refundly.decide", "x": 1, "y": 2, "tab": "manifest", "minimized": False},
+             {"id": "deleted.ghost", "x": 3, "y": 4, "tab": "blast", "minimized": False}])))
+    ws = build_view(refundly)["workspace"]
+    assert [w["id"] for w in ws["windows"]] == ["refundly.decide"]   # ghost dropped, no crash
+
+
+def test_workspace_bad_version_rejected(refundly: Path) -> None:
+    from ent.server import handle_api
+    status, out = handle_api(refundly, "POST", "/api/workspace", {"version": 9})
+    assert status == 400
+
+
+def test_workspace_does_not_touch_graph(refundly: Path) -> None:
+    from ent.extractor import extract as _extract, write_artifacts
+    from ent.server import handle_api
+    write_artifacts(_extract(refundly), refundly)
+    before = (refundly / "entiendo/graph.json").read_bytes()
+    handle_api(refundly, "POST", "/api/workspace",
+               _ws([{"id": "refundly.gateway", "x": 5, "y": 6, "tab": "blast",
+                     "minimized": True}]))
+    assert (refundly / "entiendo/graph.json").read_bytes() == before
