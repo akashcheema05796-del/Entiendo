@@ -144,8 +144,14 @@ def _check_ref_targets(manifest: dict[str, Any], path: Path, result: FileResult)
 
 
 def _check_claims_exist(manifest: dict[str, Any], root: Path, result: FileResult) -> None:
+    from . import claims as claims_mod
     for claim in manifest.get("claims", []):
-        if not (root / claim).exists():
+        if claims_mod.is_glob(str(claim)):
+            # a glob claim is valid iff it matches something TODAY — an empty
+            # glob is a claim over nothing, which is almost always a typo
+            if not claims_mod.expand_claims(root, [claim]):
+                result.errors.append(f"claims: glob '{claim}' matches no files under {root}")
+        elif not (root / claim).exists():
             result.errors.append(f"claims: '{claim}' does not exist under {root}")
 
 
