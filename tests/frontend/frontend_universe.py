@@ -280,3 +280,39 @@ def test_windows_open_drag_and_tab(env, page) -> None:
     after = page.evaluate("document.querySelector('.win[data-unit=\"refundly.decide\"]').offsetLeft")
     assert after != before
     page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+
+
+def test_tether_focus_coupling_and_autopan(env, page) -> None:
+    # v7 phase 3 — focused window's node becomes the canvas selection
+    from ent.extractor import extract as _extract, write_artifacts
+    write_artifacts(_extract(env.root), env.root)
+    graph_before = (env.root / "entiendo" / "graph.json").read_bytes()
+    page.evaluate("openWindow('refundly.gateway')")
+    page.wait_for_timeout(200)
+    assert page.evaluate("selected") == "refundly.gateway"
+    # blast tab in the window flips the canvas lens
+    page.evaluate("setWinTab('refundly.gateway','blast')")
+    page.wait_for_timeout(200)
+    assert page.evaluate("lens") == "blast"
+    # auto-pan: park the window ON its own node → the viewport shifts (offset
+    # only), the node's graph coordinates never move. Layered mode freezes the
+    # constellation physics so node coords are stationary for the comparison.
+    page.evaluate("setLayout('layered')")
+    page.wait_for_timeout(1500)
+    node = page.evaluate("(()=>{const n=byId['refundly.gateway'];return [n.x,n.y];})()")
+    page.evaluate("""(()=>{ const w=wins.get('refundly.gateway');
+        const n=byId['refundly.gateway'];
+        const sx=n.x*cam.scale+cam.x, sy=n.y*cam.scale+cam.y;
+        w.el.style.left=(sx-200)+'px'; w.el.style.top=(sy-100)+'px';
+        cam.flight=null; window.__camBefore=[cam.x,cam.y];
+        focusWin('refundly.gateway'); })()""")
+    page.wait_for_timeout(700)                       # ~220ms flight + settle
+    cam_moved = page.evaluate("(()=>{const b=window.__camBefore;"
+                              "return Math.hypot(cam.x-b[0],cam.y-b[1]);})()")
+    assert cam_moved > 10, "viewport did not pan clear of the window"
+    node_after = page.evaluate("(()=>{const n=byId['refundly.gateway'];return [n.x,n.y];})()")
+    assert abs(node[0]-node_after[0]) < 1.5 and abs(node[1]-node_after[1]) < 1.5
+    page.evaluate("setLayout('constellation')")
+    # the map stayed generated: graph.json byte-identical after all of this
+    assert (env.root / "entiendo" / "graph.json").read_bytes() == graph_before
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")

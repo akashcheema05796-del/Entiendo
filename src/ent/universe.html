@@ -373,7 +373,7 @@ function openWindow(id){
   el.addEventListener('pointermove', e=>{ if(!drag) return;
     el.style.left=Math.max(0, Math.min(innerWidth-120, e.clientX-drag[0]))+'px';
     el.style.top =Math.max(48, Math.min(innerHeight-60, e.clientY-drag[1]))+'px'; });
-  el.addEventListener('pointerup', ()=>{ if (drag){ drag=null; saveWorkspaceSoon(); } });
+  el.addEventListener('pointerup', ()=>{ if (drag){ drag=null; autoPanClear(id); saveWorkspaceSoon(); } });
   setWinTab(id, 'manifest'); focusWin(id);
 }
 function focusWin(id){ const w=wins.get(id); if(!w) return;
@@ -463,7 +463,52 @@ approvalRequired: <span class="${n.approvalRequired?'warn':''}">${n.approvalRequ
   }
   return '';
 }
-function winFocusCoupling(id){ /* Phase 3 wires focus → canvas */ }
+// v7 phase 3 — the focused window's node IS the canvas selection; the blast
+// tab flips the canvas lens; the map is live context, never wallpaper.
+function winFocusCoupling(id){
+  const w=wins.get(id); if (!w || !view) return;
+  selectState(id);
+  if (w.tab==='blast' && lens!=='blast') setLens('blast');
+  autoPanClear(id);
+}
+// Occlusion rule: if a focused/dragged window covers its OWN node, pan the
+// VIEWPORT (offset only — node coordinates in graph space are never mutated)
+// until the node clears the rect by >=24px. flyTo animates ~220ms and jumps
+// instantly under prefers-reduced-motion.
+function autoPanClear(id){
+  const w=wins.get(id); const n=byId[id]; if (!w || !n || w.minimized) return;
+  const r=w.el.getBoundingClientRect(), M=24;
+  const sx=n.x*cam.scale+cam.x, sy=n.y*cam.scale+cam.y;
+  if (sx<r.left-M || sx>r.right+M || sy<r.top-M || sy>r.bottom+M) return;
+  // smallest shift that clears the rect (screen px), applied to cam offset
+  const outs=[ r.left-M-sx, r.right+M-sx ];      // move left (neg) or right (pos)
+  const dx=Math.abs(outs[0])<Math.abs(outs[1]) ? outs[0] : outs[1];
+  const oys=[ r.top-M-sy, r.bottom+M-sy ];
+  const dy=Math.abs(oys[0])<Math.abs(oys[1]) ? oys[0] : oys[1];
+  const target = Math.abs(dx)<Math.abs(dy)
+    ? {x:cam.x+dx, y:cam.y, scale:cam.scale} : {x:cam.x, y:cam.y+dy, scale:cam.scale};
+  if (RM){ Object.assign(cam, target); } else cam.flight=target;
+}
+// Tether: a hairline from the nearest point on each open window's rect to its
+// node — drawn on the CANVAS (under windows, above the map), every frame.
+function drawTethers(){
+  if (!wins.size) return;
+  ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0);
+  for (const w of wins.values()){
+    if (w.minimized) continue;
+    const n=byId[w.id]; if (!n) continue;
+    const sx=n.x*cam.scale+cam.x, sy=n.y*cam.scale+cam.y;
+    const r=w.el.getBoundingClientRect();
+    const ax=Math.max(r.left, Math.min(sx, r.right));
+    const ay=Math.max(r.top, Math.min(sy, r.bottom));
+    ctx.strokeStyle=cvar(w.id===focusedWin?'--annotation':'--muted');
+    ctx.globalAlpha=w.id===focusedWin?0.75:0.35; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(sx,sy); ctx.stroke();
+    ctx.beginPath(); ctx.arc(sx,sy,2.4,0,Math.PI*2);
+    ctx.fillStyle=cvar('--annotation'); ctx.fill();
+  }
+  ctx.restore();
+}
 function saveWorkspaceSoon(){ /* Phase 4 persists to disk via ent dev */ }
 
 async function boot(){
@@ -1027,6 +1072,7 @@ function loop(ts){
     drawComet();
   }
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  drawTethers();
   drawMinimap();
   requestAnimationFrame(loop);
 }
@@ -1118,12 +1164,15 @@ canvas.addEventListener('dblclick', e=>{ // dbl-click a group hull re-collapses;
 
 function onClick(u){ if (u.container){ expanded.add(u.group); buildLayout(); return; } select(u.id); openWindow(u.id); }
 let blastCoupling={};
-function select(id){ if (typeof stopSteerPoll==='function') stopSteerPoll();
+function selectState(id){
   selected=id; blast=new Set(computeBlast(id)); focusIdx=units.findIndex(u=>u.id===id);
   // rank labels (H3): immediate dependents ranked by direct contract coupling.
   const cpl={}; for (const e of view.edges){ if (e.to===id) cpl[e.from]=(cpl[e.from]||0)+(e.kinds||[]).length; }
   const ranked=Object.keys(cpl).sort((a,b)=>cpl[b]-cpl[a]);
   blastCoupling={}; ranked.forEach((n,i)=>blastCoupling[n]=i+1);
+}
+function select(id){ if (typeof stopSteerPoll==='function') stopSteerPoll();
+  selectState(id);
   openDossier(byId[id]||unitFromView(id)); writeUrlState(); }
 function unitFromView(id){ const n=view.nodes.find(x=>x.id===id); return n?unitItem(n):null; }
 function computeBlast(id){ const rev={}; for (const e of view.edges){ (rev[e.to] ??= []).push(e.from); }
