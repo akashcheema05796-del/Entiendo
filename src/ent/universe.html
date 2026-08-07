@@ -46,6 +46,8 @@
   .lens { border:0; background:transparent; color:var(--muted); border-radius:999px;
     padding:6px 13px; cursor:pointer; font-size:12px; white-space:nowrap; font-family:var(--font-body); }
   .lens.active { background:var(--annotation); color:var(--field); font-weight:600; }
+  .lens:focus-visible, #dock .chip:focus-visible, .win button:focus-visible {
+    outline:1.5px solid var(--annotation); outline-offset:1px; }
 
   /* right-side instrument cluster */
   #tools { position:fixed; top:12px; right:16px; z-index:6; display:flex; gap:6px; }
@@ -1248,10 +1250,19 @@ function markSel(){ [...results.querySelectorAll('.hit')].forEach((el,i)=>el.cla
 // --------------------------------------------------------------------------- //
 // Keyboard: / search · tab cycle · enter dossier · esc close · arrows pan · 0 fit
 // --------------------------------------------------------------------------- //
+// v7 phase 5 — lens keys 1..7, Esc clears the sky. Never steal keys from a
+// focused text field (the steer box, search).
+const LENS_KEYS=['structure','flow','trace','health','timeline','blast','city'];
 window.addEventListener('keydown', e=>{
   if (searchBox.classList.contains('open')) return;
+  const tag=(document.activeElement||{}).tagName;
+  if (tag==='INPUT'||tag==='TEXTAREA') return;
+  if (e.key>='1' && e.key<='7'){ const l=LENS_KEYS[+e.key-1]; if (l) setLens(l); return; }
   if (e.key==='/'){ e.preventDefault(); openSearch(); }
-  else if (e.key==='Escape'){ closeDossier(); }
+  else if (e.key==='Escape'){
+    const open=[...wins.values()].filter(w=>!w.minimized);
+    if (open.length){ open.forEach(w=>minimizeWin(w.id)); }   // clear the sky
+    else closeDossier(); }
   else if (e.key==='0'){ fitToView(); }
   else if (e.key==='Tab'){ e.preventDefault(); if(!units.length) return;
     focusIdx=(focusIdx+(e.shiftKey?-1:1)+units.length)%units.length; const u=units[focusIdx];

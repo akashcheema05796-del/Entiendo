@@ -342,3 +342,27 @@ def test_workspace_persists_and_restores(env, page) -> None:
     assert page.evaluate("document.querySelector('.win[data-unit=\"refundly.ledger\"]').offsetLeft") == 222
     page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
     page.wait_for_timeout(700)                     # let the close debounce flush
+
+
+def test_lens_keys_and_esc_clears_the_sky(page) -> None:
+    # v7 phase 5 — keys 1..7 switch lenses; Esc minimizes every open window
+    page.keyboard.press("4")
+    page.wait_for_timeout(150)
+    assert page.evaluate("lens") == "health"
+    page.keyboard.press("7")
+    page.wait_for_timeout(150)
+    assert page.evaluate("lens") == "city"
+    page.keyboard.press("1")
+    page.wait_for_timeout(150)
+    for uid in ("refundly.decide", "refundly.orders"):
+        page.evaluate(f"openWindow('{uid}')")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    assert page.evaluate("[...wins.values()].filter(w=>!w.minimized).length") == 0
+    assert page.evaluate("document.querySelectorAll('#dock .chip').length") == 2
+    # dock chip restores to the saved spot
+    page.locator("#dock .chip").first.click()
+    page.wait_for_timeout(150)
+    assert page.evaluate("[...wins.values()].filter(w=>!w.minimized).length") == 1
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+    page.wait_for_timeout(700)
