@@ -90,6 +90,7 @@ def build_view(root: Path) -> dict[str, Any]:
         "coverage": result.coverage,
         "nodes": sorted(node_views, key=lambda n: n["id"]),
         "edges": result.graph["edges"],
+        "dependencyCycles": result.graph.get("dependencyCycles", []),
         "reconciled": result.ok,
         "executable": executable,
         "nodeCount": len(node_views),

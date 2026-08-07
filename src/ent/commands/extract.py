@@ -114,6 +114,13 @@ def _run(args: argparse.Namespace) -> int:
         for f in cov["unaccounted"]:
             print(f"    ? {f}")
 
+    # v7 — circular dependency groups: named, never silent (warning, not gate).
+    cycles = graph.get("dependencyCycles", [])
+    if cycles:
+        print("\n  circular dependency group(s) — the layered lens cannot untangle these:")
+        for c in cycles:
+            print(f"    ⟳ {' ↔ '.join(c)}")
+
     # v6 3.5 — blind-spot warnings: constructs static analysis cannot see.
     # Advisory only; absence of an edge is not proof of no dependency.
     blind = graph.get("possibleUndeclaredDynamicDep", [])

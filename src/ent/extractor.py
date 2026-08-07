@@ -98,11 +98,12 @@ def _load_nodes(root: Path) -> list[Node]:
     return [Node.from_manifest(load(p), p) for p in discover(root)]
 
 
-def _ownership(nodes: list[Node]) -> tuple[dict[str, str], list[dict[str, Any]]]:
+def _ownership(nodes: list[Node], root: Path) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """Map claimed file → owning node id, and surface any double-claims."""
+    from . import claims as claims_mod
     claims_by_file: dict[str, list[str]] = {}
     for node in nodes:
-        for claim in node.claims:
+        for claim in claims_mod.expand_claims(root, node.claims):
             claims_by_file.setdefault(_norm(claim), []).append(node.id)
     owner = {f: ids[0] for f, ids in claims_by_file.items()}
     doubles = [
@@ -214,8 +215,9 @@ def _build_edges(
     # Actual edges from static import analysis — per-language, through the seam
     # (languages.for_file). A file with no registered extractor is skipped; the
     # Python path is byte-for-byte the same as before the seam existed.
+    from . import claims as claims_mod
     for node in nodes:
-        for claim in node.claims:
+        for claim in claims_mod.expand_claims(root, node.claims):
             file = root / claim
             if not file.exists():
                 continue
@@ -329,19 +331,78 @@ _DYNAMIC_DEP_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
+# The same honesty for TypeScript/JS claims (v7): dynamic imports, runtime
+# requires, child processes, and network clients are all edges the regex
+# import walk cannot see.
+_JS_EXTS = {".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"}
+_DYNAMIC_DEP_PATTERNS_JS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("dynamic-import", re.compile(r"\bimport\s*\(")),
+    ("require", re.compile(r"\brequire\s*\(")),
+    ("child_process", re.compile(r"\bchild_process\b|\bexecFile\b|\bspawn\s*\(")),
+    ("network-client", re.compile(r"\bfetch\s*\(|\baxios\b|\bundici\b|\bWebSocket\b")),
+)
+
+
+def _dependency_cycles(node_ids: set[str], edges: list[dict[str, Any]]) -> list[list[str]]:
+    """Strongly-connected components with >1 member (v7) — circular dependency
+    groups. Tarjan, iterative. A cycle is a WARNING, not a failure: the map's
+    job is to make the knot visible, not to forbid it."""
+    adj: dict[str, list[str]] = {n: [] for n in node_ids}
+    for e in edges:
+        if e["from"] in adj and e["to"] in adj:
+            adj[e["from"]].append(e["to"])
+    index: dict[str, int] = {}; low: dict[str, int] = {}; on: set[str] = set()
+    stack: list[str] = []; sccs: list[list[str]] = []; counter = [0]
+    for start in sorted(node_ids):
+        if start in index:
+            continue
+        work: list[tuple[str, int]] = [(start, 0)]
+        while work:
+            v, pi = work[-1]
+            if pi == 0:
+                index[v] = low[v] = counter[0]; counter[0] += 1
+                stack.append(v); on.add(v)
+            recurse = False
+            for w in adj[v][pi:]:
+                work[-1] = (v, pi + 1); pi += 1
+                if w not in index:
+                    work.append((w, 0)); recurse = True; break
+                if w in on:
+                    low[v] = min(low[v], index[w])
+            if recurse:
+                continue
+            if low[v] == index[v]:
+                comp = []
+                while True:
+                    w = stack.pop(); on.discard(w); comp.append(w)
+                    if w == v:
+                        break
+                if len(comp) > 1:
+                    sccs.append(sorted(comp))
+            work.pop()
+            if work:
+                u = work[-1][0]
+                low[u] = min(low[u], low[v])
+    return sorted(sccs)
+
+
 def _dynamic_dep_warnings(nodes: list[Node], root: Path) -> list[dict[str, str]]:
     """Heuristic pass over claimed .py files for edges the extractor can't see."""
+    from . import claims as claims_mod
     warnings: list[dict[str, str]] = []
     for node in sorted(nodes, key=lambda n: n.id):
-        for claim in node.claims:
+        for claim in claims_mod.expand_claims(root, node.claims):
             file = root / claim
-            if file.suffix != ".py" or not file.exists():
+            table = (_DYNAMIC_DEP_PATTERNS if file.suffix == ".py"
+                     else _DYNAMIC_DEP_PATTERNS_JS if file.suffix in _JS_EXTS
+                     else None)
+            if table is None or not file.exists():
                 continue
             try:
                 text = file.read_text(encoding="utf-8", errors="replace")
             except OSError:                             # pragma: no cover - defensive
                 continue
-            for name, pattern in _DYNAMIC_DEP_PATTERNS:
+            for name, pattern in table:
                 if pattern.search(text):
                     warnings.append({"node": node.id, "file": _norm(claim),
                                      "pattern": name})
@@ -362,6 +423,7 @@ def _node_summary(node: Node) -> dict[str, Any]:
         "owner": raw.get("owner"),
         "status": raw.get("status", "active"),
         "claims": list(node.claims),
+        "claimedFileCount": None,  # filled in extract() — needs root
         "sideEffects": raw.get("contract", {}).get("sideEffects"),
         "spanName": raw.get("observability", {}).get("spanName"),
         "approvalRequired": bool(raw.get("approval", {}).get("required", False)),
@@ -387,7 +449,7 @@ def extract(root: Path, *, spans: dict[tuple[str, str], Any] | None = None) -> E
     root = Path(root).resolve()
     nodes = _load_nodes(root)
 
-    owner, doubles = _ownership(nodes)
+    owner, doubles = _ownership(nodes, root)
     edges, edge_errors = _build_edges(nodes, owner, root, observed=spans)
     coverage = _coverage(root, owner)
 
@@ -413,9 +475,18 @@ def extract(root: Path, *, spans: dict[tuple[str, str], Any] | None = None) -> E
         if e["declared"] and not e["verified"] and e["kinds"] != ["config"]
     ]
 
+    from . import claims as claims_mod
+    summaries = []
+    for n in sorted(nodes, key=lambda n: n.id):
+        s = _node_summary(n)
+        # true mass (v7): how many files this unit actually owns once globs
+        # expand — the Code City lens sizes territory by this, not by vibes.
+        s["claimedFileCount"] = len(claims_mod.expand_claims(root, n.claims))
+        summaries.append(s)
+
     graph = {
         "apiVersion": "entiendo/v1",
-        "nodes": [_node_summary(n) for n in sorted(nodes, key=lambda n: n.id)],
+        "nodes": summaries,
         "edges": edges,
         "doubleClaimed": doubles,
         "proposedEntrypoints": proposals,
@@ -423,6 +494,9 @@ def extract(root: Path, *, spans: dict[tuple[str, str], Any] | None = None) -> E
         # v6 3.5 — constructs static analysis is blind to (dynamic imports,
         # string dispatch, out-of-process calls). Warnings, never failures.
         "possibleUndeclaredDynamicDep": _dynamic_dep_warnings(nodes, root),
+        # v7 — circular dependency groups (SCCs > 1). A knot the layered
+        # layout can't untangle deserves a name, not silence.
+        "dependencyCycles": _dependency_cycles({n.id for n in nodes}, edges),
     }
     return ExtractResult(graph=graph, coverage=coverage, errors=errors)
 
