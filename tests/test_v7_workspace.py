@@ -170,3 +170,43 @@ def test_workspace_does_not_touch_graph(refundly: Path) -> None:
                _ws([{"id": "refundly.gateway", "x": 5, "y": 6, "tab": "blast",
                      "minimized": True}]))
     assert (refundly / "entiendo/graph.json").read_bytes() == before
+
+
+# --------------------------------------------------------------------------- #
+# Phase 6 — gate integrity: windows are a human DISPLAY surface
+# --------------------------------------------------------------------------- #
+
+V6_MCP_TOOLS = {"get_graph", "get_node_context", "run_eval", "get_blast_radius",
+                "apply_edit", "revert_node", "retrofit_propose", "retrofit_accept",
+                "validate_manifests", "await_steering", "post_verdict"}
+
+
+def test_no_new_mcp_tools_in_v7() -> None:
+    import re
+    src = (REPO_ROOT / "src/ent/mcp_server.py").read_text()
+    tools = set(re.findall(r"@app\.tool\(\)\s+(?:async\s+)?def\s+(\w+)", src))
+    assert tools == V6_MCP_TOOLS      # windows are a human surface — no new tools
+
+
+def test_windows_carry_no_bless_or_direct_write_affordance() -> None:
+    html = (REPO_ROOT / "src/ent/universe.html").read_text()
+    assert "/api/bless" not in html               # no bless endpoint exists at all
+    # the page's only write endpoints remain the v6 set + workspace (user state)
+    import re
+    posts = set(re.findall(r"api\('POST','(/api/[^']+)'", html))
+    for p in posts:
+        assert p.startswith(("/api/steer", "/api/proposals/", "/api/node/",
+                             "/api/workspace")), p
+
+
+def test_bless_requires_human() -> None:
+    # the interactive gate is enforced in the command (isatty, exit 3) and the
+    # writer (identity required); both are behaviourally tested in
+    # test_v3_blessedby.py. Here: assert the guards still exist verbatim.
+    bless = (REPO_ROOT / "src/ent/commands/bless.py").read_text()
+    assert "sys.stdin.isatty()" in bless and "return 3" in bless
+    from ent.baselines import write_bless
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        write_bless(Path("/tmp"), "x.y", dataset_rel="d", sha="s", rows=1,
+                    blessed_by="unknown", blessed_at="t")
