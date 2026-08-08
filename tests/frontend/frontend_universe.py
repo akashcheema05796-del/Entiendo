@@ -267,11 +267,11 @@ def test_windows_open_drag_and_tab(env, page) -> None:
     win = page.locator('.win[data-unit="refundly.decide"]')
     page.evaluate("focusWin('refundly.decide')")     # raise above the cascade
     # tabs switch and populate from the payload — zero network requests
-    win.locator('.wtabs button[data-tab="evals"]').click()
-    assert "tier0" in win.locator(".wbody").text_content()
-    win.locator('.wtabs button[data-tab="contract"]').click()
+    win.locator('.wtabs button[data-tab="checks"]').click()
+    assert "Quick checks" in win.locator(".wbody").text_content()
+    win.locator('.wtabs button[data-tab="promises"]').click()
     body = win.locator(".wbody").text_content()
-    assert "verified" in body or "unverified" in body
+    assert "depends on" in body or "Depended on by" in body
     # drag by header moves it
     before = page.evaluate("document.querySelector('.win[data-unit=\"refundly.decide\"]').offsetLeft")
     box = win.locator("header").bounding_box()
@@ -291,7 +291,7 @@ def test_tether_focus_coupling_and_autopan(env, page) -> None:
     page.wait_for_timeout(200)
     assert page.evaluate("selected") == "refundly.gateway"
     # blast tab in the window flips the canvas lens
-    page.evaluate("setWinTab('refundly.gateway','blast')")
+    page.evaluate("setWinTab('refundly.gateway','impact')")
     page.wait_for_timeout(200)
     assert page.evaluate("lens") == "blast"
     # auto-pan: park the window ON its own node → the viewport shifts (offset
@@ -366,3 +366,58 @@ def test_lens_keys_and_esc_clears_the_sky(page) -> None:
     assert page.evaluate("[...wins.values()].filter(w=>!w.minimized).length") == 1
     page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
     page.wait_for_timeout(700)
+
+
+def test_close_and_minimize_buttons_actually_work(env, page) -> None:
+    """CLICK the buttons — do not call closeWin().
+
+    Every window test closed windows by calling the function, so nobody noticed
+    that the buttons were dead: `.win header` inherited `pointer-events:none`
+    from the page's own fixed <header>, and a user who opened a window could
+    not shut it.
+    """
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+    page.evaluate("openWindow('refundly.decide')")
+    page.wait_for_timeout(250)
+    win = page.locator('.win[data-unit="refundly.decide"]')
+    assert win.count() == 1
+
+    win.locator(".wmin").click()                       # minimize → dock chip
+    page.wait_for_timeout(250)
+    assert page.evaluate("wins.get('refundly.decide').minimized") is True
+    assert page.locator("#dock .chip").count() >= 1
+
+    page.locator("#dock .chip").first.click()          # restore
+    page.wait_for_timeout(250)
+    assert page.evaluate("wins.get('refundly.decide').minimized") is False
+
+    win.locator(".wclose").click()                     # close for real
+    page.wait_for_timeout(250)
+    assert page.evaluate("wins.has('refundly.decide')") is False
+    assert page.locator('.win[data-unit="refundly.decide"]').count() == 0
+
+
+def test_clicking_a_unit_opens_exactly_one_panel(env, page) -> None:
+    """One gesture, one surface. Clicking a node used to open the docked
+    dossier AND a floating window for the same unit."""
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id)); closeDossier()")
+    page.wait_for_timeout(200)
+    pos = page.evaluate("""(()=>{const u=units.find(u=>!u.container)||units[0];
+        return {x:u.x*cam.scale+cam.x, y:u.y*cam.scale+cam.y};})()""")
+    page.mouse.click(pos["x"], pos["y"])
+    page.wait_for_timeout(500)
+    assert page.evaluate("[...wins.values()].filter(w=>!w.minimized).length") == 1
+    assert page.evaluate("document.getElementById('dossier').classList.contains('open')") is False
+
+
+def test_inside_tab_shows_the_parts_of_a_unit(env, page) -> None:
+    """The drill-down: a unit is a box until you can see what it holds."""
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+    page.evaluate("openWindow('refundly.decide')")
+    page.wait_for_timeout(300)
+    win = page.locator('.win[data-unit="refundly.decide"]')
+    win.locator('.wtabs button[data-tab="inside"]').click()
+    page.wait_for_timeout(250)
+    body = win.locator(".wbody").text_content()
+    assert "part" in body and "src/decide/agent.py" in body
+    assert win.locator(".ipart").count() >= 1          # real functions listed
