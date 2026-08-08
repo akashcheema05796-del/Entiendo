@@ -84,21 +84,22 @@ def test_six_lens_toggles_present() -> None:
 # artifacts (collapsed); ending in an action.
 # --------------------------------------------------------------------------- #
 
-def test_dossier_is_logic_first_with_all_fields() -> None:
+def test_unit_window_is_logic_first_with_all_fields() -> None:
+    """Everything the docked panel carried is still reachable, under plain
+    names and one tab per question."""
     html = build_universe(None)
-    assert 'id="dossier"' in html
-    for field in ("Task", "Contract", "Verdict", "Fingerprint", "Edges"):
-        assert f">{field}</h3>" in html
-    # artifacts (claims) collapsed behind a disclosure, AFTER the logic
-    assert 'details class="artifacts' in html
-    assert "Artifacts —" in html
+    assert 'id="dossier"' not in html            # the panel is gone, not hidden
+    for tab in ("inside", "identity", "promises", "checks", "history", "impact"):
+        assert f"tab==='{tab}'" in html
+    assert "Files it owns" in html               # claims, in words
+    assert "Version" in html and "composite" in html
 
 
-def test_dossier_ends_in_an_action() -> None:
+def test_a_unit_can_be_acted_on() -> None:
     html = build_universe(None)
     for action in (">Steer<", ">Revert<", ">Approve<"):
         assert action in html
-    assert "function steer" in html and "function revert" in html
+    assert "async function winSteer" in html and "async function winRevert" in html
 
 
 def test_blast_radius_tint_on_select() -> None:
@@ -108,12 +109,12 @@ def test_blast_radius_tint_on_select() -> None:
 
 
 def test_steer_wired_to_the_bridge() -> None:
-    """Phase C: the dossier's Steer enqueues via /api/steer and polls /api/steering."""
+    """Phase C: Steer enqueues via /api/steer and polls /api/steering."""
     html = build_universe(None)
     assert "/api/steer" in html               # enqueue a steering request
     assert "/api/steering" in html            # poll for the posted verdict
-    assert "startSteerPoll" in html and "showSteerResult" in html
-    assert ".flash" in html                   # the bubble flashes when the verdict lands
+    assert "winSteerPoll" in html             # the window watches for the verdict
+    assert ".flash" in html                   # the bubble flashes when it lands
 
 
 # --------------------------------------------------------------------------- #

@@ -129,41 +129,11 @@
   #timebar button.mini { background:#05070e99; border:1px solid var(--hairline); color:var(--starlight);
     border-radius:7px; padding:4px 9px; cursor:pointer; font-size:11.5px; }
 
-  /* dossier — logic first, hashes last */
-  /* Flex column, NOT one big scroller: the body scrolls and the action bar is a
-     real footer. As a sticky child of the scroll area it floated over its own
-     content — the edge list rendered through and under the steer box. */
-  #dossier { position:fixed; top:0; right:0; height:100%; width:410px; max-width:94vw; z-index:8;
-    background:var(--panel); border-left:1px solid var(--hairline); backdrop-filter:blur(12px);
-    transform:translateX(100%); transition:transform .24s ease;
-    display:flex; flex-direction:column; overflow:hidden; padding:22px 22px 0; }
-  #dossier-body { flex:1 1 auto; overflow:auto; min-height:0; padding-bottom:14px; }
-  #dossier.open { transform:none; }
-  #dossier h2 { font-family:var(--font-display); font-weight:600; margin:2px 0; font-size:22px; word-break:break-word; }
-  #dossier .kindline { color:var(--muted); font-size:11.5px; margin-bottom:14px; font-family:var(--font-mono); }
-  .verdict { display:inline-block; font-weight:700; padding:2px 9px; border-radius:6px; color:var(--field); font-size:12px; }
-  .sect { border-top:1px solid var(--hairline); padding:13px 0 4px; }
-  .sect h3 { margin:0 0 6px; font-size:10.5px; text-transform:uppercase; letter-spacing:.9px; color:var(--muted);
-    font-family:var(--font-body); }
-  .describe { font-size:14px; line-height:1.55; color:var(--starlight); }
-  .task { font-size:13.5px; color:var(--starlight); }
-  .inv { font-family:var(--font-mono); font-size:12px; color:var(--starlight);
-    background:#0b0f2a66; border:1px solid var(--hairline); border-radius:6px; padding:4px 7px; margin:3px 0; }
-  .fp { display:grid; grid-template-columns:auto 1fr; gap:2px 10px; font-size:12px; }
-  .fp code { font-family:var(--font-mono); color:var(--muted); word-break:break-all; }
+  /* the map's own panels: shared by the unit windows */
   .edge { font-size:12px; margin:2px 0; }
   .edge .k { color:var(--annotation); font-weight:600; } .edge .v { color:var(--signal-green); }
   .pill { display:inline-block; font-size:11px; padding:1px 8px; border-radius:999px;
     border:1px solid var(--hairline); color:var(--muted); margin:2px 4px 2px 0; }
-  details.artifacts summary { cursor:pointer; color:var(--muted); font-size:10.5px;
-    text-transform:uppercase; letter-spacing:.8px; }
-  details.artifacts li { font-family:var(--font-mono); font-size:12px; }
-  /* A sticky footer whose own background starts transparent lets the panel's
-     scrolling content (the edge list) show THROUGH the steer box. The band
-     itself must be opaque — matching the dossier gradient's foot — with the
-     fade lifted into a strip above it. */
-  .actions { flex:none; background:#090b13; margin:0 -22px; padding:14px 22px 18px;
-    border-top:1px solid var(--hairline); }
   textarea { width:100%; min-height:58px; border:1px solid var(--hairline); border-radius:8px;
     background:#05070e99; color:var(--starlight); padding:8px; font:13px/1.4 var(--font-body); resize:vertical; }
   .btns { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
@@ -171,8 +141,6 @@
     border-radius:8px; padding:8px 13px; cursor:pointer; font-size:13px; font-family:var(--font-body); }
   button.act.primary { background:var(--annotation); color:var(--field); border-color:var(--annotation); font-weight:600; }
   button.act:disabled { opacity:.45; cursor:not-allowed; }
-  #status { font-size:12px; color:var(--muted); margin-top:6px; min-height:16px; }
-  #outcome { margin-top:8px; }
   #snapshot-note { position:fixed; left:18px; top:56px; z-index:5; font-size:11px; color:var(--muted);
     background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:8px 11px;
     max-width:300px; display:none; font-family:var(--font-mono); }
@@ -194,16 +162,10 @@
       inset 0 1px 1px rgba(255,255,255,.13),
       inset 0 -8px 20px rgba(255,255,255,.03);
   }
-  #dossier {
-    background: linear-gradient(180deg, rgba(14,17,27,.82), rgba(9,11,19,.9));
-    border-left: 1px solid rgba(255,255,255,.12);
-    box-shadow: -18px 0 44px rgba(0,0,0,.4), inset 1px 0 1px rgba(255,255,255,.08);
-  }
   @supports (backdrop-filter: blur(1px)) {
     #lenses, #tools button, #recollapse, #legend, #hint, #timebar, #search {
       backdrop-filter: blur(16px) saturate(1.5);
     }
-    #dossier { backdrop-filter: blur(20px) saturate(1.4); }
   }
 
   /* ── v7 windowed workspace: LUs as floating windows over the map ── */
@@ -234,6 +196,14 @@
   .win .wbody { overflow:auto; padding:10px 12px; font-size:12px; line-height:1.5; }
   .win .wbody pre { font-family:var(--font-mono); font-size:11px; white-space:pre-wrap; margin:0; }
   .win .wbody textarea { min-height:64px; margin-bottom:2px; }
+  .win .wprose { font-size:12.5px; line-height:1.5; color:var(--starlight); margin-bottom:6px; }
+  .win button.mini { background:#05070e99; border:1px solid var(--hairline); color:var(--starlight);
+    border-radius:6px; padding:1px 7px; font-size:10.5px; cursor:pointer; font-family:var(--font-body); }
+  .win .wtask { font-size:11.5px; color:var(--muted); margin-bottom:10px; }
+  .win .wprop { border:1px solid var(--annotation); border-radius:8px; padding:8px; margin-bottom:8px; }
+  .win .wdiff summary { cursor:pointer; font-family:var(--font-mono); font-size:11px; color:var(--muted); }
+  .win .wdiff pre { font-family:var(--font-mono); font-size:10.5px; white-space:pre-wrap;
+    background:#05070e99; border:1px solid var(--hairline); border-radius:6px; padding:6px; margin:4px 0; }
   /* the parts inside a unit */
   .ipart { display:flex; gap:7px; align-items:baseline; padding:2px 0 2px 8px;
     border-left:1px solid var(--hairline); }
@@ -294,7 +264,6 @@
   background:rgba(180,120,30,.92); color:#1a1610; font-size:12px; padding:6px 14px; border-radius:6px;"></div>
 <div id="empty"><div><h1>An empty Universe</h1><p>No units are declared yet. Run <code>ent init</code> and <code>ent new</code> to bring the first unit under the plane, then <code>ent render</code>.</p></div></div>
 
-<aside id="dossier"><button class="close" title="close (esc)" onclick="closeDossier()">×</button><div id="dossier-body"></div></aside>
 
 <script id="view" type="application/json">__DATA__</script>
 <script>
@@ -393,7 +362,7 @@ async function watchVersion(){
 
 // ─── v7 windowed workspace: each LU is a floating window over the map ────── //
 // Windows render ENTIRELY from the embedded payload (no fetch); positions are
-// user state, never graph state; the dossier stays the action surface.
+// user state, never graph state; the unit window is the action surface.
 const wins=new Map(); let winZ=30, focusedWin=null;
 // 'steer' is the write path. Without it the window — the primary v7 surface —
 // could only read, and acting on a unit meant finding the legacy side panel.
@@ -431,7 +400,9 @@ function openWindow(id){
   // listeners would go stale (and stack).
   el.addEventListener('click', e=>{
     const t=e.target;
-    if (t.closest('.wsteer-btn')) { e.stopPropagation(); winSteer(id, el); }
+    if (t.closest('.wreplay-btn')) { e.stopPropagation();
+      const b=t.closest('.wreplay-btn'); winReplay(b.dataset.unit, b.dataset.composite, el); }
+    else if (t.closest('.wsteer-btn')) { e.stopPropagation(); winSteer(id, el); }
     else if (t.closest('.wrevert-btn')) { e.stopPropagation(); winRevert(id, el); }
     else if (t.closest('.wappr-btn')) { e.stopPropagation();
       winSettle(id, el, t.closest('.wappr-btn').dataset.pid, 'approve'); }
@@ -475,14 +446,18 @@ function setWinTab(id, tab){ const w=wins.get(id); if(!w) return;
 function winTabHtml(n, tab){
   if (!n) return '';
   if (tab==='inside'){
-    // What the unit is actually MADE OF. A unit was an opaque box: you could
-    // see what it owned and what it called, never the parts within it.
+    // What the unit is actually MADE OF, and — first — what it is FOR. The
+    // prose used to live only in the docked panel; losing it would have made
+    // the map less understandable, not more.
     const files=n.inside||[];
-    if (!files.length) return '<div style="color:var(--muted)">nothing to show — '
-      + 'this unit owns no readable source files</div>';
+    const prose = (n.description?`<div class="wprose">${esc(n.description)}</div>`:'')
+      + (n.task?`<div class="wtask">${esc(n.task)}</div>`:'');
+    const interior = winInterior(n);
+    if (!files.length) return prose + interior + '<div style="color:var(--muted)">'
+      + 'no readable source files to look inside</div>';
     const total=files.reduce((a,f)=>a+(f.parts||[]).length,0);
     const icon=p=>p.kind==='class'?'▣':'ƒ';
-    return `<div style="color:var(--muted);margin-bottom:8px">${total} part${total===1?'':'s'} `
+    return prose + interior + `<div style="color:var(--muted);margin-bottom:8px">${total} part${total===1?'':'s'} `
       + `across ${files.length} file${files.length===1?'':'s'}</div>`
       + files.map(f=>`<div style="margin-bottom:10px">
         <div class="row2"><span style="font-family:var(--font-mono);font-size:11px">${esc(f.file)}</span>
@@ -494,6 +469,22 @@ function winTabHtml(n, tab){
           : '<div style="color:var(--muted);font-size:11px">no functions or classes</div>'}
       </div>`).join('');
   }
+// An agentic unit's insides are its TOOLS and the order it may use them in —
+// the same question as "what functions does this file hold", one level up.
+function winInterior(n){
+  if (!n.interior) return '';
+  const tv=n.trajectoryVerdict;
+  const tvHtml = tv ? (tv.verdict==='RED'
+      ? `<div class="warn">tool order broke a rule — ${esc(tv.failedRule||'')}</div>`
+      : `<span class="pill">tool order checked · ${esc(tv.verdict)}</span>`) : '';
+  const tools=(n.interior.tools||[]).map(tl=>
+    `<div class="row2"><span>${esc(tl.name)}</span><span style="color:var(--muted)">reaches ${esc(tl.crosses||'—')}</span></div>`).join('');
+  return `<div style="margin-bottom:10px"><b>What it can do</b>
+    ${n.interior.process?`<div class="wprose" style="font-size:12px">${esc(n.interior.process)}</div>`:''}
+    ${tools}
+    <div style="color:var(--muted);font-size:11px">at most ${esc(n.interior.maxSteps??'—')} steps</div>
+    ${tvHtml}</div>`;
+}
   if (tab==='identity'){
     const claims=n.claims||[], fx=n.sideEffects, warnFx=(fx==='irreversible'||fx==='writes');
     const KIND={compute:'runs logic', state:'holds data', schema:'defines a data shape',
@@ -512,6 +503,13 @@ function winTabHtml(n, tab){
       ${claims.length? `<pre>${claims.map(esc).join('\n')}</pre>`
         : n.nodeKind==='external' ? '<div class="warn">none — it is not our code</div>'
         : '<div class="warn">owns no files</div>'}</div>
+      <div style="margin-top:10px"><b>Version</b>
+        <div style="color:var(--muted);font-size:11px;margin-bottom:4px">changes when any of these change</div>
+        <div class="row2"><span>overall</span><span><code>${esc((n.version||{}).composite||'—')}</code></span></div>
+        <div class="row2"><span>code</span><span><code>${esc((n.version||{}).code||'—')}</code></span></div>
+        <div class="row2"><span>prompts</span><span><code>${esc((n.version||{}).prompt||'—')}</code></span></div>
+        <div class="row2"><span>config</span><span><code>${esc((n.version||{}).config||'—')}</code></span></div>
+        <div class="row2"><span>model</span><span><code>${esc((n.version||{}).model||'—')}</code></span></div></div>
       <div style="color:var(--muted);font-size:10.5px;margin-top:6px">id <code>${esc(n.id)}</code></div>`;
   }
   if (tab==='promises'){
@@ -519,7 +517,15 @@ function winTabHtml(n, tab){
     const REL={calls:'calls', reads:'reads from', writes:'writes to', config:'is configured by'};
     const line=e=>`<div class="row2"><span>${esc(REL[e.rel]||e.rel)} <b>${esc(e.id)}</b></span>
       <span class="${e.verified?'vok':'warn'}">${e.verified?'✓ seen in the code':'declared, not yet confirmed'}</span></div>`;
-    return `<b>Always true of this unit</b>
+    const cycles=(view.dependencyCycles||[]).filter(c=>c.includes(n.id));
+    const warnings =
+      (n.blindSpots||[]).length
+        ? `<div class="warn" title="static analysis cannot see dynamic imports, string dispatch, or out-of-process calls">`
+          + `⚠ might depend on more than it declares: `
+          + n.blindSpots.map(w=>esc(w.file)+' ('+esc(w.pattern)+')').join(', ') + '</div>' : '';
+    const cycleHtml = cycles.map(c=>`<div class="warn">⟳ circular dependency with `
+      + `${esc(c.filter(x=>x!==n.id).join(', '))} — these units import each other</div>`).join('');
+    return warnings + cycleHtml + `<b>Always true of this unit</b>
       <div style="color:var(--muted);font-size:11px;margin-bottom:4px">checked on every run</div>
       ${inv.length?`<pre>${inv.map(esc).join('\n')}</pre>`
         :'<div class="warn">nothing is promised yet — nothing can fail</div>'}
@@ -550,18 +556,40 @@ function winTabHtml(n, tab){
         <div class="row2"><span>result</span><span>${esc(t1.verdictLabel||'')}</span></div>
         ${t1.spread===0?'<div class="warn">⚠ every example scores the same — this set cannot tell good from bad</div>':''}</div>`;
     } else html+=`<div style="margin-top:8px;color:var(--muted)">not graded against examples yet</div>`;
+    const bl=n.blessing;
+    if (bl && bl.blessedBy){
+      const stale=['unknown','none','null',''].includes(String(bl.blessedBy).toLowerCase());
+      html += stale
+        ? `<div class="warn" style="margin-top:8px" title="recorded before blessings required a real identity">`
+          + `signed off by someone unrecorded — treat as unvouched</div>`
+        : `<div style="margin-top:8px"><span class="pill">signed off by ${esc(bl.blessedBy)}`
+          + `${bl.blessedAt?' · '+esc(bl.blessedAt):''}</span></div>`;
+    }
     if (b.p95LatencyMs!=null) html+=`<div style="margin-top:8px"><b>Speed budget</b>
+      <div style="color:var(--muted);font-size:11px">measured as ${esc((m&&m.p95Basis)||'p95')}</div>
       <div class="row2"><span>${m&&m.p95LatencyMs!=null?m.p95LatencyMs+'ms':'—'}</span><span>/ ${b.p95LatencyMs}ms</span></div>${bar(m&&m.p95LatencyMs, b.p95LatencyMs)}</div>`;
     if (b.costPerCallUsd!=null) html+=`<div><b>Cost budget</b>
       <div class="row2"><span>${m&&m.avgCostUsd!=null?'$'+m.avgCostUsd:'—'}</span><span>/ $${b.costPerCallUsd}</span></div>${bar(m&&m.avgCostUsd, b.costPerCallUsd)}</div>`;
     return html;
   }
   if (tab==='history'){
+    // Version ticks with the replay action — "it scored 0.79 today and 0.86
+    // three weeks ago, what moved?" is the whole point of keeping history.
+    const ticks=(n.timeline||[]).filter(e=>e.kind==='version').slice(-6).reverse();
+    const tickHtml = ticks.length ? `<div style="margin-bottom:10px"><b>Versions</b>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:4px">what changed, and what it cost</div>`
+      + ticks.map(e=>{ const ch=e.changed||[];
+        const chips=ch.length?ch.map(d=>`<span class="pill">${esc(d)}</span>`).join(''):'<span class="pill">first version</span>';
+        const act = STATIC ? '' : ` <button class="mini wreplay-btn" data-unit="${esc(n.id)}" `
+          + `data-composite="${esc(e.composite)}">compare to now</button>`;
+        return `<div class="edge"><code>${esc(e.composite||'—')}</code> ${chips}${act}</div>`; }).join('')
+      + '<div class="wreplay-out"></div></div>' : '';
     const rows=n.history||[];
+    if (!rows.length && tickHtml) return tickHtml;
     if (!rows.length) return '<div style="color:var(--muted)">no history recorded yet — '
       + 'run <code>ent eval</code> to record a result, or <code>ent snapshot</code> '
       + 'to record a full version + result pass</div>';
-    return rows.map(r=>`<div class="row2" style="border-bottom:1px solid var(--hairline);padding:3px 0">
+    return tickHtml + rows.map(r=>`<div class="row2" style="border-bottom:1px solid var(--hairline);padding:3px 0">
       <span style="font-family:var(--font-mono);font-size:10.5px">${esc(r.version||'—')}</span>
       <span>${esc(r.summary||'')}${r.evalSummary?' · '+esc(r.evalSummary):''}</span>
       <span style="color:var(--muted);font-size:10.5px">${esc((r.iso||'').slice(0,10))} · ${r.blessedBy?esc(r.blessedBy):'unblessed'}</span></div>`).join('');
@@ -598,7 +626,7 @@ function winTabHtml(n, tab){
 
 // ── the window's write path (v7 gap): every action is scoped to THIS window's
 // unit, never to the canvas selection, so two open windows can't act on each
-// other's unit. Same endpoints the dossier uses. ──────────────────────────── //
+// other's unit. ─────────────────────────────────────────────────────────── //
 async function winSteer(unitId, el){
   if (STATIC) return;
   const ta=el.querySelector('.wsteer-input'), btn=el.querySelector('.wsteer-btn'),
@@ -626,6 +654,16 @@ function winSteerPoll(unitId, el, reqId){
     const w=wins.get(unitId); if (w && w.tab==='steer') setWinTab(unitId,'steer');
   }, 1500);
 }
+async function winReplay(unitId, composite, el){
+  if (STATIC) return;
+  const out=el.querySelector('.wreplay-out'); if (out) out.textContent='comparing…';
+  const {data}=await api('POST', `/api/node/${unitId}/replay`, {against:composite});
+  if (!out) return;
+  out.innerHTML = data.error
+    ? `<div class="warn">${esc(data.error)}</div>`
+    : `<div class="edge">what moved: <b>${esc(data.attribution)}</b> · ${esc(data.metric||'score')} `
+      + `${esc(data.old&&data.old.score)} → ${esc(data.current&&data.current.score)} · ${esc(data.verdict)}</div>`;
+}
 async function winRevert(unitId, el){
   if (STATIC) return;
   const st=el.querySelector('.wsteer-status');
@@ -638,13 +676,38 @@ async function winProposals(unitId, el){
   if (STATIC) return;
   const box=el.querySelector('.wsteer-props'); if (!box) return;
   const {data}=await api('GET','/api/proposals');
-  const mine=(data.proposals||[]).filter(p=>p.unit===unitId);
-  box.innerHTML = mine.map(p=>`<div class="edge" style="margin-bottom:6px">
-      <span class="pill warn">awaiting approval</span> <code>${esc(p.id)}</code>
-      <div class="btns" style="margin-top:6px">
-        <button class="act primary wappr-btn" data-pid="${esc(p.id)}">Approve</button>
-        <button class="act wrej-btn" data-pid="${esc(p.id)}">Reject</button>
-      </div></div>`).join('');
+  const all=data.proposals||[];
+  pendingApproval = new Set(all.map(p=>p.unit));   // the canvas gate pulse
+  const mine=all.filter(p=>p.unit===unitId);
+  box.innerHTML = mine.map(proposalCard).join('');
+}
+
+// Approving without seeing the change is rubber-stamping. The diff is the
+// point of the gate, so it is shown before the buttons — as the docked panel
+// did, and as the window must now.
+function proposalCard(p){
+  const d=p.behaviourDelta;
+  return `<div class="wprop">
+    <div class="row2"><span class="pill warn">waiting for you</span>
+      <span style="color:var(--muted);font-size:10.5px">${esc(p.id)}</span></div>
+    <div style="margin:4px 0">${esc(p.summary||'a change to this unit')}</div>
+    <div class="row2"><span>checks after the change</span>
+      <span class="${p.verdictAfter==='RED'?'warn':'vok'}">${esc(p.verdictAfter||'—')}</span></div>
+    ${d?`<div class="row2"><span>behaviour (${esc(d.metric||'')})</span>
+      <span>${esc(d.before)} → ${esc(d.after)} · ${esc(d.verdict)}</span></div>`:''}
+    ${p.unifiedDiffs?renderDiffs(p.unifiedDiffs):'<div class="warn">no diff recorded</div>'}
+    <div class="btns" style="margin-top:6px">
+      <button class="act primary wappr-btn" data-pid="${esc(p.id)}">Approve</button>
+      <button class="act wrej-btn" data-pid="${esc(p.id)}">Reject</button>
+    </div></div>`;
+}
+function renderDiffs(diffs){
+  return Object.entries(diffs).map(([f,d])=>{
+    const lines=(d||'').split('\n').map(l=>{
+      const c=l[0]==='+'?'var(--signal-green)':l[0]==='-'?'var(--signal-red)':'var(--muted)';
+      return `<span style="color:${c}">${esc(l)}</span>`; }).join('\n');
+    return `<details class="wdiff"><summary>${esc(f)}</summary>`
+      + `<pre>${lines}</pre></details>`; }).join('');
 }
 async function winSettle(unitId, el, pid, action){
   if (STATIC) return;
@@ -774,6 +837,7 @@ async function boot(){
   if (cam.flight){ Object.assign(cam, cam.flight); cam.flight = null; }
   applyUrlState();
   applyWorkspace(view.workspace);   // v7 — restore the saved investigation layout
+  refreshProposals();               // units waiting on a human pulse from load
   requestAnimationFrame(loop);
 }
 
@@ -1412,9 +1476,7 @@ function selectState(id){
   const ranked=Object.keys(cpl).sort((a,b)=>cpl[b]-cpl[a]);
   blastCoupling={}; ranked.forEach((n,i)=>blastCoupling[n]=i+1);
 }
-function select(id){ if (typeof stopSteerPoll==='function') stopSteerPoll();
-  selectState(id);
-  openDossier(byId[id]||unitFromView(id)); writeUrlState(); }
+function select(id){ selectState(id); openWindow(id); writeUrlState(); }
 function unitFromView(id){ const n=view.nodes.find(x=>x.id===id); return n?unitItem(n):null; }
 function computeBlast(id){ const rev={}; for (const e of view.edges){ (rev[e.to] ??= []).push(e.from); }
   const seen=new Set(), stack=[id]; while(stack.length){ const c=stack.pop();
@@ -1456,7 +1518,7 @@ searchInput.addEventListener('keydown', e=>{
 function markSel(){ [...results.querySelectorAll('.hit')].forEach((el,i)=>el.classList.toggle('sel',i===searchSel)); }
 
 // --------------------------------------------------------------------------- //
-// Keyboard: / search · tab cycle · enter dossier · esc close · arrows pan · 0 fit
+// Keyboard: / search · tab cycle · enter opens the unit · esc clears · arrows pan · 0 fit
 // --------------------------------------------------------------------------- //
 // v7 phase 5 — lens keys 1..7, Esc clears the sky. Never steal keys from a
 // focused text field (the steer box, search).
@@ -1469,8 +1531,8 @@ window.addEventListener('keydown', e=>{
   if (e.key==='/'){ e.preventDefault(); openSearch(); }
   else if (e.key==='Escape'){
     const open=[...wins.values()].filter(w=>!w.minimized);
-    if (open.length){ open.forEach(w=>minimizeWin(w.id)); }   // clear the sky
-    else closeDossier(); }
+    if (open.length) open.forEach(w=>minimizeWin(w.id));      // clear the sky
+    }
   else if (e.key==='0'){ fitToView(); }
   else if (e.key==='Tab'){ e.preventDefault(); if(!units.length) return;
     focusIdx=(focusIdx+(e.shiftKey?-1:1)+units.length)%units.length; const u=units[focusIdx];
@@ -1599,7 +1661,7 @@ function drawLegend(){
     el.innerHTML=`<b>Real runs</b><div class="row">${n?`pick a request below → watch it travel the map step by step`:'nothing has been recorded running yet'}</div>`
       + '<div class="row">a step that failed stops the light and pulses red</div>'; }
   else if (lens==='timeline'){ el.innerHTML='<b>Timeline</b><div class="row">scrub below to move every unit to its fingerprint at that commit</div>'
-      + '<div class="row">gold label = composite band · click a dossier tick to replay</div>'; }
+      + '<div class="row">gold label = one version of the system · click a tick to replay it</div>'; }
   else { el.innerHTML='<b>Structure</b>'+[['compute','chip ⟨⟩'],['state','cylinder'],['schema','hex · strata'],
       ['config','tag · recedes'],['external','cut corner · dashed'],['pipeline','container']]
       .map(([k,f])=>`<div class="row"><span class="g" style="background:${cvar('--'+k)}"></span>${k} · ${f}</div>`).join(''); }
@@ -1609,203 +1671,24 @@ function drawLegend(){
 // Dossier — description → task → verdict → interior → contract → fingerprint →
 // edges → artifacts (plain words first, hashes last). Ends in an action.
 // --------------------------------------------------------------------------- //
-function openDossier(u){
-  if (!u) return; const hcol=healthHex(u);
-  const outs=view.edges.filter(e=>e.from===u.id), ins=view.edges.filter(e=>e.to===u.id);
-  const edgeLine=e=>{
-    const src=(e.verificationSource||[]);
-    const badge = e.verified
-      ? ` <span class="v">✓ ${src.includes('span')?'span×'+(e.observationCount||0):'import'}</span>`
-      : ' <span class="pill">declared · unobserved</span>';
-    const seen = e.lastVerifiedAt ? `<span class="muted" style="font-size:10px"> last ${esc(e.lastVerifiedAt)}</span>` : '';
-    return `<div class="edge"><span class="k">${esc(e.kinds.join('/'))}</span> ${esc(e.to||e.from)}${badge}${seen}</div>`;
-  };
-  const fp=u.version||{};
-  const body=`
-    <h2>${esc(u.name||u.id)}</h2>
-    <div class="kindline">${esc(u.id)} · ${esc(u.nodeKind)} · owner ${esc(u.owner||'—')}
-      ${u.approvalRequired?'· <span class="pill">approval required</span>':''} · side-effects ${esc(u.sideEffects||'none')}</div>
+async function refresh(id){ if (STATIC) return;
+  view=(await api('GET','/api/graph')).data; buildLayout();
+  await refreshProposals();                       // keep the gate pulse honest
+  // re-render open windows in place — never open a new one on a refresh
+  for (const w of wins.values()) if (!w.minimized) setWinTab(w.id, w.tab);
+}
 
-    ${u.description?`<div class="sect"><h3>What it does</h3><div class="describe">${esc(u.description)}</div></div>`:''}
-    <div class="sect"><h3>Task</h3><div class="task">${esc(u.task||'—')}</div></div>
-    <div class="sect"><h3>Verdict</h3><span id="verdict" class="verdict" style="background:${hcol}">${esc(u.health)}</span>
-      ${u.blessing&&u.blessing.blessedBy?(
-        ['unknown','none','null',''].includes(String(u.blessing.blessedBy).toLowerCase())
-          ? `<span class="pill" title="recorded before blessings required a real identity (V3) — treat with the same caution as unblessed" style="color:var(--signal-amber)">unverified historical blessing</span>`
-          : `<span class="pill" title="golden baseline blessed by a human">blessed · ${esc(u.blessing.blessedBy)}${u.blessing.blessedAt?' · '+esc(u.blessing.blessedAt):''}</span>`):''}
-      ${u.tier1?`<div class="edge">golden: <b>${esc(u.tier1.statVerdict)}</b>${u.tier1.ciLow!=null?` · CI95[${esc(u.tier1.ciLow)}, ${esc(u.tier1.ciHigh)}] · n=${esc(u.tier1.nRows)}`:''}${u.tier1.verdictMethod==='threshold-legacy'?' <span class="pill">threshold-legacy</span>':''}</div>`:''}
-      ${(u.blindSpots||[]).length?`<div class="edge" title="static analysis cannot see dynamic imports, string dispatch, or out-of-process calls — absence of an edge is not proof of no dependency">⚠ possible undeclared dynamic deps: ${u.blindSpots.map(w=>esc(w.file)+' ('+esc(w.pattern)+')').join(', ')}</div>`:''}
-      ${(view.dependencyCycles||[]).filter(c=>c.includes(u.id)).map(c=>`<div class="edge" style="color:var(--signal-amber)" title="strongly-connected dependency group — these units import each other; no layering can untangle them">⟳ dependency cycle with: ${esc(c.filter(x=>x!==u.id).join(', '))}</div>`).join('')}</div>
-    ${interiorSection(u)}
-    <div class="sect"><h3>Contract</h3>
-      ${(u.invariants&&u.invariants.length)? u.invariants.map(i=>`<div class="inv">${esc(i)}</div>`).join('')
-        : '<span class="pill">no invariants declared</span>'}</div>
-    ${budgetSection(u)}
-    <div class="sect"><h3>Fingerprint</h3><div class="fp">
-      <span>composite</span><code>${esc(fp.composite||'—')}</code>
-      <span>code</span><code>${esc(fp.code||'—')}</code>
-      <span>prompt</span><code>${esc(fp.prompt||'—')}</code>
-      <span>config</span><code>${esc(fp.config||'—')}</code>
-      <span>model</span><code>${esc(fp.model||'—')}</code></div></div>
-    ${timelineSection(u)}
-    <div class="sect"><h3>Edges</h3>
-      ${outs.length? outs.map(edgeLine).join(''):'<span class="pill">no outgoing edges</span>'}
-      ${ins.length? '<div style="color:var(--muted);font-size:11px;margin-top:6px">depended on by</div>'+ins.map(e=>`<div class="edge">${esc(e.from)}</div>`).join(''):''}</div>
-    <details class="artifacts sect"><summary>Artifacts — ${(u.claims||[]).length} claimed file(s)</summary>
-      <ul>${(u.claims||[]).map(c=>`<li>${esc(c)}</li>`).join('')||'<li class="pill">none</li>'}</ul></details>
-    <div class="actions">
-      <div id="proposals"></div>
-      <textarea id="instr" placeholder="Steer: describe a change — the workload edits within this unit's claims only"></textarea>
-      <div class="btns">
-        <button class="act primary" id="steerBtn" onclick="steer()">Steer</button>
-        <button class="act" id="revertBtn" onclick="revert()">Revert</button>
-        <button class="act" id="approveBtn" onclick="approve()">Approve</button>
-        <button class="act" id="rejectBtn" onclick="reject()">Reject</button>
-      </div>
-      <div id="status"></div><div id="outcome"></div>
-    </div>`;
-  document.getElementById('dossier-body').innerHTML=body;
-  // Lift the action bar out of the scrolling body so it is a real panel footer
-  // (built in the same template for locality; hoisted once per render). Drop the
-  // previous footer first — appending blindly stacks one per render.
-  const _dos=document.getElementById('dossier');
-  _dos.querySelectorAll(':scope > .actions').forEach(n=>n.remove());
-  const _act=document.querySelector('#dossier-body .actions');
-  if(_act) _dos.appendChild(_act);
-  document.getElementById('dossier').classList.add('open');
-  if (STATIC){ for (const id of ['steerBtn','revertBtn','approveBtn','rejectBtn']){ const b=document.getElementById(id);
-    b.disabled=true; b.title='Static snapshot — run `ent serve` to act'; } }
-  else { if (!u.approvalRequired){ for (const id of ['approveBtn','rejectBtn']){ const b=document.getElementById(id);
-      b.disabled=true; b.title='No approval gate on this unit'; } }
-    loadProposals(u.id); }   // show any open proposal for this unit (H5)
-}
-function interiorSection(u){
-  if (!u.interior) return '';
-  const tv=u.trajectoryVerdict;
-  const tvHtml = tv ? (tv.verdict==='RED'
-      ? `<div class="inv" style="border-color:var(--signal-red)">trajectory RED — ${esc(tv.failedRule||'')}</div>`
-      : `<span class="pill">trajectory ${esc(tv.verdict)}</span>`) : '';
-  const tools=(u.interior.tools||[]).map(tl=>`<div class="edge"><span class="k">${esc(tl.name)}</span> → ${esc(tl.crosses||'—')}</div>`).join('');
-  return `<div class="sect"><h3>Interior</h3>
-    ${u.interior.process?`<div class="describe" style="font-size:13px">${esc(u.interior.process)}</div>`:''}
-    <div style="margin-top:6px">${tools}</div>
-    <div style="color:var(--muted);font-size:11px;margin-top:4px">maxSteps ${esc(u.interior.maxSteps??'—')}</div>
-    ${tvHtml}</div>`;
-}
-function budgetSection(u){
-  const b=u.budgets||{}, m=b.measured; if (!m && b.costPerCallUsd==null && b.p95LatencyMs==null) return '';
-  const burn=budgetBurn(u), over=burn!=null&&burn>1;
-  const rows=[];
-  if (b.costPerCallUsd!=null) rows.push(`cost ${m&&m.avgCostUsd!=null?'$'+m.avgCostUsd:'—'} / $${b.costPerCallUsd} budget`);
-  if (b.p95LatencyMs!=null) rows.push(`${m&&m.p95Basis?m.p95Basis:'p95'} ${m&&m.p95LatencyMs!=null?m.p95LatencyMs+'ms':'—'} / ${b.p95LatencyMs}ms budget`);
-  return `<div class="sect"><h3>Budget${over?' <span class="pill" style="color:var(--signal-amber)">over</span>':''}</h3>`
-    + rows.map(r=>`<div class="edge">${esc(r)}</div>`).join('')
-    + `<div style="color:var(--muted);font-size:11px">spend is health, same as correctness</div></div>`;
-}
-function timelineSection(u){
-  const ticks=(u.timeline||[]).filter(e=>e.kind==='version'); if (!ticks.length) return '';
-  const rows=ticks.slice(-6).reverse().map(e=>{ const ch=e.changed||[];
-    const chips=ch.length?ch.map(d=>`<span class="pill">${esc(d)}</span>`).join(''):'<span class="muted">initial</span>';
-    const act = STATIC ? '' : ` <button class="mini" onclick="replayFingerprint('${esc(u.id)}','${esc(e.composite)}')">replay</button>`;
-    return `<div class="edge"><code>${esc(e.composite||'—')}</code> ${chips}${act}</div>`; }).join('');
-  return `<div class="sect"><h3>Timeline</h3><div class="muted" style="font-size:11px;margin-bottom:4px">`
-    + `fingerprint changes (code / prompt / config / model) — click a tick to replay against it</div>${rows}`
-    + `<div id="replay-out"></div></div>`;
-}
-async function replayFingerprint(unitId, composite){
-  if (STATIC) return;
-  const out=document.getElementById('replay-out'); if (out) out.textContent='replaying…';
-  const {data}=await api('POST', `/api/node/${unitId}/replay`, {against:composite});
-  if (out){ out.innerHTML = data.error ? `<div class="inv" style="border-color:var(--signal-amber)">${esc(data.error)}</div>`
-    : `<div class="edge">changed: <b>${esc(data.attribution)}</b> · ${esc(data.metric||'metric')} `
-      +`${esc(data.old?.score)} → ${esc(data.current?.score)} · ${esc(data.verdict)}</div>`; }
-}
-function closeDossier(){ if(typeof stopSteerPoll==='function') stopSteerPoll();
-  document.getElementById('dossier').classList.remove('open'); selected=null; blast.clear(); writeUrlState(); }
-
-// --------------------------------------------------------------------------- //
-// The Bridge (steer via queue → operator edits → verdict; approve/reject gated)
-// --------------------------------------------------------------------------- //
-let steerReqId=null, steerTimer=null, steerUnit=null;
-async function steer(){
-  const instr=document.getElementById('instr').value.trim(); if (!instr||STATIC) return;
-  const btn=document.getElementById('steerBtn'), status=document.getElementById('status'); btn.disabled=true;
-  const {status:code, data}=await api('POST','/api/steer',{unit:selected, instruction:instr}); btn.disabled=false;
-  if (code!==200){ document.getElementById('outcome').innerHTML=`<div class="inv" style="border-color:var(--signal-amber)">${esc(data.error||'error')}</div>`; return; }
-  steerReqId=data.id; steerUnit=selected; status.textContent='queued — waiting for the operator (Claude Code)…';
-  document.getElementById('outcome').innerHTML=`<div class="edge"><span class="pill">queued</span> <code>${esc(data.id)}</code></div>`;
-  startSteerPoll();
-}
-function startSteerPoll(){ stopSteerPoll(); steerTimer=setInterval(async ()=>{
-  const {data}=await api('GET','/api/steering'); const res=(data.results||{})[steerReqId];
-  if (res){ stopSteerPoll(); showSteerResult(res); } }, 1500); }
-function stopSteerPoll(){ if(steerTimer){ clearInterval(steerTimer); steerTimer=null; } }
-function showSteerResult(res){
-  const o=res.outcome; let verdict=null, statusTxt='', deps=0, note='', diffs=null, delta=null;
-  if (o && typeof o==='object'){ const inner=o.outcome||o;
-    verdict=inner.verdict||o.verdict||null; statusTxt=inner.status||o.status||'done';
-    deps=(inner.blast?.dependents||[]).length; diffs=o.unifiedDiffs; delta=o.behaviourDelta;
-    if (o.rejected&&o.rejected.length) note=`rejected (outside claims): ${o.rejected.join(', ')}`;
-    if (o.proposalId){ statusTxt='awaiting approval'; } }
-  else if (typeof o==='string'){ note=o; statusTxt='reported'; }
-  const status=document.getElementById('status'); status.textContent=verdict?`verdict: ${verdict}`:statusTxt;
-  if (verdict){ const col=cvar(HEALTH_COLOUR[({GREEN:'green',RED:'red'})[verdict]]||'--amber');
-    const v=document.getElementById('verdict'); if(v){ v.textContent=verdict; v.style.background=col; }
-    if (steerUnit&&byId[steerUnit]) byId[steerUnit].flash=t+45; }
-  document.getElementById('outcome').innerHTML =
-    `<div class="edge"><span class="pill">${esc(statusTxt)}</span> ${verdict?`verdict <b>${esc(verdict)}</b> · `:''}blast: ${deps} dependent(s)</div>`
-    + (delta?`<div class="edge">behaviour ${esc(delta.metric||'')}: ${esc(delta.before)} → ${esc(delta.after)} (${esc(delta.verdict)})</div>`:'')
-    + (note?`<div class="inv" style="border-color:var(--signal-amber)">${esc(note)}</div>`:'')
-    + (diffs?renderDiffs(diffs):'');
-  refresh(steerUnit);
-}
-function renderDiffs(diffs){
-  return Object.entries(diffs).map(([f,d])=>{
-    const lines=(d||'').split('\n').map(l=>{ const c=l[0]==='+'?'var(--signal-green)':l[0]==='-'?'var(--signal-red)':'var(--muted)';
-      return `<span style="color:${c}">${esc(l)}</span>`; }).join('\n');
-    return `<details class="sect"><summary style="font-family:var(--font-mono);font-size:11px">${esc(f)}</summary>`
-      +`<pre class="inv" style="white-space:pre-wrap;overflow:auto">${lines}</pre></details>`; }).join('');
-}
-async function revert(){ if (STATIC) return; const {data}=await api('POST',`/api/node/${selected}/revert`,{});
-  document.getElementById('status').textContent=data.restored?`reverted ${data.restored.length} file(s)`:(data.error||'nothing to revert'); await refresh(selected); }
-
-// H5 approval flow: gated units show their open proposal(s) in the dossier —
-// diff + behaviour delta + verdict together — with real Approve / Reject.
+// Which units are waiting on a human. The canvas pulses their gate arc, so this
+// must stay populated whether or not any window is open — it used to be a side
+// effect of opening the dossier, which no longer exists.
 let pendingApproval=new Set();
-async function loadProposals(unitId){
+async function refreshProposals(){
   if (STATIC) return;
-  const {data}=await api('GET','/api/proposals');
-  const props=(data.proposals||[]);
-  pendingApproval = new Set(props.map(p=>p.unit));                 // pulse the gate arc while waiting
-  const mine = props.filter(p=>p.unit===unitId);
-  const el=document.getElementById('proposals'); if (!el) return;
-  el.innerHTML = mine.length ? mine.map(proposalCard).join('') : '';
-  for (const id of ['approveBtn','rejectBtn']){ const b=document.getElementById(id);
-    if (b){ b.disabled = !mine.length; if (!mine.length && (byId[unitId]||{}).approvalRequired) b.title='no proposal waiting'; } }
-  window.__lastProposal = mine.length ? mine[0].id : null;
+  try{
+    const {data}=await api('GET','/api/proposals');
+    pendingApproval = new Set((data.proposals||[]).map(p=>p.unit));
+  }catch(_){ /* a proposal fetch must never break the map */ }
 }
-function proposalCard(p){
-  const d=p.behaviourDelta;
-  const col = cvar(HEALTH_COLOUR[({GREEN:'green',RED:'red'})[p.verdictAfter]]||'--amber');
-  return `<div class="sect" style="border-color:var(--annotation)">
-    <h3 style="color:var(--annotation)">Proposal · awaiting approval</h3>
-    <div class="edge">${esc(p.summary||'')} · verdict <b style="color:${col}">${esc(p.verdictAfter||'—')}</b></div>
-    ${d?`<div class="edge">behaviour ${esc(d.metric||'')}: ${esc(d.before)} → ${esc(d.after)} (${esc(d.verdict)})</div>`:''}
-    ${p.unifiedDiffs?renderDiffs(p.unifiedDiffs):''}
-    <div class="btns"><button class="act primary" onclick="approve('${esc(p.id)}')">Approve</button>
-      <button class="act" onclick="reject('${esc(p.id)}')">Reject</button></div></div>`;
-}
-async function approve(id){ if (STATIC) return; id=id||window.__lastProposal;
-  if (!id){ document.getElementById('status').textContent='no proposal waiting to approve'; return; }
-  const {data}=await api('POST',`/api/proposals/${id}/approve`,{});
-  document.getElementById('status').textContent=data.applied?`approved — applied ${data.applied.length} file(s)`:(data.error||'approve failed');
-  await refresh(selected); }
-async function reject(id){ if (STATIC) return; id=id||window.__lastProposal;
-  if (!id){ document.getElementById('status').textContent='no proposal waiting to reject'; return; }
-  const {data}=await api('POST',`/api/proposals/${id}/reject`,{});
-  document.getElementById('status').textContent=data.rejected?`rejected — discarded, working tree unchanged`:(data.error||'reject failed');
-  await refresh(selected); }
-async function refresh(id){ if (STATIC) return; view=(await api('GET','/api/graph')).data; buildLayout(); if (id) select(id); }
 
 // test/debug hook — script-scoped state isn't on window; expose read-only accessors.
 window.__ent = { get units(){return units}, get cam(){return cam}, get lens(){return lens},

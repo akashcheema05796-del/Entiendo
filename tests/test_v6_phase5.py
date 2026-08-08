@@ -100,7 +100,7 @@ def test_small_windows_are_labeled_max_not_p95() -> None:
     assert small["p95Basis"] == "max of 3"
     big = _measured_budgets(_traces(25))["u"]
     assert big["p95Basis"] == "p95"
-    assert "p95Basis" in UNIVERSE                    # …and the dossier uses it
+    assert "p95Basis" in UNIVERSE                    # …and the unit window shows it
 
 
 # --------------------------------------------------------------------------- #
@@ -126,4 +126,7 @@ def test_particles_cap_on_dense_maps_and_skip_offscreen() -> None:
 
 
 def test_legacy_unknown_blessing_renders_as_unverified() -> None:
-    assert "unverified historical blessing" in UNIVERSE
+    """A blessing recorded before identities were required must not read as a
+    real sign-off. The wording is plainer now; the distinction is the point."""
+    assert "signed off by someone unrecorded" in UNIVERSE
+    assert "treat as unvouched" in UNIVERSE

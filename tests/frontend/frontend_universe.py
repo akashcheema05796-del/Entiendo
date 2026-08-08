@@ -129,11 +129,13 @@ def test_all_six_lenses_change_the_legend(page) -> None:
     assert len(set(legends.values())) == 6          # every lens has its own legend
 
 
-def test_selecting_a_unit_opens_its_dossier(page) -> None:
+def test_selecting_a_unit_opens_its_window(page) -> None:
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
     page.evaluate("select('refundly.decide')")
-    page.wait_for_selector("#dossier", state="visible", timeout=5_000)
-    body = page.text_content("#dossier-body")
-    assert "refundly.decide" in body or "Refund Decider" in body
+    page.wait_for_selector('.win[data-unit="refundly.decide"]', timeout=5_000)
+    body = page.text_content('.win[data-unit="refundly.decide"]')
+    assert "refundly.decide" in body or "decide" in body
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
 
 
 def test_keyboard_tab_and_enter_select_a_unit(page) -> None:
@@ -170,10 +172,14 @@ def test_timeline_scrub_moves_the_playhead(page) -> None:
 # --------------------------------------------------------------------------- #
 
 def test_steer_roundtrip_lands_on_the_file_queue(env, page) -> None:
-    page.evaluate("select('refundly.gateway')")
-    page.wait_for_selector("#instr", timeout=5_000)
-    page.fill("#instr", "clamp refunds to the order amount")
-    page.click("#steerBtn")
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+    page.evaluate("openWindow('refundly.gateway')")
+    win = '.win[data-unit="refundly.gateway"]'
+    page.wait_for_selector(win, timeout=5_000)
+    page.click(f'{win} .wtabs button[data-tab="steer"]')
+    page.wait_for_selector(f"{win} .wsteer-input", timeout=5_000)
+    page.fill(f"{win} .wsteer-input", "clamp refunds to the order amount")
+    page.click(f"{win} .wsteer-btn")
     queue = env.root / "entiendo" / "steering" / "queue.jsonl"
     deadline = time.time() + 5
     while time.time() < deadline and not queue.exists():
@@ -209,11 +215,15 @@ def test_approve_applies_a_seeded_proposal(env) -> None:
     try:
         page.goto(env.url)
         page.wait_for_selector("#summary:not(:empty)", timeout=10_000)
-        # proposals live in the gated unit's dossier — open it first
-        page.evaluate("select('refundly.orders')")
-        # exact button match — a bare text= would substring-match the diff body
-        page.wait_for_selector("#proposals button.act.primary", timeout=5_000)
-        page.click("#proposals button.act.primary")
+        # the gate lives in the unit window's steer tab — open it first
+        page.evaluate("openWindow('refundly.orders')")
+        win = '.win[data-unit="refundly.orders"]'
+        page.wait_for_selector(win, timeout=5_000)
+        page.click(f'{win} .wtabs button[data-tab="steer"]')
+        # the diff must be on screen BEFORE the button: approving what you
+        # cannot see is rubber-stamping
+        page.wait_for_selector(f"{win} .wdiff", timeout=5_000)
+        page.click(f"{win} .wappr-btn")
         deadline = time.time() + 5
         while time.time() < deadline and "approved-live" not in target.read_text():
             time.sleep(0.1)
@@ -267,6 +277,7 @@ def test_windows_open_drag_and_tab(env, page) -> None:
     win = page.locator('.win[data-unit="refundly.decide"]')
     page.evaluate("focusWin('refundly.decide')")     # raise above the cascade
     # tabs switch and populate from the payload — zero network requests
+    page.evaluate("focusWin('refundly.decide')")
     win.locator('.wtabs button[data-tab="checks"]').click()
     assert "Quick checks" in win.locator(".wbody").text_content()
     win.locator('.wtabs button[data-tab="promises"]').click()
@@ -400,14 +411,14 @@ def test_close_and_minimize_buttons_actually_work(env, page) -> None:
 def test_clicking_a_unit_opens_exactly_one_panel(env, page) -> None:
     """One gesture, one surface. Clicking a node used to open the docked
     dossier AND a floating window for the same unit."""
-    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id)); closeDossier()")
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
     page.wait_for_timeout(200)
     pos = page.evaluate("""(()=>{const u=units.find(u=>!u.container)||units[0];
         return {x:u.x*cam.scale+cam.x, y:u.y*cam.scale+cam.y};})()""")
     page.mouse.click(pos["x"], pos["y"])
     page.wait_for_timeout(500)
     assert page.evaluate("[...wins.values()].filter(w=>!w.minimized).length") == 1
-    assert page.evaluate("document.getElementById('dossier').classList.contains('open')") is False
+    assert page.evaluate("document.getElementById('dossier')") is None   # panel removed
 
 
 def test_inside_tab_shows_the_parts_of_a_unit(env, page) -> None:
