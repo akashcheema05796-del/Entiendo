@@ -70,6 +70,13 @@ def build_view(root: Path) -> dict[str, Any]:
             # extractor blind spots (v6 3.5) — dynamic constructs the import
             # walk can't see; the dossier shows them as honesty, not alarm
             "blindSpots": [w for w in blind if w["node"] == gnode["id"]],
+            # v7 payload — windows render entirely from this; no fetch, no
+            # server dependency, and no invented statistics (pValue does not
+            # exist here: the engine is CI-bounds, so `significant` means the
+            # 95% CI excludes zero).
+            "evals": _evals_rollup(result0, tier1_latest.get(gnode["id"])),
+            "history": _history_rows(history.timeline(root, gnode["id"])),
+            "neighbours": _neighbours(gnode["id"], result.graph["edges"]),
         }
         interior = raw.get("interior")
         if interior:                         # agentic units only (audit finding 1)
@@ -86,6 +93,7 @@ def build_view(root: Path) -> dict[str, Any]:
 
     return {
         "apiVersion": "entiendo/v1",
+        "payloadVersion": 2,
         "commit": gitinfo.short_commit(root),
         "coverage": result.coverage,
         "nodes": sorted(node_views, key=lambda n: n["id"]),
@@ -98,7 +106,82 @@ def build_view(root: Path) -> dict[str, Any]:
         "traces": [_trace_view(t) for t in trace_events],
         "traffic": traffic,
         "commits": commits,          # the Timeline scrubber's axis (H3)
+        # v7 phase 4 — saved window layout (user state; stale unit ids dropped)
+        "workspace": _load_workspace(root, {n["id"] for n in node_views}),
     }
+
+
+def _load_workspace(root: Path, known_ids: set[str]) -> dict[str, Any] | None:
+    """entiendo/workspace.json if present and sane; unknown unit ids are
+    dropped silently (a deleted LU must not crash the page)."""
+    path = Path(root) / "entiendo" / "workspace.json"
+    if not path.exists():
+        return None
+    try:
+        ws = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return None
+    if not isinstance(ws, dict) or ws.get("version") != 1:
+        return None
+    ws["windows"] = [w for w in (ws.get("windows") or [])
+                     if isinstance(w, dict) and w.get("id") in known_ids]
+    return ws
+
+
+def _evals_rollup(result0: Any, t1: dict[str, Any] | None) -> dict[str, Any]:
+    """Per-unit eval summary for the window `evals` tab (v7 payload)."""
+    checks = getattr(result0, "checks", None) or []
+    graded = [c for c in checks if c.status in ("pass", "fail")]
+    tier0 = {"passed": sum(1 for c in graded if c.status == "pass"),
+             "total": len(graded), "verdict": getattr(result0, "verdict", None),
+             "lastRunIso": gitinfo.now_iso()}
+    tier1 = None
+    if t1 is not None:
+        spread = t1.get("spread")
+        mean, base = t1.get("mean"), t1.get("baseline")
+        ci_lo, ci_hi = t1.get("ciLow"), t1.get("ciHigh")
+        label = t1.get("statVerdict")
+        # zero spread = a golden set that cannot discriminate — flag in the
+        # PAYLOAD, not in JS (plan hard rule)
+        if spread == 0.0:
+            label = f"{label} — non-discriminating (zero spread)"
+        tier1 = {"score": mean, "baseline": base,
+                 "delta": (round(mean - base, 4)
+                           if mean is not None and base is not None else None),
+                 "runs": t1.get("runs"), "nRows": t1.get("nRows"),
+                 "ciLow": ci_lo, "ciHigh": ci_hi,
+                 "significant": (ci_lo is not None and ci_hi is not None
+                                 and (ci_hi < 0 or ci_lo > 0)),
+                 "spread": spread, "verdictLabel": label,
+                 "blessed": t1.get("blessed")}
+    return {"tier0": tier0, "tier1": tier1, "tier2": None}
+
+
+def _history_rows(timeline: list[dict[str, Any]], limit: int = 20) -> list[dict[str, Any]]:
+    """Last `limit` history events as window rows — blessedBy passes through
+    VERBATIM (never defaulted, never inferred; null renders as null)."""
+    rows = []
+    for e in timeline[-limit:]:
+        rows.append({
+            "version": (e.get("composite") or "")[:12] or None,
+            "iso": e.get("ts"),
+            "summary": e.get("kind"),
+            "evalSummary": e.get("verdict"),
+            "blessedBy": e.get("blessedBy"),
+        })
+    return rows
+
+
+def _neighbours(node_id: str, edges: list[dict[str, Any]]) -> dict[str, Any]:
+    """Both directions, with the reconciler's `verified` verbatim — if nothing
+    verified an edge, `false` IS the correct output."""
+    out = [{"id": e["to"], "rel": "/".join(e.get("kinds") or []),
+            "verified": bool(e.get("verified"))}
+           for e in edges if e["from"] == node_id]
+    inc = [{"id": e["from"], "rel": "/".join(e.get("kinds") or []),
+            "verified": bool(e.get("verified"))}
+           for e in edges if e["to"] == node_id]
+    return {"out": out, "in": inc}
 
 
 def _tier1_latest(root: Path) -> dict[str, dict[str, Any]]:
@@ -131,6 +214,7 @@ def _tier1_latest(root: Path) -> dict[str, dict[str, Any]]:
             "baseline": row.get("baseline"),
             "verdictMethod": row.get("verdictMethod"),
             "blessed": row.get("blessed"), "ts": row.get("ts"),
+            "spread": row.get("spread"), "runs": row.get("n"),
         }
     return latest
 

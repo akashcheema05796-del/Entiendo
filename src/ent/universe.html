@@ -46,6 +46,8 @@
   .lens { border:0; background:transparent; color:var(--muted); border-radius:999px;
     padding:6px 13px; cursor:pointer; font-size:12px; white-space:nowrap; font-family:var(--font-body); }
   .lens.active { background:var(--annotation); color:var(--field); font-weight:600; }
+  .lens:focus-visible, #dock .chip:focus-visible, .win button:focus-visible {
+    outline:1.5px solid var(--annotation); outline-offset:1px; }
 
   /* right-side instrument cluster */
   #tools { position:fixed; top:12px; right:16px; z-index:6; display:flex; gap:6px; }
@@ -166,6 +168,43 @@
     }
     #dossier { backdrop-filter: blur(20px) saturate(1.4); }
   }
+
+  /* ── v7 windowed workspace: LUs as floating windows over the map ── */
+  .win { position:fixed; z-index:20; width:400px; max-height:72vh; display:flex;
+    flex-direction:column; border-radius:11px; overflow:hidden;
+    background: linear-gradient(180deg, rgba(14,17,27,.88), rgba(9,11,19,.94));
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow: 0 22px 54px rgba(0,0,0,.5), inset 0 1px 1px rgba(255,255,255,.1); }
+  .win.focused { border-color: var(--annotation); }
+  .win header { position:static; width:auto; inset:auto; background:none; height:auto;
+    display:flex; align-items:center; gap:8px; padding:8px 10px;
+    cursor:grab; user-select:none; border-bottom:1px solid var(--hairline); }
+  .win header .hdot { width:9px; height:9px; border-radius:50%; flex:none; }
+  .win header .nm { font-family:var(--font-display); font-size:14px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .win header .fp { font-family:var(--font-mono); font-size:10px; color:var(--muted); margin-left:auto; }
+  .win header button { background:none; border:0; color:var(--muted); cursor:pointer;
+    font-size:13px; padding:2px 5px; }
+  .win header button:hover, .win header button:focus-visible { color:var(--starlight); outline:1px solid var(--annotation); }
+  .win .wtabs { display:flex; border-bottom:1px solid var(--hairline); }
+  .win .wtabs button { flex:1; background:none; border:0; color:var(--muted); cursor:pointer;
+    font-size:11px; padding:6px 2px; font-family:var(--font-body); }
+  .win .wtabs button.on { color:var(--annotation); box-shadow: inset 0 -2px 0 var(--annotation); }
+  .win .wtabs button:focus-visible { outline:1px solid var(--annotation); }
+  .win .wbody { overflow:auto; padding:10px 12px; font-size:12px; line-height:1.5; }
+  .win .wbody pre { font-family:var(--font-mono); font-size:11px; white-space:pre-wrap; margin:0; }
+  .win .warn { color: var(--signal-amber); }
+  .win .vok { color: var(--signal-green); }
+  .win .row2 { display:flex; justify-content:space-between; gap:8px; }
+  .win .bar { height:5px; background:#ffffff14; border-radius:3px; margin:2px 0 8px; }
+  .win .bar i { display:block; height:100%; border-radius:3px; background:var(--annotation); }
+  #dock { position:fixed; left:50%; transform:translateX(-50%); bottom:52px; z-index:19;
+    display:flex; gap:6px; }
+  #dock .chip { display:flex; align-items:center; gap:6px; padding:5px 10px; cursor:pointer;
+    border-radius:999px; font-size:11.5px; color:var(--starlight);
+    background: linear-gradient(180deg, rgba(16,19,30,.7), rgba(9,11,19,.85));
+    border:1px solid rgba(255,255,255,.12); }
+  #dock .chip:focus-visible { outline:1px solid var(--annotation); }
 </style>
 </head>
 <body>
@@ -200,6 +239,7 @@
 <div id="timebar"></div>
 <div id="hint">scroll / pinch = zoom · drag field = pan · / = search · tab = cycle · ? nav</div>
 <div id="snapshot-note">Static snapshot. Run <code>ent serve</code> to steer, re-eval, and revert live.</div>
+<div id="dock"></div>
 <div id="drift-banner" style="display:none; position:fixed; left:50%; transform:translateX(-50%); top:12px; z-index:9;
   background:rgba(180,120,30,.92); color:#1a1610; font-size:12px; padding:6px 14px; border-radius:6px;"></div>
 <div id="empty"><div><h1>An empty Universe</h1><p>No units are declared yet. Run <code>ent init</code> and <code>ent new</code> to bring the first unit under the plane, then <code>ent render</code>.</p></div></div>
@@ -295,9 +335,225 @@ async function watchVersion(){
   }
 }
 
+
+// ─── v7 windowed workspace: each LU is a floating window over the map ────── //
+// Windows render ENTIRELY from the embedded payload (no fetch); positions are
+// user state, never graph state; the dossier stays the action surface.
+const wins=new Map(); let winZ=30, focusedWin=null;
+const WIN_CAP=6, WTABS=['manifest','contract','evals','history','blast'];
+function nodeOf(id){ return view.nodes.find(n=>n.id===id); }
+function openWindow(id){
+  if (wins.has(id)){ const w=wins.get(id); if (w.minimized) restoreWin(id); focusWin(id); return; }
+  if ([...wins.values()].filter(w=>!w.minimized).length >= WIN_CAP){
+    const lru=[...wins.values()].filter(w=>!w.minimized).sort((a,b)=>a.z-b.z)[0];
+    if (lru) minimizeWin(lru.id);
+  }
+  const n=nodeOf(id); if (!n) return;
+  const el=document.createElement('div'); el.className='win'; el.dataset.unit=id;
+  const cascade=wins.size%5;
+  el.style.left=(90+cascade*36)+'px'; el.style.top=(70+cascade*32)+'px';
+  el.innerHTML = `<header>
+      <span class="hdot" style="background:${cvar('--'+(n.healthColour||'grey'))}"></span>
+      <span class="nm">${esc(shortName({id}))}</span>
+      <span class="fp">${esc((n.version&&n.version.composite||'').slice(0,10))}</span>
+      <button class="wmin" title="minimize">–</button>
+      <button class="wclose" title="close">×</button></header>
+    <div class="wtabs">${WTABS.map(tb=>`<button data-tab="${tb}">${tb}</button>`).join('')}</div>
+    <div class="wbody"></div>`;
+  document.body.appendChild(el);
+  const w={id, el, tab:'manifest', minimized:false, z:++winZ};
+  wins.set(id, w); el.style.zIndex=w.z;
+  el.addEventListener('pointerdown', ()=>focusWin(id));
+  el.querySelector('.wclose').addEventListener('click', e=>{ e.stopPropagation(); closeWin(id); });
+  el.querySelector('.wmin').addEventListener('click', e=>{ e.stopPropagation(); minimizeWin(id); });
+  el.querySelectorAll('.wtabs button').forEach(b=>b.addEventListener('click', ()=>setWinTab(id, b.dataset.tab)));
+  let drag=null;   // drag by chrome only — tabs/body/buttons stay interactive
+  el.addEventListener('pointerdown', e=>{
+    if (e.target.closest('.wtabs,.wbody,button')) return;
+    drag=[e.clientX-el.offsetLeft, e.clientY-el.offsetTop]; focusWin(id);
+    try{ el.setPointerCapture(e.pointerId); }catch(_){ /* synthetic pointers */ } });
+  el.addEventListener('pointermove', e=>{ if(!drag) return;
+    el.style.left=Math.max(0, Math.min(innerWidth-120, e.clientX-drag[0]))+'px';
+    el.style.top =Math.max(48, Math.min(innerHeight-60, e.clientY-drag[1]))+'px'; });
+  el.addEventListener('pointerup', ()=>{ if (drag){ drag=null; autoPanClear(id); saveWorkspaceSoon(); } });
+  setWinTab(id, 'manifest'); focusWin(id);
+}
+function focusWin(id){ const w=wins.get(id); if(!w) return;
+  focusedWin=id; w.z=++winZ; w.el.style.zIndex=w.z;
+  wins.forEach(o=>o.el.classList.toggle('focused', o.id===id));
+  winFocusCoupling(id);
+}
+function closeWin(id){ const w=wins.get(id); if(!w) return;
+  w.el.remove(); wins.delete(id); if (focusedWin===id) focusedWin=null;
+  renderDock(); saveWorkspaceSoon(); }
+function minimizeWin(id){ const w=wins.get(id); if(!w) return;
+  w.minimized=true; w.el.style.display='none'; renderDock(); saveWorkspaceSoon(); }
+function restoreWin(id){ const w=wins.get(id); if(!w) return;
+  w.minimized=false; w.el.style.display='flex'; focusWin(id); renderDock(); saveWorkspaceSoon(); }
+function renderDock(){ const d=document.getElementById('dock'); if(!d) return;
+  d.innerHTML=[...wins.values()].filter(w=>w.minimized).map(w=>{ const n=nodeOf(w.id)||{};
+    return `<button class="chip" data-dock="${esc(w.id)}"><span class="hdot" style="width:8px;height:8px;border-radius:50%;background:${cvar('--'+(n.healthColour||'grey'))}"></span>${esc(shortName({id:w.id}))}</button>`; }).join('');
+  d.querySelectorAll('[data-dock]').forEach(b=>b.addEventListener('click', ()=>restoreWin(b.dataset.dock)));
+}
+function setWinTab(id, tab){ const w=wins.get(id); if(!w) return;
+  w.tab=tab; w.el.querySelectorAll('.wtabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
+  w.el.querySelector('.wbody').innerHTML = winTabHtml(nodeOf(id), tab);
+  winFocusCoupling(id); saveWorkspaceSoon();
+}
+function winTabHtml(n, tab){
+  if (!n) return '';
+  if (tab==='manifest'){
+    const claims=n.claims||[], fx=n.sideEffects, warnFx=(fx==='irreversible'||fx==='writes');
+    return `<pre>id: ${esc(n.id)}
+kind: ${esc(n.nodeKind)}
+group: ${esc(n.group||'—')}
+owner: ${esc(n.owner||'—')}
+status: ${esc(n.status||'—')}
+sideEffects: <span class="${warnFx?'warn':''}">${esc(fx||'none')}</span>
+approvalRequired: <span class="${n.approvalRequired?'warn':''}">${n.approvalRequired?'true':'false'}</span></pre>
+    <div style="margin-top:8px"><b>claims (${n.claimedFileCount??claims.length})</b>
+    ${claims.length? `<pre>${claims.map(esc).join('\n')}</pre>`
+      : n.nodeKind==='external' ? '<div class="warn">external unit — claims no files by design</div>'
+      : '<div class="warn">zero claims</div>'}</div>`;
+  }
+  if (tab==='contract'){
+    const inv=n.invariants||[], nb=n.neighbours||{out:[],in:[]};
+    const line=e=>`<div class="row2"><span>${esc(e.id)} <span style="color:var(--muted)">${esc(e.rel)}</span></span>
+      <span class="${e.verified?'vok':'warn'}">${e.verified?'✓ verified':'declared, unverified'}</span></div>`;
+    return `<b>invariants</b>${inv.length?`<pre>${inv.map(esc).join('\n')}</pre>`:'<div class="warn">no invariants declared</div>'}
+      <div style="margin-top:8px"><b>depends on</b>${nb.out.map(line).join('')||'<div style="color:var(--muted)">none</div>'}</div>
+      <div style="margin-top:8px"><b>depended on by</b>${nb.in.map(line).join('')||'<div style="color:var(--muted)">none</div>'}</div>`;
+  }
+  if (tab==='evals'){
+    const ev=n.evals||{}, t0=ev.tier0||{}, t1=ev.tier1;
+    const b=n.budgets||{}, m=b.measured;
+    const bar=(cur,lim)=> lim ? `<div class="bar"><i style="width:${Math.min(100,(cur||0)/lim*100)}%"></i></div>` : '';
+    let html=`<b>tier0 (reflex)</b><div class="row2"><span>${t0.passed??'—'} / ${t0.total??'—'} checks pass</span><span>${esc(t0.verdict||'')}</span></div>`;
+    if (t1){
+      html+=`<div style="margin-top:8px"><b>tier1 (golden)</b>
+        <div class="row2"><span>score</span><span>${t1.score}</span></div>
+        <div class="row2"><span>baseline</span><span>${t1.baseline}</span></div>
+        <div class="row2"><span>delta</span><span>${t1.delta}</span></div>
+        <div class="row2"><span>runs · rows</span><span>${t1.runs??'—'} · ${t1.nRows??'—'}</span></div>
+        <div class="row2"><span>CI95</span><span>[${t1.ciLow}, ${t1.ciHigh}]</span></div>
+        <div class="row2"><span>significant</span><span class="${t1.significant?'warn':'vok'}">${t1.significant}</span></div>
+        <div class="row2"><span>spread</span><span>${t1.spread}</span></div>
+        <div class="row2"><span>verdict</span><span>${esc(t1.verdictLabel||'')}</span></div>
+        ${t1.spread===0?'<div class="warn">⚠ zero spread — this golden set cannot discriminate</div>':''}</div>`;
+    } else html+=`<div style="margin-top:8px;color:var(--muted)">no tier1 golden run recorded</div>`;
+    if (b.p95LatencyMs!=null) html+=`<div style="margin-top:8px"><b>budget: latency</b>
+      <div class="row2"><span>${m&&m.p95LatencyMs!=null?m.p95LatencyMs+'ms':'—'}</span><span>/ ${b.p95LatencyMs}ms</span></div>${bar(m&&m.p95LatencyMs, b.p95LatencyMs)}</div>`;
+    if (b.costPerCallUsd!=null) html+=`<div><b>budget: cost</b>
+      <div class="row2"><span>${m&&m.avgCostUsd!=null?'$'+m.avgCostUsd:'—'}</span><span>/ $${b.costPerCallUsd}</span></div>${bar(m&&m.avgCostUsd, b.costPerCallUsd)}</div>`;
+    return html;
+  }
+  if (tab==='history'){
+    const rows=n.history||[];
+    if (!rows.length) return '<div style="color:var(--muted)">no history recorded yet</div>';
+    return rows.map(r=>`<div class="row2" style="border-bottom:1px solid var(--hairline);padding:3px 0">
+      <span style="font-family:var(--font-mono);font-size:10.5px">${esc(r.version||'—')}</span>
+      <span>${esc(r.summary||'')}${r.evalSummary?' · '+esc(r.evalSummary):''}</span>
+      <span style="color:var(--muted);font-size:10.5px">${esc((r.iso||'').slice(0,10))} · ${r.blessedBy?esc(r.blessedBy):'unblessed'}</span></div>`).join('');
+  }
+  if (tab==='blast'){
+    const down=[...computeBlast(n.id)];
+    if (!down.length) return '<div style="color:var(--muted)">no downstream dependents</div>';
+    return down.map(id=>{ const d=nodeOf(id)||{};
+      const risky=(d.sideEffects==='writes'||d.sideEffects==='irreversible');
+      return `<div class="row2"><span>${esc(id)}</span>
+        <span class="${risky?'warn':''}">${risky?('⚠ '+esc(d.sideEffects)):esc(d.sideEffects||'none')}</span></div>`; }).join('');
+  }
+  return '';
+}
+// v7 phase 3 — the focused window's node IS the canvas selection; the blast
+// tab flips the canvas lens; the map is live context, never wallpaper.
+function winFocusCoupling(id){
+  const w=wins.get(id); if (!w || !view) return;
+  selectState(id);
+  if (w.tab==='blast' && lens!=='blast') setLens('blast');
+  autoPanClear(id);
+}
+// Occlusion rule: if a focused/dragged window covers its OWN node, pan the
+// VIEWPORT (offset only — node coordinates in graph space are never mutated)
+// until the node clears the rect by >=24px. flyTo animates ~220ms and jumps
+// instantly under prefers-reduced-motion.
+function autoPanClear(id){
+  const w=wins.get(id); const n=byId[id]; if (!w || !n || w.minimized) return;
+  const r=w.el.getBoundingClientRect(), M=24;
+  const sx=n.x*cam.scale+cam.x, sy=n.y*cam.scale+cam.y;
+  if (sx<r.left-M || sx>r.right+M || sy<r.top-M || sy>r.bottom+M) return;
+  // smallest shift that clears the rect (screen px), applied to cam offset
+  const outs=[ r.left-M-sx, r.right+M-sx ];      // move left (neg) or right (pos)
+  const dx=Math.abs(outs[0])<Math.abs(outs[1]) ? outs[0] : outs[1];
+  const oys=[ r.top-M-sy, r.bottom+M-sy ];
+  const dy=Math.abs(oys[0])<Math.abs(oys[1]) ? oys[0] : oys[1];
+  const target = Math.abs(dx)<Math.abs(dy)
+    ? {x:cam.x+dx, y:cam.y, scale:cam.scale} : {x:cam.x, y:cam.y+dy, scale:cam.scale};
+  if (RM){ Object.assign(cam, target); } else cam.flight=target;
+}
+// Tether: a hairline from the nearest point on each open window's rect to its
+// node — drawn on the CANVAS (under windows, above the map), every frame.
+function drawTethers(){
+  if (!wins.size) return;
+  ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0);
+  for (const w of wins.values()){
+    if (w.minimized) continue;
+    const n=byId[w.id]; if (!n) continue;
+    const sx=n.x*cam.scale+cam.x, sy=n.y*cam.scale+cam.y;
+    const r=w.el.getBoundingClientRect();
+    const ax=Math.max(r.left, Math.min(sx, r.right));
+    const ay=Math.max(r.top, Math.min(sy, r.bottom));
+    ctx.strokeStyle=cvar(w.id===focusedWin?'--annotation':'--muted');
+    ctx.globalAlpha=w.id===focusedWin?0.75:0.35; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(sx,sy); ctx.stroke();
+    ctx.beginPath(); ctx.arc(sx,sy,2.4,0,Math.PI*2);
+    ctx.fillStyle=cvar('--annotation'); ctx.fill();
+  }
+  ctx.restore();
+}
+// v7 phase 4 — persist layout to entiendo/workspace.json through ent dev
+// (CSRF-guarded POST). Static pages can't persist: show a note, not an error.
+let _wsTimer=null, _wsNoted=false;
+function workspaceState(){
+  return {version:1, lens, pan:{x:Math.round(cam.x), y:Math.round(cam.y)},
+    windows:[...wins.values()].map(w=>({id:w.id, x:w.el.offsetLeft, y:w.el.offsetTop,
+      tab:w.tab, minimized:w.minimized}))};
+}
+function saveWorkspaceSoon(){
+  clearTimeout(_wsTimer);
+  _wsTimer=setTimeout(async ()=>{
+    if (STATIC){ wsNote(); return; }
+    try{ const r=await api('POST','/api/workspace', workspaceState());
+         if (r.status!==200) wsNote(); }
+    catch(e){ wsNote(); }
+  }, 500);
+}
+function wsNote(){ if (_wsNoted) return; _wsNoted=true;
+  const d=document.createElement('div');
+  d.id='wsnote'; d.textContent='layout not persisted — run ent dev to save workspaces';
+  d.style.cssText='position:fixed;left:16px;top:52px;z-index:6;font-size:10.5px;color:var(--muted)';
+  document.body.appendChild(d); setTimeout(()=>d.remove(), 6000); }
+function applyWorkspace(ws){
+  if (!ws || ws.version!==1) return;
+  if (ws.lens) setLens(ws.lens);
+  if (ws.pan){ cam.flight=null; cam.x=ws.pan.x; cam.y=ws.pan.y; }
+  for (const w of (ws.windows||[])){
+    openWindow(w.id); const win=wins.get(w.id); if (!win) continue;
+    win.el.style.left=w.x+'px'; win.el.style.top=w.y+'px';
+    if (w.tab) setWinTab(w.id, w.tab);
+    if (w.minimized) minimizeWin(w.id);
+  }
+}
+
 async function boot(){
   resize();
   view = STATIC ? EMBEDDED : (await api('GET','/api/graph')).data;
+  // v7 — refuse to render a payload this page was not written for
+  if (!view || view.payloadVersion !== 2){
+    document.body.textContent = 'entiendo: unsupported payload version '
+      + (view && view.payloadVersion) + ' — re-run `ent render` with this version of ent.';
+    return;
+  }
   document.getElementById('snapshot-note').style.display = STATIC ? 'block' : 'none';
   // v6 4.2 — a broken tree serves the last good view + this banner
   const drift = document.getElementById('drift-banner');
@@ -315,6 +571,7 @@ async function boot(){
   drawLegend();
   fitToView();
   applyUrlState();
+  applyWorkspace(view.workspace);   // v7 — restore the saved investigation layout
   requestAnimationFrame(loop);
 }
 
@@ -850,6 +1107,7 @@ function loop(ts){
     drawComet();
   }
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  drawTethers();
   drawMinimap();
   requestAnimationFrame(loop);
 }
@@ -939,14 +1197,17 @@ canvas.addEventListener('dblclick', e=>{ // dbl-click a group hull re-collapses;
   else if (!u) fitToView();
 });
 
-function onClick(u){ if (u.container){ expanded.add(u.group); buildLayout(); return; } select(u.id); }
+function onClick(u){ if (u.container){ expanded.add(u.group); buildLayout(); return; } select(u.id); openWindow(u.id); }
 let blastCoupling={};
-function select(id){ if (typeof stopSteerPoll==='function') stopSteerPoll();
+function selectState(id){
   selected=id; blast=new Set(computeBlast(id)); focusIdx=units.findIndex(u=>u.id===id);
   // rank labels (H3): immediate dependents ranked by direct contract coupling.
   const cpl={}; for (const e of view.edges){ if (e.to===id) cpl[e.from]=(cpl[e.from]||0)+(e.kinds||[]).length; }
   const ranked=Object.keys(cpl).sort((a,b)=>cpl[b]-cpl[a]);
   blastCoupling={}; ranked.forEach((n,i)=>blastCoupling[n]=i+1);
+}
+function select(id){ if (typeof stopSteerPoll==='function') stopSteerPoll();
+  selectState(id);
   openDossier(byId[id]||unitFromView(id)); writeUrlState(); }
 function unitFromView(id){ const n=view.nodes.find(x=>x.id===id); return n?unitItem(n):null; }
 function computeBlast(id){ const rev={}; for (const e of view.edges){ (rev[e.to] ??= []).push(e.from); }
@@ -989,10 +1250,19 @@ function markSel(){ [...results.querySelectorAll('.hit')].forEach((el,i)=>el.cla
 // --------------------------------------------------------------------------- //
 // Keyboard: / search · tab cycle · enter dossier · esc close · arrows pan · 0 fit
 // --------------------------------------------------------------------------- //
+// v7 phase 5 — lens keys 1..7, Esc clears the sky. Never steal keys from a
+// focused text field (the steer box, search).
+const LENS_KEYS=['structure','flow','trace','health','timeline','blast','city'];
 window.addEventListener('keydown', e=>{
   if (searchBox.classList.contains('open')) return;
+  const tag=(document.activeElement||{}).tagName;
+  if (tag==='INPUT'||tag==='TEXTAREA') return;
+  if (e.key>='1' && e.key<='7'){ const l=LENS_KEYS[+e.key-1]; if (l) setLens(l); return; }
   if (e.key==='/'){ e.preventDefault(); openSearch(); }
-  else if (e.key==='Escape'){ closeDossier(); }
+  else if (e.key==='Escape'){
+    const open=[...wins.values()].filter(w=>!w.minimized);
+    if (open.length){ open.forEach(w=>minimizeWin(w.id)); }   // clear the sky
+    else closeDossier(); }
   else if (e.key==='0'){ fitToView(); }
   else if (e.key==='Tab'){ e.preventDefault(); if(!units.length) return;
     focusIdx=(focusIdx+(e.shiftKey?-1:1)+units.length)%units.length; const u=units[focusIdx];
@@ -1030,6 +1300,7 @@ window.addEventListener('hashchange', ()=>{ if (!_writingUrl && view) applyUrlSt
 // --------------------------------------------------------------------------- //
 document.querySelectorAll('.lens').forEach(b=>b.addEventListener('click', ()=>setLens(b.dataset.lens)));
 function setLens(l){ lens=l;
+  if (typeof saveWorkspaceSoon==='function') saveWorkspaceSoon();
   if (l==='city'){ cityBuilt=false; buildCity();
     flyTo(W/2, H/2, Math.min(1, (W-40)/W)); }
   document.querySelectorAll('.lens').forEach(x=>x.classList.toggle('active', x.dataset.lens===l));

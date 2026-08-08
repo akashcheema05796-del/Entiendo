@@ -21,3 +21,7 @@ htmlcov/
 
 # Local env
 .env
+
+# v7 workspace layouts are personal by default;
+# committing one is a deliberate choice for shared layouts.
+entiendo/workspace.json

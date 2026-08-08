@@ -12,8 +12,8 @@ they're reconciled.
   on pypi.org)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **389 passing** (~9s), plus an optional
-  browser suite: `pytest tests/frontend/frontend_universe.py` (11 Playwright
+- **Tests:** `python -m pytest -q` → **416 passing** (~11s), plus an optional
+  browser suite: `pytest tests/frontend/frontend_universe.py` (16 Playwright
   tests, not collected by default).
 
 **PLAN_v6 (trust hardening) — in progress:** Phase 0 verification ✅
@@ -24,6 +24,19 @@ bootstrap-CI verdicts (1.2), proposal base-hash guard (1.3), single claims
 authority (1.4), claims hook (2.1), tier1 health lens (2.2), append durability
 (3.1), ent ci tier1 (3.2), queue atomicity/CSRF (3.4), live reload (4.2), polish
 (5.x). Phase 1 ✅ — sandboxed eval runner (timeout + rlimits, TIER0_TIMEOUT), paired-bootstrap tier1 verdicts (CI bounds + n + MDE; threshold-legacy fallback), base-hash guard on proposal approve (stale → zero writes), and the single claims authority `claims.py` (realpath + containment) routed through all write paths. Phase 2 ✅ — the enforce_claims PreToolUse hook (out-of-claims edits mechanically denied in hooked sessions), tier1 significance on the health lens (statVerdict + CI + n; ring colours; 'red only on statistically meaningful movement'), the live Bridge integration test (generated content, no pre-stored diff), and a one-command demo reset. Live H5 recording still Mehar's (open residual). Phase 3 ✅ — durable locked history append (flock + fsync, `seq` under the lock, `v: 1` schema field; concurrent writers proven), `ent ci` tier1 stage on BLESSED goldens with Phase-7 severity exit codes (0 pass · 1 REGRESSED · 2 ERROR · 4 UNSTABLE/DEGRADED, max across stages; unblessed = advisory, never blocks), atomic steering claims (`O_CREAT|O_EXCL` — exactly one concurrent consumer wins), idempotent `post_verdict`/`propose_from_outcome` (`{duplicate: true}`, no second side-effect), Handler-level CSRF on the serve surface (X-Ent-Csrf token minted at render; loopback bind verified), and extractor blind-spot honesty (`possibleUndeclaredDynamicDep` warnings in graph/CLI/dossier; TS-PoC edges tagged `ts-poc` and rendered declared-grade). Phase 4 ✅ — the Universe proven in a real browser (11-test Playwright suite driving `ent serve`: six lenses, trace playback, timeline scrub, CSRF-protected steer/approve round-trips, live-reload drift banner, empty-repo invitation; optional CI job gated on browser presence), live reload (`ent dev` / `serve --watch`: mtime watcher + `/api/version` long-poll + auto page reload; a broken tree serves the last good view with a drift banner; threading server so long-polls never starve requests), Claude Code plugin packaging (`.claude-plugin/plugin.json` + `marketplace.json` bundling the MCP server, operator skill, and claims hook; MCP elicitation settles approval-gated proposals in-line with graceful web fallback), and a discriminating tier1 golden for `refundly.decide` (baseline 0.80 — two rows encode ideal behaviour the agent gets wrong; stays unblessed for Mehar). Phase 5 ✅ — hashing honesty (secret config values never enter the composite — rotation is not a behaviour change, Invariant 6; CRLF→LF normalisation for prompt/config so a Windows checkout mints no phantom version, recomputes recorded as ordinary version events), budget label honesty (a tiny window's "p95" is labeled `max of N`), the bless CI-bypass guard rewritten behaviourally (every plausible env-var escape hatch set → still refused, nothing written), the three silent excepts narrowed or made loud (trace-capture composite failures warn on stderr), canvas scale honesty (particle cap >100 units + offscreen skip; legacy `blessedBy: unknown` renders as "unverified historical blessing"), and 5.9 stale-graph warning MOOTED by 4.2 (serve/render always re-extract; `ent dev` live-reloads; the committed artifact is covered by `ent extract --check` in CI). **All PLAN_v6 items listed for Phase 5 landed — nothing deferred.**
+
+**PLAN_v7 (workspace surface) ✅ complete** — the Universe is now a windowed
+workspace: click a star and the Logical Unit opens as a draggable glass window
+over the living map (five tabs: manifest · contract · evals · history · blast,
+rendered entirely from the embedded `payloadVersion: 2` — zero fetches, works
+from disk); canvas tethers tie each window to its node; the focused window
+drives the canvas selection and its blast tab flips the lens; a window covering
+its own node auto-pans the viewport (graph coordinates never mutated); layouts
+persist to `entiendo/workspace.json` through `ent dev` (CSRF-guarded, debounced,
+stale ids dropped, git-ignored by default); lens keys 1–7, Esc clears the sky,
+dock restores; gate integrity proven (no new MCP tools, no bless affordance,
+zero diff to claims/sandbox/steering). Statistics deviation, declared: no
+p-values exist — `significant` means the bootstrap CI excludes zero.
 
 **PLAN_v6 remaining human items:** Mehar reviews + blesses the goldens (`ent bless refundly.parse_email`, `ent bless refundly.decide`); Mehar records the live H5 session (runbook: `docs/H5_DEMO_RUNBOOK.md`, reset: `scripts/demo_reset.sh`).
 

@@ -256,3 +256,113 @@ def test_empty_repo_invites_ent_init(env, tmp_path) -> None:
         page.close()
         proc.terminate()
         proc.wait(timeout=10)
+
+
+def test_windows_open_drag_and_tab(env, page) -> None:
+    # v7: three windows at once — the thing a detail pane structurally cannot do
+    for uid in ("refundly.decide", "refundly.gateway", "refundly.parse_email"):
+        page.evaluate(f"openWindow('{uid}')")
+    page.wait_for_timeout(300)
+    assert page.evaluate("[...wins.values()].filter(w=>!w.minimized).length") == 3
+    win = page.locator('.win[data-unit="refundly.decide"]')
+    page.evaluate("focusWin('refundly.decide')")     # raise above the cascade
+    # tabs switch and populate from the payload — zero network requests
+    win.locator('.wtabs button[data-tab="evals"]').click()
+    assert "tier0" in win.locator(".wbody").text_content()
+    win.locator('.wtabs button[data-tab="contract"]').click()
+    body = win.locator(".wbody").text_content()
+    assert "verified" in body or "unverified" in body
+    # drag by header moves it
+    before = page.evaluate("document.querySelector('.win[data-unit=\"refundly.decide\"]').offsetLeft")
+    box = win.locator("header").bounding_box()
+    page.mouse.move(box["x"] + 60, box["y"] + 12)
+    page.mouse.down(); page.mouse.move(box["x"] + 260, box["y"] + 160, steps=4); page.mouse.up()
+    after = page.evaluate("document.querySelector('.win[data-unit=\"refundly.decide\"]').offsetLeft")
+    assert after != before
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+
+
+def test_tether_focus_coupling_and_autopan(env, page) -> None:
+    # v7 phase 3 — focused window's node becomes the canvas selection
+    from ent.extractor import extract as _extract, write_artifacts
+    write_artifacts(_extract(env.root), env.root)
+    graph_before = (env.root / "entiendo" / "graph.json").read_bytes()
+    page.evaluate("openWindow('refundly.gateway')")
+    page.wait_for_timeout(200)
+    assert page.evaluate("selected") == "refundly.gateway"
+    # blast tab in the window flips the canvas lens
+    page.evaluate("setWinTab('refundly.gateway','blast')")
+    page.wait_for_timeout(200)
+    assert page.evaluate("lens") == "blast"
+    # auto-pan: park the window ON its own node → the viewport shifts (offset
+    # only), the node's graph coordinates never move. Layered mode freezes the
+    # constellation physics so node coords are stationary for the comparison.
+    page.evaluate("setLayout('layered')")
+    page.wait_for_timeout(1500)
+    node = page.evaluate("(()=>{const n=byId['refundly.gateway'];return [n.x,n.y];})()")
+    page.evaluate("""(()=>{ const w=wins.get('refundly.gateway');
+        const n=byId['refundly.gateway'];
+        const sx=n.x*cam.scale+cam.x, sy=n.y*cam.scale+cam.y;
+        w.el.style.left=(sx-200)+'px'; w.el.style.top=(sy-100)+'px';
+        cam.flight=null; window.__camBefore=[cam.x,cam.y];
+        focusWin('refundly.gateway'); })()""")
+    page.wait_for_timeout(700)                       # ~220ms flight + settle
+    cam_moved = page.evaluate("(()=>{const b=window.__camBefore;"
+                              "return Math.hypot(cam.x-b[0],cam.y-b[1]);})()")
+    assert cam_moved > 10, "viewport did not pan clear of the window"
+    node_after = page.evaluate("(()=>{const n=byId['refundly.gateway'];return [n.x,n.y];})()")
+    assert abs(node[0]-node_after[0]) < 1.5 and abs(node[1]-node_after[1]) < 1.5
+    page.evaluate("setLayout('constellation')")
+    # the map stayed generated: graph.json byte-identical after all of this
+    assert (env.root / "entiendo" / "graph.json").read_bytes() == graph_before
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+
+
+def test_workspace_persists_and_restores(env, page) -> None:
+    # v7 phase 4 — arrange, wait out the debounce, reload: layout restored.
+    # POST without the CSRF token must be rejected (Handler-level guard).
+    assert page.evaluate("""async () => (await fetch('/api/workspace', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({version:1, windows:[]})})).status""") == 403
+    page.evaluate("openWindow('refundly.ledger')")
+    page.evaluate("""(()=>{ const w=wins.get('refundly.ledger');
+        w.el.style.left='222px'; w.el.style.top='111px';
+        setWinTab('refundly.ledger','history'); })()""")
+    page.wait_for_timeout(900)                     # 500ms debounce + write
+    ws_file = env.root / "entiendo" / "workspace.json"
+    assert ws_file.exists()
+    saved = json.loads(ws_file.read_text())
+    win = next(w for w in saved["windows"] if w["id"] == "refundly.ledger")
+    assert win["x"] == 222 and win["tab"] == "history"
+    page.reload()
+    page.wait_for_selector("#summary:not(:empty)", timeout=10_000)
+    page.wait_for_timeout(400)
+    assert page.evaluate("wins.has('refundly.ledger')")
+    assert page.evaluate("wins.get('refundly.ledger').tab") == "history"
+    assert page.evaluate("document.querySelector('.win[data-unit=\"refundly.ledger\"]').offsetLeft") == 222
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+    page.wait_for_timeout(700)                     # let the close debounce flush
+
+
+def test_lens_keys_and_esc_clears_the_sky(page) -> None:
+    # v7 phase 5 — keys 1..7 switch lenses; Esc minimizes every open window
+    page.keyboard.press("4")
+    page.wait_for_timeout(150)
+    assert page.evaluate("lens") == "health"
+    page.keyboard.press("7")
+    page.wait_for_timeout(150)
+    assert page.evaluate("lens") == "city"
+    page.keyboard.press("1")
+    page.wait_for_timeout(150)
+    for uid in ("refundly.decide", "refundly.orders"):
+        page.evaluate(f"openWindow('{uid}')")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    assert page.evaluate("[...wins.values()].filter(w=>!w.minimized).length") == 0
+    assert page.evaluate("document.querySelectorAll('#dock .chip').length") == 2
+    # dock chip restores to the saved spot
+    page.locator("#dock .chip").first.click()
+    page.wait_for_timeout(150)
+    assert page.evaluate("[...wins.values()].filter(w=>!w.minimized).length") == 1
+    page.evaluate("[...wins.keys()].forEach(id=>closeWin(id))")
+    page.wait_for_timeout(700)
