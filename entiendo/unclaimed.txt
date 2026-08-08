@@ -13,3 +13,10 @@ LICENSE
 # (the retrofit example — its staging dir is git-ignored), so in a clean
 # checkout its files are candidates at this root: acknowledged, not ours.
 examples/*
+# Dotfiles and dot-directories are never coverage candidates (the extractor's
+# walk skips them), so these entries are inert for coverage — they exist so the
+# claims hook, which has no such exclusion, doesn't deny ordinary repo
+# maintenance. Claimed dotfiles (ent.plugin owns .claude-plugin/, .claude/,
+# .mcp.json, .github/workflows/) are unaffected: a claim always wins.
+.gitignore
+.gitattributes

@@ -14,10 +14,13 @@ venv/
 .coverage
 htmlcov/
 
-# Entiendo generated artifacts — never hand-edited (SPEC.md §12).
-# (Real projects that USE entiendo generate these; they are not committed here.)
+# Entiendo generated artifacts — never hand-edited (SPEC.md §12). The repo
+# self-hosts, so these exist locally; CI regenerates them from the manifests
+# (`ent extract --check`), which is what makes drift fail the build. Only the
+# human-authored acknowledgment list (entiendo/unclaimed.txt) is committed.
 /entiendo/graph.json
 /entiendo/coverage.json
+/entiendo/render.html
 
 # Local env
 .env
