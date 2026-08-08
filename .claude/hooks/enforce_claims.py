@@ -25,6 +25,11 @@ must never brick an ordinary repo). Plane-owned paths are always allowed:
 manifests (`entiendo.node.yaml`), the `entiendo/` artifact tree, and `evals/`
 fixtures — those are the control plane's files, not unit interiors, and their
 changes are reviewed by humans in PRs. `ENT_HOOK_DISABLE=1` bypasses entirely.
+
+Speaks three editors. Claude Code, Cursor and Antigravity all support blocking
+a write before it happens; they disagree only about the JSON. `--format claude`
+(default) / `cursor` / `antigravity`, or `ENT_HOOK_FORMAT`. See
+docs/builders.md.
 """
 
 from __future__ import annotations
@@ -36,19 +41,71 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
+# Which editor is asking. Every one of them can hard-block a write before it
+# happens; they just disagree about the JSON. The DECISION is identical — this
+# only shapes the answer.
+#   claude      Claude Code   PreToolUse  → hookSpecificOutput.permissionDecision
+#   cursor      Cursor        preToolUse  → permission
+#   antigravity Antigravity   PreToolUse  → decision
+FORMATS = ("claude", "cursor", "antigravity")
+
+
+def _fmt() -> str:
+    for i, arg in enumerate(sys.argv):
+        if arg == "--format" and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+        if arg.startswith("--format="):
+            return arg.split("=", 1)[1]
+    return os.environ.get("ENT_HOOK_FORMAT", "claude")
+
+
+def allow_payload(fmt: str) -> dict:
+    if fmt == "cursor":
+        return {"permission": "allow"}
+    if fmt == "antigravity":
+        return {"decision": "allow"}
+    return {}
+
+
+def deny_payload(fmt: str, reason: str) -> dict:
+    if fmt == "cursor":
+        return {"permission": "deny", "userMessage": reason, "agentMessage": reason}
+    if fmt == "antigravity":
+        return {"decision": "deny", "reason": reason}
+    return {"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": reason,
+    }}
+
+
+def target_of(payload: dict) -> str:
+    """The file the tool is about to write.
+
+    Defensive on purpose: Claude Code documents `tool_input.file_path`, and the
+    other two publish their hook *output* contracts more precisely than their
+    input payloads. Accept the plausible spellings, and return '' when none
+    match — an unrecognised payload must fail OPEN, never block a session.
+    """
+    for container in (payload.get("tool_input"), payload.get("toolInput"),
+                      payload.get("input"), payload):
+        if not isinstance(container, dict):
+            continue
+        for key in ("file_path", "filePath", "path", "target_file", "targetFile",
+                    "absolute_path", "AbsolutePath"):
+            value = container.get(key)
+            if isinstance(value, str) and value:
+                return value
+    return ""
+
+
 def _allow() -> None:
-    print(json.dumps({}))
+    print(json.dumps(allow_payload(_fmt())))
     sys.exit(0)
 
 
 def _deny(reason: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }))
+    print(json.dumps(deny_payload(_fmt(), reason)))
     sys.exit(0)
 
 
@@ -96,13 +153,15 @@ def main() -> None:
     except ValueError:
         _allow()                              # malformed input — never brick the session
 
-    file_path = (payload.get("tool_input") or {}).get("file_path") or ""
+    file_path = target_of(payload)
     if not file_path:
         _allow()
 
     target = Path(file_path)
     if not target.is_absolute():
-        target = Path(payload.get("cwd") or os.getcwd()) / target
+        root_hint = (payload.get("cwd") or payload.get("workspaceRoot")
+                     or payload.get("workspace_root") or os.getcwd())
+        target = Path(root_hint) / target
 
     root = _managed_root(target)
     if root is None:

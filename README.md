@@ -44,7 +44,9 @@ Measured on a clean virtualenv (2-core Linux container): install 8.7s, first
 graph 0.2s, full eval pass 0.6s.
 
 ```bash
-pip install entiendo            # or, from a checkout: pip install -e ".[dev]"
+# not on PyPI yet — install from the repo
+pip install "entiendo[mcp] @ git+https://github.com/akashdatageek/Entiendo"
+# or, from a checkout: pip install -e ".[dev,mcp]"
 
 # try it on the bundled example
 cp -r examples/refundly /tmp/refundly && cd /tmp/refundly
@@ -54,13 +56,23 @@ ent dev                         # → the Universe on http://127.0.0.1:7373,
                                 #   live-reloading as you edit
 ```
 
-From there: click a unit → read its dossier → hit **Steer** and let a Claude
-Code operator (`ent serve --operator`) make the change through the unit's
-claims, with the verdict and blast radius surfacing in the map.
+From there: click a unit → its window opens (**inside** shows the functions and
+classes it holds) → hit **Steer**, and your coding agent makes the change
+through the unit's claims, with the verdict and blast radius surfacing in the
+map.
 
-**Use it inside Claude Code** — the MCP server, the operator/retrofit skills,
-and the boundary hook install as one plugin; see
-**[docs/deploy-claude-code.md](./docs/deploy-claude-code.md)**:
+**Use it inside your builder.** Entiendo speaks **MCP**, so any MCP-capable
+editor can read and write *through units* — **Claude Code**, **Cursor**,
+**Google Antigravity**, and anything else that speaks the protocol. One page
+covers all of them: **[docs/builders.md](./docs/builders.md)**.
+
+```jsonc
+// the universal registration — one stdio server, eleven tools
+{ "mcpServers": { "entiendo": { "command": "ent", "args": ["mcp", "--root", "."] } } }
+```
+
+Claude Code additionally installs the skills and the boundary hook as one
+plugin:
 
 ```
 /plugin marketplace add akashdatageek/Entiendo
@@ -80,6 +92,15 @@ are implemented. The full loop works end to end: declare units → reconcile the
 graph → instrument → **execute + eval** → record history → render the Universe →
 steer + approve through the unit.
 
+**Entiendo manages itself.** The repo is retrofitted into **14 semantic units**
+under `units/`, every file claimed or explicitly acknowledged, every declared
+edge verified by the reconciler, and **all 14 units run a real eval and are
+green**. Eight of the nine evals unblocked by `contract.harness` are proven able
+to *fail* — `scripts/mutation_check.py` breaks each unit's code on purpose and
+watches the verdict flip. (The ninth is the eval runner judging itself; that
+limit is documented rather than papered over.) CI gates the repo's own map with
+`ent validate` + `ent extract --check`, exactly like any project you point it at.
+
 **What v4 added (PLAN_v4.md, H0–H5):** the render surface is now a single
 navigable **Universe** — one canvas with a world-coordinate camera, `/`-search,
 keyboard nav, a minimap, and group collapse — dressed in a celestial design
@@ -91,9 +112,9 @@ units now **render their interior** — each tool a satellite on an orbit ring,
 tethered across the border to the unit it crosses — and trace playback descends
 into it, lighting each tool as the agent calls it. Finally, **diff-first
 approval**: steering an approval-gated unit holds the change back as a
-*proposal*, and the dossier shows the unified diff + behaviour delta + verdict
-together with real Approve / Reject, while the map pulses a gold ring on any unit
-awaiting sign-off.
+*proposal*, and the unit's **steer** tab shows the unified diff + behaviour
+delta + verdict together with real Approve / Reject, while the map pulses a gold
+ring on any unit awaiting sign-off. You approve the change you can *see*.
 
 ```
 $ ent validate            # schema + semantic checks (incl. restricted invariants)
@@ -105,12 +126,12 @@ $ ent eval --all --tier 1 # golden: minRuns + significance + budgets (the pre-me
 $ ent bless <node>        # sign a golden dataset's content (humanBlessed, void on change)
 $ ent baseline accept <n> # promote a pending baseline
 $ ent snapshot            # record composite versions + verdicts to append-only history
-$ ent render              # self-contained HTML map: six lenses + "executable N/M"
+$ ent render              # self-contained HTML map: seven lenses + "executable N/M"
 $ ent edit <node>         # scoped edit loop: context + boundary + verdict + approval
 $ ent pin <n> model=<id>  # pin a fingerprint dimension; the fingerprint moves onto the Timeline
 $ ent replay <n> --against <fp>  # golden metric now vs an old fingerprint, delta attributed by dimension
 $ ent retrofit <root>     # infer nodes in an unmanaged repo → staged manifest proposals
-$ ent serve               # the Universe: click a unit, steer it via Claude Code, watch reflex
+$ ent serve               # the Universe: click a unit, steer it from your agent, watch reflex
 ```
 
 > **The one-line test (Phase 7 §15):** break `ranker.py` and run
@@ -145,11 +166,12 @@ What **is** real today:
   versions (code/prompt/config/model) + tier0 verdicts to an append-only history
   log (version events dedup, so the timeline shows *changes*); `render` builds the
   **Universe** — one self-contained, navigable canvas (camera, search, minimap,
-  celestial design) whose **six lenses** are all real: structure (kind/group),
+  celestial design) whose **seven lenses** are all real: structure (kind/group),
   flow (edge kinds + traffic), **trace** (a comet plays a recorded request's hops
   and descends into agentic interiors), health (verdict colour, matches
   `ent eval`), **timeline** (a scrubber over the real commit axis that replays
-  fingerprints), and blast radius (dependents ranked by coupling). Agentic units
+  fingerprints), blast radius (dependents ranked by coupling), and **city** (a
+  unit's *area* is its real file mass — territory as truth). Agentic units
   render their `interior` as orbiting, tethered tool satellites. Record a request
   with `history.capture_trace(root, trace_id=...)`. Read-only, never in the
   request path (Invariant 2). See `src/ent/render.py`, `src/ent/universe.html`,
@@ -170,9 +192,10 @@ What **is** real today:
   within the unit's claims**, tier0 reruns, verdict + blast radius surface live,
   with one-click **Revert**. An approval-gated unit's change is held as a
   **proposal** you Approve / Reject from the diff. The workload is either an LLM
-  directly (`pip install -e '.[serve]'` + an API key) or **Claude Code via the
-  Bridge** (steer → `await_steering`/`post_verdict`, the `entiendo-operator`
-  skill). The map stays read-only (Invariant 2); only steer / approve / revert
+  directly (`pip install -e '.[serve]'` + an API key) or **your coding agent via
+  the Bridge** (steer → `await_steering`/`post_verdict`; the
+  `entiendo-operator` skill ships for Claude Code, and any MCP client can drive
+  the same two tools). The map stays read-only (Invariant 2); only steer / approve / revert
   write. See `src/ent/server.py`, `src/ent/steering.py`, `src/ent/agent.py`,
   `docs/edit-surface.md`, `docs/bridge.md`.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
@@ -251,17 +274,25 @@ a minimap for the whole system, and groups you collapse at scale. The six
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  ✦ Entiendo · Universe            [ structure ][ flow ][ trace ]           │
-│  5 units · 7 edges · coverage 100% · executable 2/5 · reconciled ✓  @a1b2c │
-│                                          ┌─────────── dossier ───────────┐ │
-│         ( ranker )────✓───▶( vstore )    │ retrieval.chunk_ranker  🟢     │ │
-│            │  ╲                          │ What it does · Task · Verdict  │ │
-│            ✓   ╲config                   │ Contract: len(chunks) ≤ k      │ │
-│            ▼    ▼                         │ Budget · Fingerprint · Edges   │ │
-│        ( gw )  ( cfg )   ○ doc_index      │ [ Steer ][ Revert ][ Approve ] │ │
-│         ▲ minimap ▫                      └────────────────────────────────┘ │
+│  ✦ Entiendo   5 units · 1 untested · 4 green · coverage 100% · reconciled │
+│                          [ Structure ][ Flow ][ Real runs ][ Health ] …   │
+│                                    ┌──────── chunk_ranker ────────┐        │
+│         ( ranker )────✓───▶( vstore)│ inside identity promises …  │        │
+│            │  ╲                     │ Ranks retrieved chunks…     │        │
+│            ✓   ╲config              │ 12 parts across 3 files     │        │
+│            ▼    ▼                   │  ƒ rank   Score and order…  │        │
+│        ( gw )  ( cfg )  ○ doc_index │  ▣ Ranker Holds the model…  │        │
+│         ▲ minimap ▫                 │ [ Steer ][ Revert ]         │        │
+│                                     └─────────────────────────────┘        │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
+
+Click a unit and it opens as a **window** over the living map — several at once,
+each tabbed: **inside** (the functions and classes it actually holds) ·
+**identity** · **promises** · **checks** · **history** · **impact** · **steer**.
+The words are deliberately plain: *"writes data"*, not `sideEffects: writes`;
+*"nothing else depends on this — changing it cannot break another unit"*, not
+`no downstream dependents`.
 
 - **Structure** — kind + group; the map you read first.
 - **Health** — recolours every unit by its tier0 verdict; it calls the same
@@ -284,7 +315,7 @@ ring dashes when the registry isn't enforced).
 
 ### Steer + approve on the canvas — `ent serve`
 
-`ent serve` puts the Universe behind a localhost web app and turns the dossier
+`ent serve` puts the Universe behind a localhost web app and turns the window
 into a control panel. Select a unit → **Steer**: describe a change in English. The
 change is made **within the unit's claims**, tier0 reruns, and the verdict + blast
 radius surface live, with one-click **Revert**. Two ways the workload edits: an
@@ -294,7 +325,7 @@ steer request lands on a file-based **Bridge** queue (`await_steering` →
 skill), so the map steers the same agent you already code with.
 
 For an **approval-gated** unit (`approval.required`), the change is not applied
-live — it is held back as a **proposal**. The dossier shows the change you'd be
+live — it is held back as a **proposal**. The steer tab shows the change you'd be
 approving: the **unified diff, the behaviour delta, and the after-verdict
 together**, with real **Approve** / **Reject**. On the map, any unit with a
 proposal waiting pulses a gold ring.
@@ -322,8 +353,10 @@ Reject leaves the working tree untouched.
 
 ## How you work with it
 
-Two ways in, same guarantees. Either you drive the loop from the **CLI**, or an
-**AI edits through the node** (`ent serve`, or `ent mcp` with Claude Code).
+Two ways in, same guarantees. Either you drive the loop from the **CLI**, or a
+coding agent **edits through the unit** — `ent serve` for the canvas, or
+`ent mcp` from whichever builder you use (see
+**[docs/builders.md](./docs/builders.md)**).
 
 ### The loop
 
@@ -332,7 +365,7 @@ flowchart LR
   D["declare<br/><small>entiendo.node.yaml</small>"] --> V["ent validate<br/><small>L0 schema + rules</small>"]
   V --> X["ent extract<br/><small>graph.json + coverage.json<br/>fail on drift</small>"]
   X --> E["ent eval<br/><small>tier0 executes the node<br/>GREEN / RED</small>"]
-  E --> R["ent render<br/><small>the Universe · six lenses</small>"]
+  E --> R["ent render<br/><small>the Universe · seven lenses</small>"]
   R --> C["steer + approve<br/><small>ent edit · serve · mcp</small>"]
   C -->|"confined to claims<br/>tier0 reruns"| E
 ```
@@ -342,15 +375,16 @@ file bodies + its immediate neighbours' contracts (no bodies) — never the whol
 repo (Invariant 8). Every edit is boundary-checked, re-evaluated, and gated
 (`ready-to-merge` / `awaiting-signoff` / `blocked`) before it counts as done.
 
-### Editing through the node with Claude Code (`ent mcp`)
+### Editing through the unit from any MCP builder (`ent mcp`)
 
-Register Entiendo as an MCP server (`.mcp.json` → `{ "command": "ent", "args":
-["mcp"] }`) and Claude Code reads and writes *through the node*, not the file
-tree:
+Register Entiendo as an MCP server — the same JSON in every editor that speaks
+the protocol — and your agent reads and writes *through the unit*, not the file
+tree. Setup per builder (Claude Code, Cursor, Antigravity) is in
+**[docs/builders.md](./docs/builders.md)**:
 
 ```mermaid
 sequenceDiagram
-  participant CC as Claude Code
+  participant CC as your coding agent
   participant E as Entiendo · ent mcp
   CC->>E: get_node_context(node)
   E-->>CC: manifest + claimed file bodies<br/>+ neighbour contracts only
@@ -368,9 +402,9 @@ cd examples/greenfield
 ent validate                        # L0: manifests conform
 ent extract                         # L1: graph.json + coverage.json (no drift)
 ent eval retrieval.chunk_ranker     # L2/Phase 7: executes → 🟢 GREEN
-ent render && open entiendo/render.html  # L4: the six-lens map above
+ent render && open entiendo/render.html  # L4: the seven-lens map above
 ent serve                           # L5: click-and-edit surface (needs [serve])
-ent mcp                             # L5: same surface as MCP tools for Claude Code
+ent mcp                             # L5: the same surface as MCP tools, for any builder
 ```
 
 ---
@@ -413,11 +447,11 @@ and the field-by-field reference in [`docs/manifest.md`](./docs/manifest.md).
 | `ent eval <unit>` | L2 | run a unit's evals — reflex (default) / golden / judge |
 | `ent bless` / `ent baseline` | L2 | sign a golden dataset / promote a baseline (human only) |
 | `ent snapshot` | L3 | record composite fingerprints + verdicts to history |
-| `ent render` | L4 | the Universe render surface (six lenses, self-contained HTML) |
+| `ent render` | L4 | the Universe render surface (seven lenses, self-contained HTML) |
 | `ent pin` / `ent replay` | L4 | pin a fingerprint dimension / replay a metric against an old one |
 | `ent edit <unit>` | L5 | scoped edit loop: context → boundary → verdict → approval |
 | `ent serve` | L5 | the Universe live: steer + approve on the canvas |
-| `ent mcp` | L5 | the same surface as MCP tools for Claude Code |
+| `ent mcp` | L5 | the same surface as MCP tools, for any MCP builder |
 | `ent retrofit <root>` | — | infer units in an unmanaged repo → staged proposals |
 | `ent doctor` | — | self-diagnose the environment + project (deps, key, schema, reconcile) |
 | `ent fixtures <unit>` | — | propose tier0 smoke fixtures for a unit from recorded traces |
@@ -473,7 +507,7 @@ Entiendo/
     instrument.py             L2  @ent.node() decorator + ent.guard registry gate
     evals/, invariants.py     L2  tiered eval runner + restricted-AST invariants
     history.py                L3  append-only versions/evals/traces store
-    render.py, universe.html  L4  the Universe: one canvas, six lenses, interiors
+    render.py, universe.html  L4  the Universe: one canvas, seven lenses, interiors
     editloop.py               L5  scoped context + boundary + verdict + behaviour delta
     server.py, agent.py       L5  ent serve backend + the editing model
     steering.py, mcp_server.py L5 the Bridge (steer queue → operator → proposal/verdict)
