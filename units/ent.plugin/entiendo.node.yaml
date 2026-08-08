@@ -1,0 +1,33 @@
+apiVersion: entiendo/v1
+kind: Node
+id: ent.plugin
+name: Claude Code Integration
+task: The plugin surface — MCP registration, operator/retrofit skills, the enforce_claims
+  boundary hook, and the CI workflows that gate the repo.
+description: >
+  Everything that wires Entiendo into Claude Code and CI: the plugin and
+  marketplace manifests, the PreToolUse hook that mechanically denies edits
+  outside a unit's claims, both skills, the per-project MCP registration, and
+  the GitHub Actions gates. These files change enforcement and delivery
+  behaviour, so they carry a fingerprint and an owner like any unit.
+nodeKind: config
+group: agents
+owner: akashdatageek
+status: experimental
+claims:
+  - .claude-plugin/plugin.json
+  - .claude-plugin/marketplace.json
+  - .claude/hooks/enforce_claims.py
+  - .claude/skills/entiendo-operator/SKILL.md
+  - .claude/skills/entiendo-retrofit/SKILL.md
+  - .mcp.json
+  - .github/workflows/ci.yml
+  - .github/workflows/release.yml
+contract:
+  invariants: []
+  sideEffects: none
+evals:
+  tier0:
+    - type: invariant_check
+observability:
+  spanName: ent.plugin

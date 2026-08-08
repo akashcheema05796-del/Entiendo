@@ -59,10 +59,21 @@ def _decision(out: dict) -> str:
 # --------------------------------------------------------------------------- #
 
 def test_unclaimed_file_is_denied(managed: Path) -> None:
-    out = _hook(managed, str(managed / "README.md"))
+    (managed / "rogue.py").write_text("x = 1\n")             # no claim, no acknowledgment
+    out = _hook(managed, str(managed / "rogue.py"))
     assert _decision(out) == "deny"
     reason = out["hookSpecificOutput"]["permissionDecisionReason"]
     assert "UNCLAIMED" in reason and "claims" in reason      # actionable
+
+
+def test_acknowledged_unclaimed_file_is_allowed(managed: Path) -> None:
+    """Invariant 4 has two legitimate states: claimed, or EXPLICITLY unclaimed.
+    refundly's entiendo/unclaimed.txt acknowledges README.md — glue like that
+    (a repo's tests, docs) must stay editable, and a NEW file matching an
+    acknowledged glob is editable too (patterns, not the frozen expansion)."""
+    assert _decision(_hook(managed, str(managed / "README.md"))) == "allow"
+    fresh = managed / "evals" / "brand_new.jsonl"            # matches evals/*
+    assert _decision(_hook(managed, str(fresh))) == "allow"
 
 
 def test_other_units_file_denied_while_steered(managed: Path) -> None:

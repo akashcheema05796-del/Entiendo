@@ -1,0 +1,21 @@
+apiVersion: entiendo/v1
+kind: Node
+id: mini.hello
+name: Hello
+task: Say hello.
+nodeKind: compute
+group: mini
+owner: akashdatageek
+status: experimental
+claims:
+- src/hello.py
+contract:
+  entrypoint: src/hello.py::greet
+  invariants:
+  - '''greeting'' in output'
+  sideEffects: none
+evals:
+  tier0:
+  - type: invariant_check
+observability:
+  spanName: mini.hello

@@ -9,6 +9,12 @@ claims authority, `ent.claims` — not a reimplementation) and DENIES:
   - a file no unit claims (unclaimed — the map doesn't know it), and
   - while a steer is active, a file owned by a unit other than the steered one.
 
+EXPLICITLY-unclaimed files are allowed: Invariant 4 has two legitimate states
+(claimed, or acknowledged in `entiendo/unclaimed.txt`), and acknowledged glue —
+a repo's own tests, docs, scripts — must stay editable. Pattern-matching the
+listing (same fnmatch semantics as the extractor) rather than coverage.json's
+expansion means a NEW file matching an acknowledged glob is editable too.
+
 With no active steer, claimed files are allowed (any unit) and only unclaimed
 files are denied. The steered unit is the Bridge queue's active item:
 claimed-but-unresolved first, else the oldest pending request.
@@ -110,6 +116,20 @@ def main() -> None:
     rel_posix = rel.as_posix()
     if target.name == "entiendo.node.yaml" or rel_posix.startswith(("entiendo/", "evals/")):
         _allow()
+
+    # explicitly-unclaimed (Invariant 4): acknowledged glue stays editable.
+    # fnmatch over the listing itself (extractor semantics), so NEW files
+    # matching an acknowledged glob are editable too.
+    try:
+        import fnmatch
+        listing = root / "entiendo" / "unclaimed.txt"
+        if listing.exists():
+            patterns = [line.strip() for line in listing.read_text(encoding="utf-8").splitlines()
+                        if line.strip() and not line.strip().startswith("#")]
+            if any(fnmatch.fnmatch(rel_posix, p) for p in patterns):
+                _allow()
+    except Exception:
+        pass                                  # unreadable listing — fall through to claims
 
     try:
         from ent import claims as claims_mod   # the single authority (v6 1.4)

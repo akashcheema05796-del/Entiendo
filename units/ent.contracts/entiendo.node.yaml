@@ -1,0 +1,36 @@
+apiVersion: entiendo/v1
+kind: Node
+id: ent.contracts
+name: Contracts & Claims
+task: "Turn entiendo.node.yaml files into validated Nodes and resolve claim boundaries \u2014\
+  \ the ownership law."
+description: Manifest discovery (stopping at nested project roots), JSON-Schema plus semantic
+  validation, and claims resolution (globs, realpath containment, write authority). Everything
+  that decides what a unit IS and what it OWNS.
+nodeKind: compute
+group: engine
+owner: akashdatageek
+status: experimental
+claims:
+- src/ent/manifest.py
+- src/ent/schema.py
+- src/ent/validation.py
+- src/ent/claims.py
+- schemas/node.schema.json
+contract:
+  entrypoint: src/ent/validation.py::validate_root
+  invariants:
+  - output.ok == True
+  sideEffects: none
+evals:
+  tier0:
+  - type: invariant_check
+  - type: smoke
+    fixture: evals/ent.contracts/smoke.jsonl
+observability:
+  spanName: ent.contracts
+dependencies:
+  calls:
+  - ent.evalkit
+  - ent.packaging
+  writes: []

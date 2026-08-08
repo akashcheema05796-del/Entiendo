@@ -27,7 +27,7 @@ from typing import Any
 
 from .evals.entrypoint import scan_decorated
 from . import languages
-from .manifest import _SKIP_DIRS
+from .manifest import iter_project_files
 
 _CODE_EXT = {".py", ".ts", ".tsx", ".js", ".go", ".rs", ".java", ".rb"}
 _CONFIG_EXT = {".yaml", ".yml", ".json", ".toml", ".ini", ".cfg", ".env"}
@@ -52,17 +52,8 @@ def _sanitize(part: str) -> str:
 
 
 def _candidate_files(root: Path) -> list[Path]:
-    out: list[Path] = []
-    for path in root.rglob("*"):
-        if not path.is_file() or path.suffix not in _SOURCE_EXT:
-            continue
-        parts = path.relative_to(root).parts
-        if any(p in _SKIP_DIRS for p in parts) or parts[0] == "entiendo":
-            continue
-        if any(p.startswith(".") for p in parts) or path.name == "entiendo.node.yaml":
-            continue
-        out.append(path)
-    return sorted(out)
+    return sorted(p for p in iter_project_files(root)
+                  if p.is_file() and p.suffix in _SOURCE_EXT)
 
 
 def _group_key(rel: Path) -> tuple[str, ...]:

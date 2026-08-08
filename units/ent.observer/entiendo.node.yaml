@@ -1,0 +1,30 @@
+# NOTE: decorator/context-manager surface — no single-arg entrypoint; guarded by tests
+apiVersion: entiendo/v1
+kind: Node
+id: ent.observer
+name: Runtime Observer
+task: Bind callables to unit ids with @ent.node() and turn recorded spans into verified edge
+  observations.
+description: 'The only Entiendo code that lives inside the observed app. Times calls, re-raises
+  exceptions unchanged, never alters return values (Invariant 2: read-only observer, never
+  in the request path). Span capture feeds the trace lens and flips declared edges to runtime-verified.'
+nodeKind: compute
+group: runtime
+owner: akashdatageek
+status: experimental
+claims:
+- src/ent/instrument.py
+- src/ent/tracing.py
+- src/ent/spans.py
+contract:
+  invariants: []
+  sideEffects: writes
+evals:
+  tier0:
+  - type: invariant_check
+observability:
+  spanName: ent.observer
+dependencies:
+  calls:
+  - ent.packaging
+  writes: []

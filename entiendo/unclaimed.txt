@@ -1,0 +1,15 @@
+# Files intentionally not owned by any unit (Invariant 4 — unclaimed is visible).
+# Eval fixtures live under evals/, owned by their unit's eval config.
+evals/*
+# The repo's own test suite and docs: glue that judges the units, not behaviour
+# any single unit owns. Editable by anyone; changing them never bumps a version.
+tests/*
+docs/*
+scripts/*
+*.md
+LICENSE
+# The examples: refundly and greenfield carry their own entiendo/ control plane,
+# so every walk prunes them as foreign roots. legacy is DELIBERATELY unmanaged
+# (the retrofit example — its staging dir is git-ignored), so in a clean
+# checkout its files are candidates at this root: acknowledged, not ours.
+examples/*

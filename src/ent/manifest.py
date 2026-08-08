@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 # Every node is declared by a file with this exact name (SPEC.md §1.3).
 MANIFEST_FILENAME = "entiendo.node.yaml"
@@ -48,15 +48,19 @@ def schema_path() -> Path:
     return Path(__file__).resolve().parents[2] / "schemas" / "node.schema.json"
 
 
+def is_foreign_root(cur: Path, root: Path) -> bool:
+    """A directory strictly below `root` that is its own project: it carries
+    its own `entiendo/` control plane or its own `.git`. Its manifests' claims
+    resolve against *that* root, so every walk (discovery, coverage, retrofit)
+    must stop at it — sweeping it into this project misroots every claim (the
+    Entiendo repo itself hit this: a root-level walk swallowed the examples)."""
+    return cur != root and ((cur / "entiendo").is_dir() or (cur / ".git").exists())
+
+
 def discover(root: Path) -> list[Path]:
     """Find every `entiendo.node.yaml` under `root`, sorted for stable output.
 
-    Prunes vendored / generated directories, and stops at NESTED PROJECT
-    ROOTS: a subdirectory with its own `entiendo/` control-plane dir or its
-    own `.git` is a different project, and its manifests' claims resolve
-    against *that* root — sweeping them into this one misroots every claim
-    (the Entiendo repo itself hit this: `ent validate` at the repo root
-    swallowed examples/refundly and examples/greenfield and failed).
+    Prunes vendored / generated directories and nested project roots.
     """
     import os
 
@@ -64,13 +68,40 @@ def discover(root: Path) -> list[Path]:
     found: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
         cur = Path(dirpath)
-        if cur != root and ((cur / "entiendo").is_dir() or (cur / ".git").exists()):
+        if is_foreign_root(cur, root):
             dirnames[:] = []            # a different project's tree — don't descend
             continue
         dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS)
         if MANIFEST_FILENAME in filenames:
             found.append(cur / MANIFEST_FILENAME)
     return sorted(found)
+
+
+def iter_project_files(root: Path) -> "Iterator[Path]":
+    """Every file that belongs to THIS project, deterministically ordered.
+
+    One boundary rule for all walks: prunes vendored dirs (`_SKIP_DIRS`),
+    dot-directories and dotfiles, the project's own `entiendo/` artifact tree,
+    the manifests themselves, and nested project roots (`is_foreign_root`).
+    Callers layer their own filters (suffix, etc.) on top.
+    """
+    import os
+
+    root = Path(root)
+    for dirpath, dirnames, filenames in os.walk(root):
+        cur = Path(dirpath)
+        if is_foreign_root(cur, root):
+            dirnames[:] = []
+            continue
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if d not in _SKIP_DIRS and not d.startswith(".")
+            and not (cur == root and d == "entiendo")
+        )
+        for name in sorted(filenames):
+            if name == MANIFEST_FILENAME or name.startswith("."):
+                continue
+            yield cur / name
 
 
 def load(path: Path) -> dict[str, Any]:
