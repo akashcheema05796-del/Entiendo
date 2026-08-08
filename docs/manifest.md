@@ -43,9 +43,43 @@ Required. **No node without a contract** (Invariant 3).
 | Field | Notes |
 |---|---|
 | `entrypoint` | `path::callable` — the function tier0 *executes* over fixture rows (Phase 7). See [`docs/phase7.md`](./phase7.md). |
+| `harness` | Optional `path::callable` — how a row becomes a call, for entrypoints that are not one-argument functions. See below. |
 | `input` / `output` | JSON-Schema (or `$ref` to one) for valid I/O. |
 | `invariants` | Boolean expressions that must hold every execution. |
 | `sideEffects` | `none` \| `writes` \| `external` \| `irreversible`. Drives blast radius. Required. `irreversible` defaults `approval.required` to true. |
+
+### `harness` — units whose entrypoint isn't `f(input)`
+
+tier0 calls `entrypoint(row["input"])`. Plenty of real code doesn't have that
+shape: `f(node, root)`, `f(root, node_id)`, a function taking no arguments, a
+class that must be constructed before any method can be called. Those units
+were permanently `UNTESTED` — a hole in the map, not a fact about the code.
+
+A harness is an adapter called as `harness(row, ctx)`:
+
+```python
+# evals/harness/mine.py
+def call(row, ctx):
+    signer = ctx.entrypoint(row["input"]["key"])     # construct
+    return {"signed": signer.sign(row["input"]["message"])}
+```
+
+`ctx` carries `entrypoint` (the callable the manifest declares), `root` (the
+project root) and `node` (the unit). Whatever the harness returns is what
+schema checks and invariants judge.
+
+Two rules keep it honest:
+
+- **The entrypoint stays the source of truth** for what code runs — the harness
+  only adapts arguments, and entrypoint drift detection still applies.
+- **Harnesses live with the fixtures (`evals/`), never in a unit's `claims`.**
+  They are test scaffolding, so editing one must not move a composite
+  fingerprint. `ent validate` will not stop you claiming one; the repo's own
+  test suite does.
+
+A harness cannot launder a failing unit: the output still faces the contract.
+Whether an eval can actually *fail* is worth proving by mutation — break the
+code on purpose and confirm the unit goes RED.
 
 ## `dependencies` — edges
 

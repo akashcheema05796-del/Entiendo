@@ -27,7 +27,25 @@ from .. import baselines, gitinfo, history, testing, tracing, trajectory, verdic
 from ..invariants import InvariantError, eval_invariant
 from ..manifest import Node
 from ..version import compute_version
-from .entrypoint import EntrypointDrift, EntrypointError, NoEntrypoint, resolve_entrypoint
+from .entrypoint import (EntrypointDrift, EntrypointError, Harness, NoEntrypoint,
+                         resolve_entrypoint, resolve_harness)
+
+
+def _invoker(node: "Node", root: Path, entrypoint: Callable[..., Any]) -> Callable[[dict], Any]:
+    """How a fixture row becomes a call.
+
+    Default: `entrypoint(row["input"])` — one argument, the shape most units
+    have. When the unit declares `contract.harness`, that adapter is handed the
+    row plus a context (entrypoint, root, node) and returns the output instead.
+    This is the seam for `f(node, root)`, `f(root, node_id)`, and class-based
+    APIs that must be constructed before they can be called; without it those
+    units are permanently UNTESTED.
+    """
+    harness = resolve_harness(node, root)
+    if harness is None:
+        return lambda row: entrypoint(row["input"])
+    ctx = Harness(entrypoint, root, node)
+    return lambda row: harness(row, ctx)
 from .metrics import get_metric
 
 
@@ -157,12 +175,17 @@ def run_tier0(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
     do_schema = any(e.get("type") == "schema_validation" for e in node.raw["evals"]["tier0"])
     do_invariants = any(e.get("type") == "invariant_check" for e in node.raw["evals"]["tier0"])
 
+    try:
+        invoke = _invoker(node, root, entrypoint)
+    except EntrypointError as exc:
+        return done(verdicts.ERROR, checks + [Check("harness", "error", str(exc))])
+
     for row in rows:
         name = row["name"]
         # --- execute in isolation ---
         try:
             with testing.stub(node, row):
-                output = entrypoint(row["input"])
+                output = invoke(row)
         except (testing.Tier0IOViolation) as exc:
             checks.append(Check("isolation", "error",
                                 f"TIER0_IO_VIOLATION on '{name}': reached unstubbed dependency "
@@ -284,12 +307,16 @@ def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
     row_matrix: list[list[float]] = []       # per-run row scores → per-row means (v6 1.2)
     total_cost = 0.0
     latencies: list[float] = []
+    try:
+        invoke = _invoker(node, root, entrypoint)
+    except EntrypointError as exc:
+        return done(verdicts.ERROR, [Check("harness", "error", str(exc))], advisory=advisory)
     for _ in range(min_runs):
         with tracing.capture() as spans:
             row_scores = []
             for i, row in enumerate(rows):
                 try:
-                    out = entrypoint(row["input"])
+                    out = invoke(row)
                 except Exception as exc:
                     return done(verdicts.ERROR,
                                 [Check("golden", "error", f"node raised on row {i}: {exc}")], advisory=advisory)
@@ -466,9 +493,13 @@ def run_tier2(
 
     sample = dataset[: int(conf.get("sampleSize", len(dataset)))]
     scores = []
+    try:
+        invoke = _invoker(node, root, entrypoint)
+    except EntrypointError as exc:
+        return done(verdicts.UNTESTED, [Check("llm_judge", "skip", f"harness: {exc}")])
     for i, row in enumerate(sample):
         try:
-            out = entrypoint(row["input"])
+            out = invoke(row)
         except Exception as exc:
             return done(verdicts.ERROR, [Check("llm_judge", "error", f"node raised on sample row {i}: {exc}")])
         scores.append(float(judge(row["input"], out, rubric)))

@@ -12,7 +12,7 @@ they're reconciled.
   on pypi.org)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **431 passing** (~13s), plus an optional
+- **Tests:** `python -m pytest -q` → **456 passing** (~14s), plus an optional
   browser suite: `pytest tests/frontend/frontend_universe.py` (16 Playwright
   tests, not collected by default).
 
@@ -22,10 +22,13 @@ runtime: history/observer/timetravel · surface: universe/cli · agents:
 bridge/retrofit/plugin · dist: packaging), every file claimed or explicitly
 acknowledged in `entiendo/unclaimed.txt` (unaccounted = 0), all declared edges
 verified by the reconciler, and CI gates `ent validate` + `ent extract --check`
-at the repo root. Five units execute real tier0 smokes today
-(`ent.contracts`, `ent.graph`, `ent.surface`, `ent.cli`, `ent.retrofit` —
-GREEN); the other nine read UNTESTED until the multi-arg harness seam exists
-(open design question). Dogfooding fallout fixed in the same pass: all file
+at the repo root. **All 14 units execute real tier0 evals and are GREEN** — the harness
+seam (`contract.harness`) closed the last hole: units whose entrypoint takes
+`(node, root)`, `(root, node_id)` or no arguments at all are now runnable, and
+8 of the 9 it unblocked are proven to go RED under a deliberate mutation of
+the code they test. The ninth (`ent.evalkit`) is self-referential — a mutation
+that disables invariant enforcement cannot be caught by an invariant — and is
+covered by the pytest suite instead (verified: that mutation fails 3 tests). Dogfooding fallout fixed in the same pass: all file
 walks stop at nested project roots (shared `iter_project_files`), the sandbox
 protects its stdout JSON protocol from print()ing entrypoints, and the
 enforce_claims hook now allows explicitly-unclaimed (acknowledged) files —

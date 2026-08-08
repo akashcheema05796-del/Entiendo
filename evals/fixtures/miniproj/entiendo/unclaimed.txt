@@ -1,0 +1,2 @@
+# Fixture project: the eval data is scaffolding, not a unit.
+evals/*

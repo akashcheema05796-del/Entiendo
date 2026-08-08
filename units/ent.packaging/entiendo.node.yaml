@@ -15,11 +15,16 @@ claims:
 - pyproject.toml
 - src/ent/__init__.py
 contract:
-  invariants: []
+  invariants:
+  - output['version'] != '0+unknown'
+  entrypoint: src/ent/__init__.py::_resolve_version
+  harness: evals/harness/selfhost.py::resolve_version
   sideEffects: none
 evals:
   tier0:
   - type: invariant_check
+  - type: smoke
+    fixture: evals/ent.packaging/smoke.jsonl
 observability:
   spanName: ent.packaging
 dependencies:

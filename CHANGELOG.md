@@ -6,10 +6,17 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Added
+- **`contract.harness`** — the seam for units whose entrypoint is not a
+  one-argument function. A harness is called as `harness(row, ctx)` with
+  `ctx.entrypoint`/`ctx.root`/`ctx.node` and returns the output that invariants
+  judge, so `f(node, root)`, `f(root, node_id)`, zero-argument functions and
+  class-based APIs can be evaluated. Harnesses live under `evals/` and are never
+  claimed, so they stay out of composite fingerprints. This took Entiendo's own
+  map from 5 runnable units to 14.
 - **Self-hosting**: the Entiendo repo now manages itself — 14 semantic units
-  under `units/` with real contracts and reconciler-verified edges; five run
-  live tier0 smokes (contracts, graph, surface, cli, retrofit). CI gates the
-  repo's own map like any other project.
+  under `units/` with real contracts, reconciler-verified edges, and (with the
+  harness seam above) a runnable tier0 eval each. CI gates the repo's own map
+  like any other project.
 - The `enforce_claims` hook honors **explicitly-unclaimed** files: globs in
   `entiendo/unclaimed.txt` (a repo's tests, docs, scripts) stay editable,
   including new files matching an acknowledged pattern. Truly unclaimed files

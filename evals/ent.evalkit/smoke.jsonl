@@ -1,0 +1,1 @@
+{"name": "passes-the-good-unit-and-fails-the-bad", "input": {"good": "mini.hello", "bad": "mini.broken"}}

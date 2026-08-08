@@ -1,13 +1,17 @@
-# NOTE: entrypoint takes (node, root) — blocked on the single-arg harness seam
 apiVersion: entiendo/v1
 kind: Node
 id: ent.evalkit
 name: Tiered Eval Runner
 task: Execute tier0/tier1 evals for a unit in an isolated sandbox with stubbed neighbours,
   and produce verdicts.
-description: Entrypoint resolution (packaged or standalone modules), fixture execution under
+description: 'Entrypoint resolution (packaged or standalone modules), fixture execution under
   rlimits, dependency stubbing so tier0 stays free of I/O, metrics, significance verdicts
-  (paired bootstrap), invariant checking.
+  (paired bootstrap), invariant checking. Its own tier0 runs the runner against a passing
+  AND a deliberately failing fixture unit, so a runner that rubber-stamps everything fails
+  this unit. Known limit of self-evaluation: a mutation that disables invariant ENFORCEMENT
+  cannot be caught by an invariant — the detector is the mutated code. That case is covered
+  by the pytest suite, which runs outside the eval machinery (verified: the mutation fails
+  3 tests).'
 nodeKind: compute
 group: quality
 owner: akashdatageek
@@ -22,11 +26,18 @@ claims:
 - src/ent/verdicts.py
 - src/ent/testing.py
 contract:
-  invariants: []
+  invariants:
+  - output['good'] == 'GREEN'
+  - output['bad'] == 'RED'
+  - output['tier'] == 0
+  entrypoint: src/ent/evals/runner.py::run_tier0
+  harness: evals/harness/selfhost.py::run_tier0
   sideEffects: none
 evals:
   tier0:
   - type: invariant_check
+  - type: smoke
+    fixture: evals/ent.evalkit/smoke.jsonl
 observability:
   spanName: ent.evalkit
 dependencies:

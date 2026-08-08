@@ -1,0 +1,2 @@
+{"name": "greets", "input": {"who": "world"}}
+{"name": "greets-another", "input": {"who": "operator"}}
