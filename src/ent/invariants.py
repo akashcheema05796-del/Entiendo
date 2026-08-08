@@ -38,6 +38,9 @@ _ALLOWED_BUILTINS = {
     "str": str, "int": int, "float": float, "bool": bool,
     # types usable as isinstance() targets
     "list": list, "dict": dict, "tuple": tuple, "set": set,
+    # bytes-oriented units (codecs, signers, parsers) must be able to assert
+    # their own output type — str was allowed but bytes was not.
+    "bytes": bytes, "bytearray": bytearray, "frozenset": frozenset,
 }
 
 _BASE_NAMES = {"input", "output"}

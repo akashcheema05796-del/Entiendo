@@ -67,3 +67,24 @@ def test_eval_comprehension() -> None:
 def test_eval_dict_attribute_is_key_access() -> None:
     ok, _ = eval_invariant("output.a == 3", {}, {"a": 3})
     assert ok
+
+
+def test_bytes_is_an_allowed_isinstance_target() -> None:
+    """A codec/signer unit must be able to assert its own output type. `str`
+    was allowed while `bytes` was not, which made bytes-in/bytes-out units
+    unable to declare an invariant at all (found retrofitting itsdangerous)."""
+    ok, _ = eval_invariant("isinstance(output, bytes)", None, b"abc")
+    assert ok
+    bad, _ = eval_invariant("isinstance(output, bytes)", None, "abc")
+    assert not bad
+    for expr, out in (("isinstance(output, bytearray)", bytearray(b"x")),
+                      ("isinstance(output, frozenset)", frozenset({1}))):
+        good, _ = eval_invariant(expr, None, out)
+        assert good
+
+
+def test_bytes_literal_membership_still_works() -> None:
+    ok, _ = eval_invariant("b'=' not in output", None, b"aGVsbG8")
+    assert ok
+    bad, _ = eval_invariant("b'=' not in output", None, b"aGVsbG8=")
+    assert not bad

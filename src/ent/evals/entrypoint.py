@@ -67,7 +67,56 @@ def resolve_entrypoint(node: "object", root: Path) -> Callable[..., object]:
     return fn
 
 
+def _package_context(path: Path) -> tuple[Path, str] | None:
+    """(sys.path entry, dotted module name) if `path` lives inside a Python
+    package, else None.
+
+    A module inside a package uses relative imports (`from .exc import ...`),
+    which only resolve when it is imported under its REAL dotted name. Loading
+    it as a standalone file raises "attempted relative import with no known
+    parent package" — which blocked tier0 on essentially every packaged
+    library. Walk up while __init__.py exists; the first directory without one
+    is the import root.
+    """
+    if path.suffix != ".py" or not (path.parent / "__init__.py").exists():
+        return None
+    parts = [path.stem]
+    d = path.parent
+    while (d / "__init__.py").exists():
+        parts.append(d.name)
+        d = d.parent
+        if d == d.parent:                        # filesystem root — give up
+            return None
+    return d, ".".join(reversed(parts))
+
+
+def _purge(dotted: str) -> None:
+    """Drop the module and its whole top-level package from sys.modules so each
+    eval re-executes the CURRENT file — a cached module would report health for
+    code that is no longer on disk (`ent dev` re-evaluates in one process)."""
+    top = dotted.split(".")[0]
+    for name in [m for m in sys.modules
+                 if m == top or m.startswith(top + ".")]:
+        sys.modules.pop(name, None)
+
+
 def _import_file(path: Path, node_id: str, root: Path):
+    pkg = _package_context(path)
+    if pkg is not None:
+        pkg_root, dotted = pkg
+        pkg_str = str(pkg_root.resolve())
+        added_pkg = pkg_str not in sys.path
+        if added_pkg:
+            sys.path.insert(0, pkg_str)
+        try:
+            _purge(dotted)
+            return importlib.import_module(dotted)
+        except Exception as exc:                 # import-time failure = ERROR
+            raise EntrypointError(f"could not import {dotted}: {exc}")
+        finally:
+            if added_pkg and pkg_str in sys.path:
+                sys.path.remove(pkg_str)
+
     mod_name = "ent_node_" + node_id.replace(".", "_").replace("-", "_")
     root_str = str(root.resolve())
     added = root_str not in sys.path
