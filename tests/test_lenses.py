@@ -119,5 +119,7 @@ def test_leaf_node_has_no_dependents() -> None:
 def test_all_six_lens_tabs_in_html() -> None:
     view = build_view(GREENFIELD)
     html = render_html(view)
-    for label in ("Structure", "Flow", "Trace", "Health", "Timeline", "Blast radius"):
-        assert label in html
+    # assert the lens IDS, not the button copy — the labels are user-facing
+    # prose and get rewritten for plainness; the ids are the stable contract.
+    for lens in ("structure", "flow", "trace", "health", "timeline", "blast"):
+        assert f'data-lens="{lens}"' in html

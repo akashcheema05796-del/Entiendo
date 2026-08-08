@@ -74,6 +74,9 @@ def build_view(root: Path) -> dict[str, Any]:
             # server dependency, and no invented statistics (pValue does not
             # exist here: the engine is CI-bounds, so `significant` means the
             # 95% CI excludes zero).
+            # what's actually INSIDE the unit — a unit is a box on the map until
+            # you can see the parts it is made of.
+            "inside": _inside(root, gnode.get("claims", []) or []),
             "evals": _evals_rollup(result0, tier1_latest.get(gnode["id"])),
             "history": _history_rows(history.timeline(root, gnode["id"])),
             "neighbours": _neighbours(gnode["id"], result.graph["edges"]),
@@ -217,6 +220,41 @@ def _tier1_latest(root: Path) -> dict[str, dict[str, Any]]:
             "spread": row.get("spread"), "runs": row.get("n"),
         }
     return latest
+
+
+def _inside(root: Path, claims: list[str]) -> list[dict[str, Any]]:
+    """The parts a unit is made of: per claimed file, its top-level functions
+    and classes with the first line of their docstring.
+
+    Without this a unit is an opaque box — you can see what it owns and what it
+    depends on, but not what it actually contains. Python only for now: the
+    parse is stdlib `ast`, so a syntax error yields a file with no parts rather
+    than a failed render.
+    """
+    import ast
+
+    out: list[dict[str, Any]] = []
+    for rel in sorted(claims):
+        path = Path(root) / rel
+        entry: dict[str, Any] = {"file": rel, "parts": []}
+        if path.suffix == ".py" and path.is_file():
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except (SyntaxError, UnicodeDecodeError, OSError):
+                out.append(entry)
+                continue
+            for stmt in tree.body:
+                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    doc = (ast.get_docstring(stmt) or "").strip().split("\n")[0]
+                    entry["parts"].append({
+                        "name": stmt.name,
+                        "kind": "class" if isinstance(stmt, ast.ClassDef) else "function",
+                        "line": stmt.lineno,
+                        "public": not stmt.name.startswith("_"),
+                        "doc": doc[:120],
+                    })
+        out.append(entry)
+    return out
 
 
 def _blessing(root: Path, node_id: str) -> dict[str, Any] | None:

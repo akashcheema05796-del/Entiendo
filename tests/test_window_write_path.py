@@ -22,7 +22,7 @@ UNIVERSE = (REPO_ROOT / "src/ent/universe.html").read_text()
 
 
 def test_steer_is_a_window_tab() -> None:
-    assert "'blast','steer'" in UNIVERSE.replace('"', "'")
+    assert "'impact','steer'" in UNIVERSE.replace('"', "'")
 
 
 def test_window_actions_are_scoped_to_their_own_unit() -> None:
@@ -55,5 +55,5 @@ def test_static_snapshot_offers_no_write_path() -> None:
 
 
 def test_gated_units_announce_the_approval_gate() -> None:
-    assert "approval required — " in UNIVERSE
+    assert "needs your sign-off — " in UNIVERSE
     assert "wappr-btn" in UNIVERSE and "wrej-btn" in UNIVERSE

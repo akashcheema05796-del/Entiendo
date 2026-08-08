@@ -213,8 +213,11 @@
     border:1px solid rgba(255,255,255,.12);
     box-shadow: 0 22px 54px rgba(0,0,0,.5), inset 0 1px 1px rgba(255,255,255,.1); }
   .win.focused { border-color: var(--annotation); }
+  /* The page's own <header> is pointer-events:none so it never blocks the
+     canvas. A window's header is a DIFFERENT header and must be clickable —
+     inheriting that rule made its close and minimize buttons dead. */
   .win header { position:static; width:auto; inset:auto; background:none; height:auto;
-    display:flex; align-items:center; gap:8px; padding:8px 10px;
+    display:flex; align-items:center; gap:8px; padding:8px 10px; pointer-events:auto;
     cursor:grab; user-select:none; border-bottom:1px solid var(--hairline); }
   .win header .hdot { width:9px; height:9px; border-radius:50%; flex:none; }
   .win header .nm { font-family:var(--font-display); font-size:14px; overflow:hidden;
@@ -231,6 +234,14 @@
   .win .wbody { overflow:auto; padding:10px 12px; font-size:12px; line-height:1.5; }
   .win .wbody pre { font-family:var(--font-mono); font-size:11px; white-space:pre-wrap; margin:0; }
   .win .wbody textarea { min-height:64px; margin-bottom:2px; }
+  /* the parts inside a unit */
+  .ipart { display:flex; gap:7px; align-items:baseline; padding:2px 0 2px 8px;
+    border-left:1px solid var(--hairline); }
+  .ipart.priv { opacity:.55; }
+  .ipart .ik { color:var(--annotation); font-size:10px; width:10px; flex:none; }
+  .ipart .inm { font-family:var(--font-mono); font-size:11.5px; color:var(--starlight); }
+  .ipart .idoc { color:var(--muted); font-size:10.5px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
   .win .wbody .btns button { padding:6px 11px; font-size:12px; }
   .win .warn { color: var(--signal-amber); }
   .win .vok { color: var(--signal-green); }
@@ -257,10 +268,10 @@
 <div id="lenses">
   <button class="lens active" data-lens="structure">Structure</button>
   <button class="lens" data-lens="flow">Flow</button>
-  <button class="lens" data-lens="trace">Trace</button>
+  <button class="lens" data-lens="trace">Real runs</button>
   <button class="lens" data-lens="health">Health</button>
   <button class="lens" data-lens="timeline">Timeline</button>
-  <button class="lens" data-lens="blast">Blast radius</button>
+  <button class="lens" data-lens="blast">What breaks</button>
   <button class="lens" data-lens="city">City</button>
 </div>
 
@@ -386,7 +397,10 @@ async function watchVersion(){
 const wins=new Map(); let winZ=30, focusedWin=null;
 // 'steer' is the write path. Without it the window — the primary v7 surface —
 // could only read, and acting on a unit meant finding the legacy side panel.
-const WIN_CAP=6, WTABS=['manifest','contract','evals','history','blast','steer'];
+// Plain words, because the point of this surface is understanding. 'inside'
+// shows the parts a unit is made of; the rest are the old manifest/contract/
+// evals/blast tabs renamed to what a person would call them.
+const WIN_CAP=6, WTABS=['inside','identity','promises','checks','history','impact','steer'];
 function nodeOf(id){ return view.nodes.find(n=>n.id===id); }
 function openWindow(id){
   if (wins.has(id)){ const w=wins.get(id); if (w.minimized) restoreWin(id); focusWin(id); return; }
@@ -407,7 +421,7 @@ function openWindow(id){
     <div class="wtabs">${WTABS.map(tb=>`<button data-tab="${tb}">${tb}</button>`).join('')}</div>
     <div class="wbody"></div>`;
   document.body.appendChild(el);
-  const w={id, el, tab:'manifest', minimized:false, z:++winZ};
+  const w={id, el, tab:'inside', minimized:false, z:++winZ};
   wins.set(id, w); el.style.zIndex=w.z;
   el.addEventListener('pointerdown', ()=>focusWin(id));
   el.querySelector('.wclose').addEventListener('click', e=>{ e.stopPropagation(); closeWin(id); });
@@ -433,7 +447,7 @@ function openWindow(id){
     el.style.left=Math.max(0, Math.min(innerWidth-120, e.clientX-drag[0]))+'px';
     el.style.top =Math.max(48, Math.min(innerHeight-60, e.clientY-drag[1]))+'px'; });
   el.addEventListener('pointerup', ()=>{ if (drag){ drag=null; autoPanClear(id); saveWorkspaceSoon(); } });
-  setWinTab(id, 'manifest'); focusWin(id);
+  setWinTab(id, WTABS[0]); focusWin(id);   // never a hard-coded tab id again
 }
 function focusWin(id){ const w=wins.get(id); if(!w) return;
   focusedWin=id; w.z=++winZ; w.el.style.zIndex=w.z;
@@ -460,77 +474,118 @@ function setWinTab(id, tab){ const w=wins.get(id); if(!w) return;
 }
 function winTabHtml(n, tab){
   if (!n) return '';
-  if (tab==='manifest'){
+  if (tab==='inside'){
+    // What the unit is actually MADE OF. A unit was an opaque box: you could
+    // see what it owned and what it called, never the parts within it.
+    const files=n.inside||[];
+    if (!files.length) return '<div style="color:var(--muted)">nothing to show — '
+      + 'this unit owns no readable source files</div>';
+    const total=files.reduce((a,f)=>a+(f.parts||[]).length,0);
+    const icon=p=>p.kind==='class'?'▣':'ƒ';
+    return `<div style="color:var(--muted);margin-bottom:8px">${total} part${total===1?'':'s'} `
+      + `across ${files.length} file${files.length===1?'':'s'}</div>`
+      + files.map(f=>`<div style="margin-bottom:10px">
+        <div class="row2"><span style="font-family:var(--font-mono);font-size:11px">${esc(f.file)}</span>
+          <span style="color:var(--muted)">${(f.parts||[]).length} part${(f.parts||[]).length===1?'':'s'}</span></div>
+        ${(f.parts||[]).length ? (f.parts||[]).map(p=>`<div class="ipart${p.public?'':' priv'}">
+            <span class="ik">${icon(p)}</span>
+            <span class="inm">${esc(p.name)}</span>
+            <span class="idoc">${esc(p.doc||'')}</span></div>`).join('')
+          : '<div style="color:var(--muted);font-size:11px">no functions or classes</div>'}
+      </div>`).join('');
+  }
+  if (tab==='identity'){
     const claims=n.claims||[], fx=n.sideEffects, warnFx=(fx==='irreversible'||fx==='writes');
-    return `<pre>id: ${esc(n.id)}
-kind: ${esc(n.nodeKind)}
-group: ${esc(n.group||'—')}
-owner: ${esc(n.owner||'—')}
-status: ${esc(n.status||'—')}
-sideEffects: <span class="${warnFx?'warn':''}">${esc(fx||'none')}</span>
-approvalRequired: <span class="${n.approvalRequired?'warn':''}">${n.approvalRequired?'true':'false'}</span></pre>
-    <div style="margin-top:8px"><b>claims (${n.claimedFileCount??claims.length})</b>
-    ${claims.length? `<pre>${claims.map(esc).join('\n')}</pre>`
-      : n.nodeKind==='external' ? '<div class="warn">external unit — claims no files by design</div>'
-      : '<div class="warn">zero claims</div>'}</div>`;
+    const KIND={compute:'runs logic', state:'holds data', schema:'defines a data shape',
+                config:'configuration', external:'someone else’s service',
+                pipeline:'a group with its own end-to-end contract'};
+    const FX={none:'changes nothing outside itself', writes:'writes data',
+              external:'calls an outside service', irreversible:'does things that cannot be undone'};
+    return `<div class="row2"><span>What kind</span><span>${esc(KIND[n.nodeKind]||n.nodeKind)}</span></div>
+      <div class="row2"><span>Part of</span><span>${esc(n.group||'—')}</span></div>
+      <div class="row2"><span>Looked after by</span><span>${esc(n.owner||'—')}</span></div>
+      <div class="row2"><span>Maturity</span><span>${esc(n.status||'—')}</span></div>
+      <div class="row2"><span>Side effects</span><span class="${warnFx?'warn':''}">${esc(FX[fx]||fx||'none')}</span></div>
+      <div class="row2"><span>Needs sign-off to change</span>
+        <span class="${n.approvalRequired?'warn':''}">${n.approvalRequired?'yes':'no'}</span></div>
+      <div style="margin-top:10px"><b>Files it owns</b> <span style="color:var(--muted)">(only these can change it)</span>
+      ${claims.length? `<pre>${claims.map(esc).join('\n')}</pre>`
+        : n.nodeKind==='external' ? '<div class="warn">none — it is not our code</div>'
+        : '<div class="warn">owns no files</div>'}</div>
+      <div style="color:var(--muted);font-size:10.5px;margin-top:6px">id <code>${esc(n.id)}</code></div>`;
   }
-  if (tab==='contract'){
+  if (tab==='promises'){
     const inv=n.invariants||[], nb=n.neighbours||{out:[],in:[]};
-    const line=e=>`<div class="row2"><span>${esc(e.id)} <span style="color:var(--muted)">${esc(e.rel)}</span></span>
-      <span class="${e.verified?'vok':'warn'}">${e.verified?'✓ verified':'declared, unverified'}</span></div>`;
-    return `<b>invariants</b>${inv.length?`<pre>${inv.map(esc).join('\n')}</pre>`:'<div class="warn">no invariants declared</div>'}
-      <div style="margin-top:8px"><b>depends on</b>${nb.out.map(line).join('')||'<div style="color:var(--muted)">none</div>'}</div>
-      <div style="margin-top:8px"><b>depended on by</b>${nb.in.map(line).join('')||'<div style="color:var(--muted)">none</div>'}</div>`;
+    const REL={calls:'calls', reads:'reads from', writes:'writes to', config:'is configured by'};
+    const line=e=>`<div class="row2"><span>${esc(REL[e.rel]||e.rel)} <b>${esc(e.id)}</b></span>
+      <span class="${e.verified?'vok':'warn'}">${e.verified?'✓ seen in the code':'declared, not yet confirmed'}</span></div>`;
+    return `<b>Always true of this unit</b>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:4px">checked on every run</div>
+      ${inv.length?`<pre>${inv.map(esc).join('\n')}</pre>`
+        :'<div class="warn">nothing is promised yet — nothing can fail</div>'}
+      <div style="margin-top:8px"><b>It depends on</b>${nb.out.map(line).join('')||'<div style="color:var(--muted)">nothing</div>'}</div>
+      <div style="margin-top:8px"><b>Depended on by</b>${nb.in.map(e=>`<div class="row2"><span><b>${esc(e.id)}</b></span>
+        <span style="color:var(--muted)">${esc(REL[e.rel]||e.rel)} this</span></div>`).join('')||'<div style="color:var(--muted)">nothing</div>'}</div>`;
   }
-  if (tab==='evals'){
+  if (tab==='checks'){
     const ev=n.evals||{}, t0=ev.tier0||{}, t1=ev.tier1;
     const b=n.budgets||{}, m=b.measured;
     const bar=(cur,lim)=> lim ? `<div class="bar"><i style="width:${Math.min(100,(cur||0)/lim*100)}%"></i></div>` : '';
-    let html=`<b>tier0 (reflex)</b><div class="row2"><span>${t0.passed??'—'} / ${t0.total??'—'} checks pass</span><span>${esc(t0.verdict||'')}</span></div>`;
+    const VERD={GREEN:'passing', RED:'failing', ERROR:'errored',
+                UNTESTED:'not checked yet', DEGRADED:'degraded', UNSTABLE:'too few runs to tell'};
+    let html=`<b>Quick checks</b>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:4px">run in milliseconds, every time it changes</div>
+      <div class="row2"><span>${t0.passed??'—'} of ${t0.total??'—'} passed</span>
+        <span class="${t0.verdict==='RED'?'warn':''}">${esc(VERD[t0.verdict]||t0.verdict||'')}</span></div>`;
     if (t1){
-      html+=`<div style="margin-top:8px"><b>tier1 (golden)</b>
-        <div class="row2"><span>score</span><span>${t1.score}</span></div>
-        <div class="row2"><span>baseline</span><span>${t1.baseline}</span></div>
-        <div class="row2"><span>delta</span><span>${t1.delta}</span></div>
-        <div class="row2"><span>runs · rows</span><span>${t1.runs??'—'} · ${t1.nRows??'—'}</span></div>
-        <div class="row2"><span>CI95</span><span>[${t1.ciLow}, ${t1.ciHigh}]</span></div>
-        <div class="row2"><span>significant</span><span class="${t1.significant?'warn':'vok'}">${t1.significant}</span></div>
-        <div class="row2"><span>spread</span><span>${t1.spread}</span></div>
-        <div class="row2"><span>verdict</span><span>${esc(t1.verdictLabel||'')}</span></div>
-        ${t1.spread===0?'<div class="warn">⚠ zero spread — this golden set cannot discriminate</div>':''}</div>`;
-    } else html+=`<div style="margin-top:8px;color:var(--muted)">no tier1 golden run recorded</div>`;
-    if (b.p95LatencyMs!=null) html+=`<div style="margin-top:8px"><b>budget: latency</b>
+      html+=`<div style="margin-top:8px"><b>Graded against examples</b>
+        <div style="color:var(--muted);font-size:11px;margin-bottom:4px">a set of known-good cases, scored</div>
+        <div class="row2"><span>scored now</span><span>${t1.score}</span></div>
+        <div class="row2"><span>expected (its usual score)</span><span>${t1.baseline}</span></div>
+        <div class="row2"><span>change</span><span>${t1.delta}</span></div>
+        <div class="row2"><span>based on</span><span>${t1.runs??'—'} run(s) · ${t1.nRows??'—'} example(s)</span></div>
+        <div class="row2"><span>likely range</span><span>[${t1.ciLow}, ${t1.ciHigh}]</span></div>
+        <div class="row2"><span>is the change real?</span>
+          <span class="${t1.significant?'warn':'vok'}">${t1.significant?'yes — beyond normal noise':'no — within noise'}</span></div>
+        <div class="row2"><span>result</span><span>${esc(t1.verdictLabel||'')}</span></div>
+        ${t1.spread===0?'<div class="warn">⚠ every example scores the same — this set cannot tell good from bad</div>':''}</div>`;
+    } else html+=`<div style="margin-top:8px;color:var(--muted)">not graded against examples yet</div>`;
+    if (b.p95LatencyMs!=null) html+=`<div style="margin-top:8px"><b>Speed budget</b>
       <div class="row2"><span>${m&&m.p95LatencyMs!=null?m.p95LatencyMs+'ms':'—'}</span><span>/ ${b.p95LatencyMs}ms</span></div>${bar(m&&m.p95LatencyMs, b.p95LatencyMs)}</div>`;
-    if (b.costPerCallUsd!=null) html+=`<div><b>budget: cost</b>
+    if (b.costPerCallUsd!=null) html+=`<div><b>Cost budget</b>
       <div class="row2"><span>${m&&m.avgCostUsd!=null?'$'+m.avgCostUsd:'—'}</span><span>/ $${b.costPerCallUsd}</span></div>${bar(m&&m.avgCostUsd, b.costPerCallUsd)}</div>`;
     return html;
   }
   if (tab==='history'){
     const rows=n.history||[];
     if (!rows.length) return '<div style="color:var(--muted)">no history recorded yet — '
-      + '<code>ent eval</code> records verdicts, <code>ent snapshot</code> records '
-      + 'a full version + verdict pass</div>';
+      + 'run <code>ent eval</code> to record a result, or <code>ent snapshot</code> '
+      + 'to record a full version + result pass</div>';
     return rows.map(r=>`<div class="row2" style="border-bottom:1px solid var(--hairline);padding:3px 0">
       <span style="font-family:var(--font-mono);font-size:10.5px">${esc(r.version||'—')}</span>
       <span>${esc(r.summary||'')}${r.evalSummary?' · '+esc(r.evalSummary):''}</span>
       <span style="color:var(--muted);font-size:10.5px">${esc((r.iso||'').slice(0,10))} · ${r.blessedBy?esc(r.blessedBy):'unblessed'}</span></div>`).join('');
   }
-  if (tab==='blast'){
+  if (tab==='impact'){
     const down=[...computeBlast(n.id)];
-    if (!down.length) return '<div style="color:var(--muted)">no downstream dependents</div>';
-    return down.map(id=>{ const d=nodeOf(id)||{};
+    if (!down.length) return '<div style="color:var(--muted)">nothing else depends on this — '
+      + 'changing it cannot break another unit</div>';
+    const FX={writes:'⚠ writes data', irreversible:'⚠ cannot be undone',
+              external:'calls an outside service', none:'safe'};
+    return `<div style="color:var(--muted);margin-bottom:6px">${down.length} unit${down.length===1?'':'s'} `
+      + `could break if this changes</div>` + down.map(id=>{ const d=nodeOf(id)||{};
       const risky=(d.sideEffects==='writes'||d.sideEffects==='irreversible');
       return `<div class="row2"><span>${esc(id)}</span>
-        <span class="${risky?'warn':''}">${risky?('⚠ '+esc(d.sideEffects)):esc(d.sideEffects||'none')}</span></div>`; }).join('');
+        <span class="${risky?'warn':''}">${esc(FX[d.sideEffects]||d.sideEffects||'safe')}</span></div>`; }).join('');
   }
   if (tab==='steer'){
     if (STATIC) return '<div style="color:var(--muted)">static snapshot — '
       + 'run <code>ent serve</code> to steer this unit</div>';
     const gated = n.approvalRequired
-      ? '<div class="pill warn" style="margin-bottom:6px">approval required — '
-        + 'edits land as a proposal you approve here</div>' : '';
+      ? '<div class="pill warn" style="margin-bottom:6px">needs your sign-off — '
+        + 'changes are held here for you to approve or reject</div>' : '';
     return `${gated}<div class="wsteer-props"></div>
-      <textarea class="wsteer-input" placeholder="Steer ${esc(n.id)}: describe a change — the workload edits within this unit's claims only"></textarea>
+      <textarea class="wsteer-input" placeholder="Describe a change to ${esc(n.id)} — Claude Code will edit only the files this unit owns"></textarea>
       <div class="btns">
         <button class="act primary wsteer-btn">Steer</button>
         <button class="act wrevert-btn">Revert</button>
@@ -605,7 +660,7 @@ async function winSettle(unitId, el, pid, action){
 function winFocusCoupling(id){
   const w=wins.get(id); if (!w || !view) return;
   selectState(id);
-  if (w.tab==='blast' && lens!=='blast') setLens('blast');
+  if (w.tab==='impact' && lens!=='blast') setLens('blast');
   autoPanClear(id);
 }
 // Occlusion rule: if a focused/dragged window covers its OWN node, pan the
@@ -1344,7 +1399,11 @@ canvas.addEventListener('dblclick', e=>{ // dbl-click a group hull re-collapses;
   else if (!u) fitToView();
 });
 
-function onClick(u){ if (u.container){ expanded.add(u.group); buildLayout(); return; } select(u.id); openWindow(u.id); }
+// One click opens ONE panel. It used to open the docked dossier AND a floating
+// window for the same unit — two overlapping surfaces for a single gesture,
+// which is what made the surface feel unclosable.
+function onClick(u){ if (u.container){ expanded.add(u.group); buildLayout(); return; }
+  selectState(u.id); openWindow(u.id); writeUrlState(); }
 let blastCoupling={};
 function selectState(id){
   selected=id; blast=new Set(computeBlast(id)); focusIdx=units.findIndex(u=>u.id===id);
@@ -1384,7 +1443,9 @@ function renderResults(q){
 function jumpTo(id){ closeSearch(); const n=view.nodes.find(x=>x.id===id); if(!n) return;
   // ensure the unit is visible (expand its group if collapsed), then fly + select.
   if (view.nodes.length>COLLAPSE_THRESHOLD && !byId[id]){ expanded.add(n.group||'(ungrouped)'); buildLayout(); }
-  const u=byId[id]; if (u) flyTo(u.x,u.y, Math.max(cam.scale,1.6)); select(id); }
+  // Same destination as clicking the unit on the map: one gesture, one panel.
+  const u=byId[id]; if (u) flyTo(u.x,u.y, Math.max(cam.scale,1.6));
+  selectState(id); openWindow(id); writeUrlState(); }
 searchInput.addEventListener('input', ()=>renderResults(searchInput.value.trim()));
 searchInput.addEventListener('keydown', e=>{
   if (e.key==='Escape'){ closeSearch(); }
@@ -1523,20 +1584,20 @@ function healthColourAt(u){
 }
 function drawLegend(){
   const el=document.getElementById('legend');
-  if (lens==='health'){ el.innerHTML='<b>Health</b>'+[['green','GREEN · solid'],['amber','degraded / over-budget · marching dashes'],['red','RED · double ring'],['grey','untested · dotted']]
+  if (lens==='health'){ el.innerHTML='<b>Health</b>'+[['green','passing · solid ring'],['amber','slower or costlier than budgeted · dashes'],['red','failing · double ring'],['grey','not checked yet · dotted']]
       .map(([c,l])=>`<div class="row"><span class="g" style="background:${cvar('--'+c)}"></span>${l}</div>`).join('')
-      + '<div class="row">ring STYLE carries the state — never colour alone</div>'
-      + '<div class="row">thin arc = spend/latency vs budget</div>'
-      + '<div class="row">ring = golden verdict — red only on statistically meaningful movement</div>'; }
-  else if (lens==='flow'){ el.innerHTML='<b>Flow</b><div class="row"><span class="g" style="background:var(--annotation)"></span>verified · bright/fast · thicker = more traffic</div>'
-      + '<div class="row"><span class="g" style="background:var(--muted)"></span>declared · dim/dashed</div>'; }
-  else if (lens==='blast'){ el.innerHTML='<b>Blast radius</b><div class="row">select a unit → its downstream dependents tint amber</div>'; }
-  else if (lens==='city'){ el.innerHTML='<b>City</b><div class="row">territory = truth — a unit\'s AREA is its real file mass</div>'
-      + '<div class="row">districts = groups · border style = health · zoom in for file tiles</div>'
-      + '<div class="row">select a unit → its dependencies arc over the terrain</div>'; }
+      + '<div class="row">the ring SHAPE says it too, so colour-blind readers see it</div>'
+      + '<div class="row">thin arc = how much of its speed/cost budget it uses</div>'
+      + '<div class="row">red only when a score really moved, not on noise</div>'; }
+  else if (lens==='flow'){ el.innerHTML='<b>Flow</b><div class="row"><span class="g" style="background:var(--annotation)"></span>seen in the code · thicker = busier</div>'
+      + '<div class="row"><span class="g" style="background:var(--muted)"></span>claimed but not confirmed · dim/dashed</div>'; }
+  else if (lens==='blast'){ el.innerHTML='<b>What breaks</b><div class="row">click a unit → everything that could break if you change it turns amber</div>'; }
+  else if (lens==='city'){ el.innerHTML='<b>City</b><div class="row">a unit\'s AREA is how much code it really holds</div>'
+      + '<div class="row">districts = groups · border = health · zoom in to see single files</div>'
+      + '<div class="row">click a unit → what it depends on arcs over the city</div>'; }
   else if (lens==='trace'){ const n=(view.traces||[]).length;
-    el.innerHTML=`<b>Trace</b><div class="row">${n?`pick a request below → a comet plays it hop by hop`:'no trace recorded yet'}</div>`
-      + '<div class="row">failed hop halts the comet and pulses red</div>'; }
+    el.innerHTML=`<b>Real runs</b><div class="row">${n?`pick a request below → watch it travel the map step by step`:'nothing has been recorded running yet'}</div>`
+      + '<div class="row">a step that failed stops the light and pulses red</div>'; }
   else if (lens==='timeline'){ el.innerHTML='<b>Timeline</b><div class="row">scrub below to move every unit to its fingerprint at that commit</div>'
       + '<div class="row">gold label = composite band · click a dossier tick to replay</div>'; }
   else { el.innerHTML='<b>Structure</b>'+[['compute','chip ⟨⟩'],['state','cylinder'],['schema','hex · strata'],

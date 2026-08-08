@@ -117,8 +117,12 @@ def test_universe_contains_window_layer() -> None:
 
 
 def test_universe_tab_ids() -> None:
+    """A window shows the unit from every angle. Tab ids are plain words now —
+    'inside' (the parts it is made of) leads, because a unit was an opaque box
+    until you could see within it."""
     html = (REPO_ROOT / "src/ent/universe.html").read_text()
-    assert "'manifest','contract','evals','history','blast','steer'" in html.replace('"', "'")
+    assert "'inside','identity','promises','checks','history','impact','steer'" \
+        in html.replace('"', "'")
 
 
 def test_universe_no_localstorage() -> None:

@@ -73,8 +73,10 @@ def test_reduced_motion_supported() -> None:
 
 def test_six_lens_toggles_present() -> None:
     html = build_universe(None)
-    for label in ("Structure", "Flow", "Trace", "Health", "Timeline", "Blast radius"):
-        assert label in html
+    # assert the lens IDS, not the button copy — the labels are user-facing
+    # prose and get rewritten for plainness; the ids are the stable contract.
+    for lens in ("structure", "flow", "trace", "health", "timeline", "blast"):
+        assert f'data-lens="{lens}"' in html
 
 
 # --------------------------------------------------------------------------- #
