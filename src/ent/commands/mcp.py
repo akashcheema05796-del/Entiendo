@@ -34,11 +34,17 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
 
 
 def _run(args: argparse.Namespace) -> int:
+    from ..manifest import discover
+
     root = Path(args.root).resolve()
-    report = validate_root(root)
-    if not report.ok and not args.allow_invalid:
-        print("ent mcp: manifests are invalid — run `ent validate`, "
-              "or pass --allow-invalid for retrofit workflows.")
-        return 2
+    # An UNMANAGED repo (zero manifests) is a legitimate starting state — the
+    # retrofit tools exist precisely to work there. Only manifests that exist
+    # and fail validation block startup.
+    if discover(root):
+        report = validate_root(root)
+        if not report.ok and not args.allow_invalid:
+            print("ent mcp: manifests are invalid — run `ent validate`, "
+                  "or pass --allow-invalid for retrofit workflows.")
+            return 2
     serve_mcp(root)
     return 0
