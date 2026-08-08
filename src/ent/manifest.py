@@ -51,15 +51,25 @@ def schema_path() -> Path:
 def discover(root: Path) -> list[Path]:
     """Find every `entiendo.node.yaml` under `root`, sorted for stable output.
 
-    Prunes vendored / generated directories so discovery stays fast and doesn't
-    trip over unrelated files.
+    Prunes vendored / generated directories, and stops at NESTED PROJECT
+    ROOTS: a subdirectory with its own `entiendo/` control-plane dir or its
+    own `.git` is a different project, and its manifests' claims resolve
+    against *that* root — sweeping them into this one misroots every claim
+    (the Entiendo repo itself hit this: `ent validate` at the repo root
+    swallowed examples/refundly and examples/greenfield and failed).
     """
+    import os
+
     root = Path(root)
     found: list[Path] = []
-    for path in root.rglob(MANIFEST_FILENAME):
-        if any(part in _SKIP_DIRS for part in path.relative_to(root).parts):
+    for dirpath, dirnames, filenames in os.walk(root):
+        cur = Path(dirpath)
+        if cur != root and ((cur / "entiendo").is_dir() or (cur / ".git").exists()):
+            dirnames[:] = []            # a different project's tree — don't descend
             continue
-        found.append(path)
+        dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS)
+        if MANIFEST_FILENAME in filenames:
+            found.append(cur / MANIFEST_FILENAME)
     return sorted(found)
 
 

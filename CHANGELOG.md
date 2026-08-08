@@ -3,6 +3,18 @@
 All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 (0.x: minor bumps may break, patch bumps never do).
 
+## Unreleased
+
+### Fixed
+- Manifest discovery stops at nested project roots (a subdirectory with its
+  own `entiendo/` control plane or its own `.git`): their claims resolve
+  against *that* root, so sweeping them into a parent walk misrooted every
+  claim — `ent validate` at the Entiendo repo root failed on its own examples,
+  which in turn made the Claude Code plugin's MCP server refuse to start.
+- `ent mcp` starts on an unmanaged repo (zero manifests) — that is the
+  retrofit starting state, not an invalid one. Actually-invalid manifests
+  still exit 2 without `--allow-invalid`.
+
 ## 0.2.0 — 2026-08-04
 
 First public beta. Everything below shipped since the 0.1.0 scaffold, across
