@@ -1,4 +1,3 @@
-# NOTE: entrypoint takes (node, root) — blocked on the single-arg harness seam
 apiVersion: entiendo/v1
 kind: Node
 id: ent.versioning
@@ -16,11 +15,17 @@ claims:
 - src/ent/version.py
 - src/ent/gitinfo.py
 contract:
-  invariants: []
+  invariants:
+  - len(output['composite']) == 12
+  - output['code'] != None
+  entrypoint: src/ent/version.py::compute_version
+  harness: evals/harness/selfhost.py::compute_version
   sideEffects: none
 evals:
   tier0:
   - type: invariant_check
+  - type: smoke
+    fixture: evals/ent.versioning/smoke.jsonl
 observability:
   spanName: ent.versioning
 dependencies:

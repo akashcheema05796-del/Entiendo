@@ -17,5 +17,7 @@ contract:
 evals:
   tier0:
   - type: invariant_check
+  - type: smoke
+    fixture: evals/mini.hello/smoke.jsonl
 observability:
   spanName: mini.hello

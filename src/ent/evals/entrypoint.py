@@ -35,6 +35,51 @@ def entrypoint_spec(node: "object") -> str | None:
     return (getattr(node, "raw", {}) or {}).get("contract", {}).get("entrypoint")  # type: ignore[attr-defined]
 
 
+def harness_spec(node: "object") -> str | None:
+    return (getattr(node, "raw", {}) or {}).get("contract", {}).get("harness")  # type: ignore[attr-defined]
+
+
+class Harness:
+    """What a harness is handed: the resolved entrypoint, the project root, and
+    the node itself. Everything a fixture row cannot express in JSON."""
+
+    __slots__ = ("entrypoint", "root", "node")
+
+    def __init__(self, entrypoint: Callable[..., object], root: Path, node: "object") -> None:
+        self.entrypoint = entrypoint
+        self.root = Path(root)
+        self.node = node
+
+
+def resolve_harness(node: "object", root: Path) -> Callable[..., object] | None:
+    """Import the node's harness callable, or None if it declares no harness.
+
+    The harness is the seam for units whose entrypoint is not a one-argument
+    function — `f(node, root)`, `f(root, node_id)`, a class that must be
+    constructed first. Without it such units are permanently UNTESTED, which
+    is a hole in the map, not a fact about the code.
+
+    It lives with the fixtures rather than in the node's claims: it is test
+    scaffolding, so editing it must not move the composite fingerprint.
+    """
+    spec = harness_spec(node)
+    if not spec:
+        return None
+
+    rel_path, sep, callable_name = spec.partition("::")
+    if not sep or not callable_name:
+        raise EntrypointError(f"harness '{spec}' must be '<path>::<callable>'")
+    path = Path(root) / rel_path
+    if not path.exists():
+        raise EntrypointError(f"harness file '{rel_path}' does not exist")
+
+    module = _import_file(path, f"{getattr(node, 'id', 'node')}::harness", Path(root))
+    fn = getattr(module, callable_name, None)
+    if fn is None or not callable(fn):
+        raise EntrypointError(f"'{callable_name}' is not a callable in {rel_path}")
+    return fn
+
+
 def resolve_entrypoint(node: "object", root: Path) -> Callable[..., object]:
     """Import and return the node's entrypoint callable.
 

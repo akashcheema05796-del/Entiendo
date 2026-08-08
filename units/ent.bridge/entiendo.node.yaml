@@ -1,14 +1,13 @@
-# NOTE: tools take (root, ...) — blocked on the single-arg harness seam
 apiVersion: entiendo/v1
 kind: Node
 id: ent.bridge
 name: The Bridge
 task: 'Steer-edit-verdict loop: queue steering intents, apply boundary-confined edits, rerun
   tier0, post verdicts.'
-description: "File-based steering queue with atomic claims, the edit review loop (boundary\
-  \ + tier0 + blast radius + approval), the MCP server exposing the eleven tools, and the\
-  \ SDK-backed edit model (degrades cleanly without credentials). Writes are confined to a\
-  \ unit's claims \u2014 always."
+description: File-based steering queue with atomic claims, the edit review loop (boundary
+  + tier0 + blast radius + approval), the MCP server exposing the eleven tools, and the SDK-backed
+  edit model (degrades cleanly without credentials). Writes are confined to a unit's claims
+  — always.
 nodeKind: compute
 group: agents
 owner: akashdatageek
@@ -19,11 +18,16 @@ claims:
 - src/ent/mcp_server.py
 - src/ent/agent.py
 contract:
-  invariants: []
+  invariants:
+  - output.within_claims == True
+  entrypoint: src/ent/editloop.py::check_boundary
+  harness: evals/harness/selfhost.py::check_boundary
   sideEffects: writes
 evals:
   tier0:
   - type: invariant_check
+  - type: smoke
+    fixture: evals/ent.bridge/smoke.jsonl
 observability:
   spanName: ent.bridge
 dependencies:

@@ -1,0 +1,17 @@
+{
+  "apiVersion": "entiendo/v1",
+  "total": 4,
+  "claimedCount": 2,
+  "acknowledgedUnclaimedCount": 2,
+  "unaccountedCount": 0,
+  "coverage": 1.0,
+  "claimed": [
+    "src/broken/checker.py",
+    "src/hello.py"
+  ],
+  "acknowledgedUnclaimed": [
+    "evals/mini.broken/smoke.jsonl",
+    "evals/mini.hello/smoke.jsonl"
+  ],
+  "unaccounted": []
+}

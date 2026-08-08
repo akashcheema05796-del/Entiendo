@@ -1,12 +1,11 @@
-# NOTE: entrypoint takes (root, node_id) — blocked on the single-arg harness seam
 apiVersion: entiendo/v1
 kind: Node
 id: ent.trust
 name: Baselines & Blessing
 task: Hold eval baselines and bless records; blessing requires a resolvable human identity.
-description: "The trust ledger under entiendo/baselines/: baseline stats, bless records with\
-  \ a real blessedBy (\"unknown\" is unwritable), read/write with human confirmation gates.\
-  \ AI drafts, humans bless \u2014 this unit is where that lands."
+description: 'The trust ledger under entiendo/baselines/: baseline stats, bless records with
+  a real blessedBy ("unknown" is unwritable), read/write with human confirmation gates. AI
+  drafts, humans bless — this unit is where that lands.'
 nodeKind: state
 group: quality
 owner: akashdatageek
@@ -15,10 +14,16 @@ claims:
 - src/ent/baselines.py
 - src/ent/identity.py
 contract:
-  invariants: []
+  invariants:
+  - output['baseline'] == 0.8
+  - output['metric'] == 'exact_match'
+  entrypoint: src/ent/baselines.py::read_baseline
+  harness: evals/harness/selfhost.py::read_baseline
   sideEffects: writes
 evals:
   tier0:
   - type: invariant_check
+  - type: smoke
+    fixture: evals/ent.trust/smoke.jsonl
 observability:
   spanName: ent.trust

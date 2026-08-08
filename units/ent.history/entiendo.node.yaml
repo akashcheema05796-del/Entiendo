@@ -1,4 +1,3 @@
-# NOTE: entrypoint takes (root, event) — blocked on the single-arg harness seam
 apiVersion: entiendo/v1
 kind: Node
 id: ent.history
@@ -15,11 +14,17 @@ status: experimental
 claims:
 - src/ent/history.py
 contract:
-  invariants: []
+  invariants:
+  - output['seq'] == 0
+  - output['v'] == 1
+  entrypoint: src/ent/history.py::record
+  harness: evals/harness/selfhost.py::record_event
   sideEffects: writes
 evals:
   tier0:
   - type: invariant_check
+  - type: smoke
+    fixture: evals/ent.history/smoke.jsonl
 observability:
   spanName: ent.history
 dependencies:

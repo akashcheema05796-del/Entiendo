@@ -1,0 +1,2 @@
+{"name": "ordered-calls-pass", "input": {"rule": {"order": ["lookup before refund"], "maxSteps": 4, "registryOnly": true}, "calls": ["lookup", "refund"], "registry": ["lookup", "refund"]}}
+{"name": "within-step-budget", "input": {"rule": {"maxSteps": 2}, "calls": ["lookup"], "registry": []}}

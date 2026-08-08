@@ -1,0 +1,22 @@
+apiVersion: entiendo/v1
+kind: Node
+id: mini.broken
+name: Deliberately Failing
+task: Fail its invariant on purpose, so the runner's RED path is exercised.
+nodeKind: compute
+group: mini
+owner: akashdatageek
+status: experimental
+claims:
+  - src/broken/checker.py
+contract:
+  entrypoint: src/broken/checker.py::check
+  invariants:
+    - "output['ok'] == True"
+  sideEffects: none
+evals:
+  tier0:
+    - type: invariant_check
+    - {type: smoke, fixture: evals/mini.broken/smoke.jsonl}
+observability:
+  spanName: mini.broken

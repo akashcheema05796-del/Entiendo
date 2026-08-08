@@ -1,4 +1,3 @@
-# NOTE: entrypoints take (root, ...) pairs — blocked on the single-arg harness seam
 apiVersion: entiendo/v1
 kind: Node
 id: ent.timetravel
@@ -17,11 +16,16 @@ claims:
 - src/ent/trajectory.py
 - src/ent/fixtures.py
 contract:
-  invariants: []
+  invariants:
+  - output['ok'] == True
+  entrypoint: src/ent/trajectory.py::evaluate
+  harness: evals/harness/selfhost.py::evaluate_trajectory
   sideEffects: none
 evals:
   tier0:
   - type: invariant_check
+  - type: smoke
+    fixture: evals/ent.timetravel/smoke.jsonl
 observability:
   spanName: ent.timetravel
 dependencies:

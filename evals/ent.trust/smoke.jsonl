@@ -1,0 +1,1 @@
+{"name": "round-trips-a-baseline", "input": {"unit": "demo.unit", "baseline": {"baseline": 0.8, "metric": "exact_match", "minRuns": 3, "significance": 0.05}}}
