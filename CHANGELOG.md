@@ -5,7 +5,22 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 
 ## Unreleased
 
+### Added
+- **Self-hosting**: the Entiendo repo now manages itself — 14 semantic units
+  under `units/` with real contracts and reconciler-verified edges; five run
+  live tier0 smokes (contracts, graph, surface, cli, retrofit). CI gates the
+  repo's own map like any other project.
+- The `enforce_claims` hook honors **explicitly-unclaimed** files: globs in
+  `entiendo/unclaimed.txt` (a repo's tests, docs, scripts) stay editable,
+  including new files matching an acknowledged pattern. Truly unclaimed files
+  are still denied.
+
 ### Fixed
+- All file walks (coverage, retrofit candidates) stop at nested project roots
+  via one shared `iter_project_files` — previously only manifest discovery did.
+- The eval sandbox shields its stdout JSON protocol from entrypoints that
+  print (found running `ent.cli`'s own smoke — a CLI that prints corrupted the
+  verdict channel).
 - Manifest discovery stops at nested project roots (a subdirectory with its
   own `entiendo/` control plane or its own `.git`): their claims resolve
   against *that* root, so sweeping them into a parent walk misrooted every

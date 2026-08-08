@@ -1,0 +1,60 @@
+apiVersion: entiendo/v1
+kind: Node
+id: ent.cli
+name: Terminal Surface
+task: Parse ent subcommands, dispatch to the engine, and exit with the severity table (0 pass,
+  1 red, 2 error, 4 unstable).
+description: 'Every human-facing command: init, new, validate, extract, eval, baseline, bless,
+  pin, replay, serve/dev, render, retrofit, snapshot, fixtures, doctor, ci, mcp, edit. Thin
+  argparse wrappers over the engine units.'
+nodeKind: compute
+group: surface
+owner: akashdatageek
+status: experimental
+claims:
+- src/ent/cli.py
+- src/ent/ci.py
+- src/ent/commands/__init__.py
+- src/ent/commands/_stub.py
+- src/ent/commands/baseline.py
+- src/ent/commands/bless.py
+- src/ent/commands/ci.py
+- src/ent/commands/doctor.py
+- src/ent/commands/edit.py
+- src/ent/commands/eval.py
+- src/ent/commands/extract.py
+- src/ent/commands/fixtures.py
+- src/ent/commands/init.py
+- src/ent/commands/mcp.py
+- src/ent/commands/new.py
+- src/ent/commands/pin.py
+- src/ent/commands/render.py
+- src/ent/commands/replay.py
+- src/ent/commands/retrofit.py
+- src/ent/commands/serve.py
+- src/ent/commands/snapshot.py
+- src/ent/commands/validate.py
+contract:
+  entrypoint: src/ent/cli.py::main
+  invariants:
+  - output == 0
+  sideEffects: none
+evals:
+  tier0:
+  - type: invariant_check
+  - type: smoke
+    fixture: evals/ent.cli/smoke.jsonl
+observability:
+  spanName: ent.cli
+dependencies:
+  calls:
+  - ent.bridge
+  - ent.contracts
+  - ent.evalkit
+  - ent.graph
+  - ent.packaging
+  - ent.surface
+  - ent.timetravel
+  - ent.versioning
+  writes:
+  - ent.trust

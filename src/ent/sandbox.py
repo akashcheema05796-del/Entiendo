@@ -70,7 +70,7 @@ def _apply_rlimits() -> None:  # pragma: no cover - exercised in the child only
 
 
 _CHILD_CODE = """
-import json, sys
+import contextlib, json, sys
 from pathlib import Path
 from ent.sandbox import _apply_rlimits
 _apply_rlimits()
@@ -81,7 +81,11 @@ node = find_node(Path(req["root"]), req["node_id"])
 if node is None:
     print(json.dumps({"error": f"no node {req['node_id']!r}"})); raise SystemExit(0)
 runner = run_tier1 if req["tier"] == 1 else run_tier0
-print(json.dumps(runner(node, Path(req["root"])).as_dict()))
+# stdout is the result protocol; an entrypoint that print()s (a CLI unit, a
+# chatty library) must not corrupt it — divert user output to stderr.
+with contextlib.redirect_stdout(sys.stderr):
+    result = runner(node, Path(req["root"])).as_dict()
+print(json.dumps(result))
 """
 
 

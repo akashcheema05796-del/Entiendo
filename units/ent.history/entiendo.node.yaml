@@ -1,0 +1,30 @@
+# NOTE: entrypoint takes (root, event) — blocked on the single-arg harness seam
+apiVersion: entiendo/v1
+kind: Node
+id: ent.history
+name: Flight Recorder
+task: Append-only, locked, fsynced event ledger per project; never rewritten, readers tolerate
+  old versions.
+description: 'entiendo/history/events.jsonl: version, eval, trace, and proposal events with
+  sequence numbers under an exclusive lock. The store every lens reads and no code path may
+  truncate.'
+nodeKind: state
+group: runtime
+owner: akashdatageek
+status: experimental
+claims:
+- src/ent/history.py
+contract:
+  invariants: []
+  sideEffects: writes
+evals:
+  tier0:
+  - type: invariant_check
+observability:
+  spanName: ent.history
+dependencies:
+  calls:
+  - ent.contracts
+  - ent.packaging
+  - ent.versioning
+  writes: []

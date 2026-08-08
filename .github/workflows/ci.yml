@@ -22,6 +22,14 @@ jobs:
       - name: Test
         run: pytest -q
 
+      # Self-host gate: the repo manages itself with 14 units. Drift between
+      # declared edges and real imports fails the build here like anywhere.
+      - name: Validate + reconcile the repo's own units
+        run: |
+          ent validate
+          ent extract --check
+          ent eval ent.contracts
+
       - name: Validate + reconcile the example (L0 + L1)
         working-directory: examples/greenfield
         run: |

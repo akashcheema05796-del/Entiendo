@@ -1,0 +1,10 @@
+# Files intentionally not owned by any unit (Invariant 4 — unclaimed is visible).
+# Eval fixtures live under evals/, owned by their unit's eval config.
+evals/*
+# The repo's own test suite and docs: glue that judges the units, not behaviour
+# any single unit owns. Editable by anyone; changing them never bumps a version.
+tests/*
+docs/*
+scripts/*
+*.md
+LICENSE

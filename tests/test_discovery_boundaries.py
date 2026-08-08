@@ -56,9 +56,16 @@ def test_own_root_markers_do_not_prune_the_root(tmp_path: Path) -> None:
 
 
 def test_examples_are_invisible_from_the_entiendo_repo_root() -> None:
-    """The live regression: the repo root owns no units, and the examples are
-    self-contained projects that must not leak into a root-level discovery."""
-    assert discover(REPO_ROOT) == []
+    """The live regression: the examples are self-contained projects that must
+    not leak into a root-level discovery. (The repo now owns units of its own —
+    the self-host retrofit — so the assertion is about WHERE manifests come
+    from, not that there are none.)"""
+    found = discover(REPO_ROOT)
+    assert found, "the self-host units should be discovered"
+    for path in found:
+        rel = path.relative_to(REPO_ROOT)
+        assert rel.parts[0] == "units", f"manifest outside units/: {rel}"
+        assert "examples" not in rel.parts, f"example project leaked: {rel}"
 
 
 # --------------------------------------------------------------------------- #
@@ -78,6 +85,34 @@ def test_mcp_starts_on_an_unmanaged_repo(tmp_path: Path) -> None:
     proc = _run_mcp(tmp_path)
     assert proc.returncode == 0
     assert "manifests are invalid" not in proc.stdout
+
+
+def test_selfhost_repo_validates_and_reconciles() -> None:
+    """The Entiendo repo manages itself: 14 units, every file claimed or
+    explicitly acknowledged, declared edges verified against real imports."""
+    from ent.extractor import extract
+    from ent.validation import validate_root
+
+    assert validate_root(REPO_ROOT).ok
+    result = extract(REPO_ROOT)
+    assert result.ok, result.errors
+    assert len(result.graph["nodes"]) == 14
+    assert result.coverage["unaccountedCount"] == 0, result.coverage["unaccounted"]
+
+
+def test_selfhost_runnable_units_are_green() -> None:
+    """The units with a single-arg entrypoint actually execute their smoke.
+
+    Via the sandbox subprocess — the production path. In-process run_tier0 on
+    ent's OWN units would purge live ent.* modules from sys.modules (the
+    entrypoint freshness cache), splitting module state under this very test
+    run. Cross-process isolation is the correct execution boundary here."""
+    from ent import sandbox
+    from ent.manifest import find_node
+
+    for uid in ("ent.contracts", "ent.retrofit"):
+        res = sandbox.run_sandboxed(REPO_ROOT, find_node(REPO_ROOT, uid))
+        assert res["verdict"] == "GREEN", (uid, res)
 
 
 def test_mcp_still_refuses_actually_invalid_manifests(tmp_path: Path) -> None:

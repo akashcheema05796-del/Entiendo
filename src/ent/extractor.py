@@ -36,7 +36,7 @@ from typing import Any
 
 from . import languages
 from .evals.entrypoint import entrypoint_spec, propose_entrypoint, scan_decorated
-from .manifest import MANIFEST_FILENAME, _SKIP_DIRS, Node, discover, load
+from .manifest import Node, discover, iter_project_files, load
 from .version import compute_version
 
 GRAPH_ARTIFACT = "entiendo/graph.json"
@@ -120,21 +120,7 @@ def _candidate_files(root: Path) -> list[str]:
     Everything under root except vendored/generated dirs, the entiendo/ artifact
     tree, dotfiles, and the manifests themselves.
     """
-    out: list[str] = []
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        parts = path.relative_to(root).parts
-        if any(p in _SKIP_DIRS for p in parts):
-            continue
-        if parts and parts[0] == "entiendo":
-            continue
-        if any(p.startswith(".") for p in parts):
-            continue
-        if path.name == MANIFEST_FILENAME:
-            continue
-        out.append(_rel(path, root))
-    return sorted(out)
+    return sorted(_rel(p, root) for p in iter_project_files(root) if p.is_file())
 
 
 def _unclaimed_patterns(root: Path) -> list[str]:

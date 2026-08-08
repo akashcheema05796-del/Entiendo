@@ -12,9 +12,25 @@ they're reconciled.
   on pypi.org)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **416 passing** (~11s), plus an optional
+- **Tests:** `python -m pytest -q` → **431 passing** (~13s), plus an optional
   browser suite: `pytest tests/frontend/frontend_universe.py` (16 Playwright
   tests, not collected by default).
+
+**Self-hosting ✅** — the repo manages itself: **14 semantic units** under
+`units/` (engine: contracts/versioning/graph · quality: evalkit/trust ·
+runtime: history/observer/timetravel · surface: universe/cli · agents:
+bridge/retrofit/plugin · dist: packaging), every file claimed or explicitly
+acknowledged in `entiendo/unclaimed.txt` (unaccounted = 0), all declared edges
+verified by the reconciler, and CI gates `ent validate` + `ent extract --check`
+at the repo root. Five units execute real tier0 smokes today
+(`ent.contracts`, `ent.graph`, `ent.surface`, `ent.cli`, `ent.retrofit` —
+GREEN); the other nine read UNTESTED until the multi-arg harness seam exists
+(open design question). Dogfooding fallout fixed in the same pass: all file
+walks stop at nested project roots (shared `iter_project_files`), the sandbox
+protects its stdout JSON protocol from print()ing entrypoints, and the
+enforce_claims hook now allows explicitly-unclaimed (acknowledged) files —
+during this retrofit the hook mechanically denied an edit to its own file
+until `ent.plugin` claimed it with human sign-off, which is the system working.
 
 **PLAN_v6 (trust hardening) — in progress:** Phase 0 verification ✅
 (`docs/V6_VERIFICATION.md` — all 13 audit questions answered with file:line
