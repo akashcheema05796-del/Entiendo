@@ -230,6 +230,8 @@
   .win .wtabs button:focus-visible { outline:1px solid var(--annotation); }
   .win .wbody { overflow:auto; padding:10px 12px; font-size:12px; line-height:1.5; }
   .win .wbody pre { font-family:var(--font-mono); font-size:11px; white-space:pre-wrap; margin:0; }
+  .win .wbody textarea { min-height:64px; margin-bottom:2px; }
+  .win .wbody .btns button { padding:6px 11px; font-size:12px; }
   .win .warn { color: var(--signal-amber); }
   .win .vok { color: var(--signal-green); }
   .win .row2 { display:flex; justify-content:space-between; gap:8px; }
@@ -382,7 +384,9 @@ async function watchVersion(){
 // Windows render ENTIRELY from the embedded payload (no fetch); positions are
 // user state, never graph state; the dossier stays the action surface.
 const wins=new Map(); let winZ=30, focusedWin=null;
-const WIN_CAP=6, WTABS=['manifest','contract','evals','history','blast'];
+// 'steer' is the write path. Without it the window — the primary v7 surface —
+// could only read, and acting on a unit meant finding the legacy side panel.
+const WIN_CAP=6, WTABS=['manifest','contract','evals','history','blast','steer'];
 function nodeOf(id){ return view.nodes.find(n=>n.id===id); }
 function openWindow(id){
   if (wins.has(id)){ const w=wins.get(id); if (w.minimized) restoreWin(id); focusWin(id); return; }
@@ -409,6 +413,17 @@ function openWindow(id){
   el.querySelector('.wclose').addEventListener('click', e=>{ e.stopPropagation(); closeWin(id); });
   el.querySelector('.wmin').addEventListener('click', e=>{ e.stopPropagation(); minimizeWin(id); });
   el.querySelectorAll('.wtabs button').forEach(b=>b.addEventListener('click', ()=>setWinTab(id, b.dataset.tab)));
+  // Delegated: the body is re-rendered on every tab switch, so per-render
+  // listeners would go stale (and stack).
+  el.addEventListener('click', e=>{
+    const t=e.target;
+    if (t.closest('.wsteer-btn')) { e.stopPropagation(); winSteer(id, el); }
+    else if (t.closest('.wrevert-btn')) { e.stopPropagation(); winRevert(id, el); }
+    else if (t.closest('.wappr-btn')) { e.stopPropagation();
+      winSettle(id, el, t.closest('.wappr-btn').dataset.pid, 'approve'); }
+    else if (t.closest('.wrej-btn')) { e.stopPropagation();
+      winSettle(id, el, t.closest('.wrej-btn').dataset.pid, 'reject'); }
+  });
   let drag=null;   // drag by chrome only — tabs/body/buttons stay interactive
   el.addEventListener('pointerdown', e=>{
     if (e.target.closest('.wtabs,.wbody,button')) return;
@@ -440,6 +455,7 @@ function renderDock(){ const d=document.getElementById('dock'); if(!d) return;
 function setWinTab(id, tab){ const w=wins.get(id); if(!w) return;
   w.tab=tab; w.el.querySelectorAll('.wtabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
   w.el.querySelector('.wbody').innerHTML = winTabHtml(nodeOf(id), tab);
+  if (tab==='steer') winProposals(id, w.el);      // any open gate for THIS unit
   winFocusCoupling(id); saveWorkspaceSoon();
 }
 function winTabHtml(n, tab){
@@ -507,7 +523,82 @@ approvalRequired: <span class="${n.approvalRequired?'warn':''}">${n.approvalRequ
       return `<div class="row2"><span>${esc(id)}</span>
         <span class="${risky?'warn':''}">${risky?('⚠ '+esc(d.sideEffects)):esc(d.sideEffects||'none')}</span></div>`; }).join('');
   }
+  if (tab==='steer'){
+    if (STATIC) return '<div style="color:var(--muted)">static snapshot — '
+      + 'run <code>ent serve</code> to steer this unit</div>';
+    const gated = n.approvalRequired
+      ? '<div class="pill warn" style="margin-bottom:6px">approval required — '
+        + 'edits land as a proposal you approve here</div>' : '';
+    return `${gated}<div class="wsteer-props"></div>
+      <textarea class="wsteer-input" placeholder="Steer ${esc(n.id)}: describe a change — the workload edits within this unit's claims only"></textarea>
+      <div class="btns">
+        <button class="act primary wsteer-btn">Steer</button>
+        <button class="act wrevert-btn">Revert</button>
+      </div>
+      <div class="wsteer-status" style="color:var(--muted);font-size:12px;margin-top:8px"></div>
+      <div class="wsteer-out"></div>`;
+  }
   return '';
+}
+
+// ── the window's write path (v7 gap): every action is scoped to THIS window's
+// unit, never to the canvas selection, so two open windows can't act on each
+// other's unit. Same endpoints the dossier uses. ──────────────────────────── //
+async function winSteer(unitId, el){
+  if (STATIC) return;
+  const ta=el.querySelector('.wsteer-input'), btn=el.querySelector('.wsteer-btn'),
+        st=el.querySelector('.wsteer-status'), out=el.querySelector('.wsteer-out');
+  const instr=(ta && ta.value || '').trim();
+  if (!instr){ st.textContent='describe the change first'; return; }
+  btn.disabled=true; st.textContent='sending…';
+  const {status:code, data}=await api('POST','/api/steer',{unit:unitId, instruction:instr});
+  btn.disabled=false;
+  if (code!==200){ st.textContent=data.error||'error'; return; }
+  st.textContent='queued — waiting for the operator (Claude Code)…';
+  out.innerHTML=`<div class="edge"><span class="pill">queued</span> <code>${esc(data.id)}</code></div>`;
+  winSteerPoll(unitId, el, data.id);
+}
+function winSteerPoll(unitId, el, reqId){
+  const timer=setInterval(async ()=>{
+    if (!el.isConnected){ clearInterval(timer); return; }      // window closed
+    const {data}=await api('GET','/api/steering');
+    const res=(data.results||{})[reqId];
+    if (!res) return;
+    clearInterval(timer);
+    const v=(res.outcome&&res.outcome.verdict)||res.verdict||'done';
+    const st=el.querySelector('.wsteer-status'); if (st) st.textContent='verdict: '+v;
+    await refresh(unitId);
+    const w=wins.get(unitId); if (w && w.tab==='steer') setWinTab(unitId,'steer');
+  }, 1500);
+}
+async function winRevert(unitId, el){
+  if (STATIC) return;
+  const st=el.querySelector('.wsteer-status');
+  const {data}=await api('POST',`/api/node/${unitId}/revert`,{});
+  if (st) st.textContent=data.restored?`reverted ${data.restored.length} file(s)`
+                                      :(data.error||'nothing to revert');
+  await refresh(unitId);
+}
+async function winProposals(unitId, el){
+  if (STATIC) return;
+  const box=el.querySelector('.wsteer-props'); if (!box) return;
+  const {data}=await api('GET','/api/proposals');
+  const mine=(data.proposals||[]).filter(p=>p.unit===unitId);
+  box.innerHTML = mine.map(p=>`<div class="edge" style="margin-bottom:6px">
+      <span class="pill warn">awaiting approval</span> <code>${esc(p.id)}</code>
+      <div class="btns" style="margin-top:6px">
+        <button class="act primary wappr-btn" data-pid="${esc(p.id)}">Approve</button>
+        <button class="act wrej-btn" data-pid="${esc(p.id)}">Reject</button>
+      </div></div>`).join('');
+}
+async function winSettle(unitId, el, pid, action){
+  if (STATIC) return;
+  const st=el.querySelector('.wsteer-status');
+  const {data}=await api('POST',`/api/proposals/${pid}/${action}`,{});
+  if (st) st.textContent = data.applied ? `approved — applied ${data.applied.length} file(s)`
+                                        : (data.error || `${action}ed`);
+  await refresh(unitId);
+  await winProposals(unitId, el);
 }
 // v7 phase 3 — the focused window's node IS the canvas selection; the blast
 // tab flips the canvas lens; the map is live context, never wallpaper.

@@ -118,7 +118,7 @@ def test_universe_contains_window_layer() -> None:
 
 def test_universe_tab_ids() -> None:
     html = (REPO_ROOT / "src/ent/universe.html").read_text()
-    assert "'manifest','contract','evals','history','blast'" in html.replace('"', "'")
+    assert "'manifest','contract','evals','history','blast','steer'" in html.replace('"', "'")
 
 
 def test_universe_no_localstorage() -> None:
