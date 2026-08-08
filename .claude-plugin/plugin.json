@@ -1,18 +1,23 @@
 {
   "name": "entiendo",
   "description": "Entiendo control plane for AI-built software: the entiendo MCP server (steer/edit/eval through units), the entiendo-operator skill, and the enforce_claims boundary hook.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Entiendo"
   },
   "mcpServers": {
     "entiendo": {
       "command": "ent",
-      "args": ["mcp", "--root", "."]
+      "args": [
+        "mcp",
+        "--root",
+        "."
+      ]
     }
   },
   "skills": [
-    "../.claude/skills/entiendo-operator"
+    "./.claude/skills/entiendo-operator",
+    "./.claude/skills/entiendo-retrofit"
   ],
   "hooks": {
     "PreToolUse": [
@@ -21,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/../.claude/hooks/enforce_claims.py\""
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/.claude/hooks/enforce_claims.py\""
           }
         ]
       }
