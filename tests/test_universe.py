@@ -170,7 +170,10 @@ def test_fifty_node_view_renders_with_group_collapse() -> None:
             "reconciled": True, "executable": 50, "nodeCount": 50,
             "timelines": {}, "traces": [], "traffic": {}}
     html = build_universe(view)
-    assert "COLLAPSE_THRESHOLD = 12" in html   # collapse kicks in above 12 units
+    # Collapse kicks in above 24 units. It was 12, which hid a 14-unit repo
+    # behind six abstract group boxes on landing — small and mid-size repos
+    # should show their actual units.
+    assert "COLLAPSE_THRESHOLD = 24" in html
     data = _embedded(html)
     assert len(data["nodes"]) == 50
     assert len({n["group"] for n in data["nodes"]}) == 6
