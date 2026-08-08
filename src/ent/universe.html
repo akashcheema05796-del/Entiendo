@@ -491,7 +491,9 @@ approvalRequired: <span class="${n.approvalRequired?'warn':''}">${n.approvalRequ
   }
   if (tab==='history'){
     const rows=n.history||[];
-    if (!rows.length) return '<div style="color:var(--muted)">no history recorded yet</div>';
+    if (!rows.length) return '<div style="color:var(--muted)">no history recorded yet — '
+      + '<code>ent eval</code> records verdicts, <code>ent snapshot</code> records '
+      + 'a full version + verdict pass</div>';
     return rows.map(r=>`<div class="row2" style="border-bottom:1px solid var(--hairline);padding:3px 0">
       <span style="font-family:var(--font-mono);font-size:10.5px">${esc(r.version||'—')}</span>
       <span>${esc(r.summary||'')}${r.evalSummary?' · '+esc(r.evalSummary):''}</span>
