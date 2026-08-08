@@ -34,8 +34,14 @@
 
   header { position:fixed; top:0; left:0; right:0; z-index:5; display:flex; gap:16px;
     align-items:baseline; padding:14px 20px; pointer-events:none; }
+  /* The lens bar is fixed and centred, so the brand must never grow into the
+     middle third — it did, and the tagline rendered underneath the pills at
+     1440px. Reserve half the bar (~263px) plus breathing room, and truncate
+     rather than collide; below 980px the tagline steps aside entirely. */
   header .brand { font-family:var(--font-display); font-weight:600; font-size:22px;
-    letter-spacing:.3px; color:var(--starlight); }
+    letter-spacing:.3px; color:var(--starlight);
+    min-width:0; max-width:calc(50% - 300px);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   header .brand small { font-family:var(--font-body); font-size:11.5px; color:var(--muted);
     letter-spacing:.4px; font-weight:400; }
   #summary { color:var(--muted); font-size:11.5px; font-family:var(--font-mono); }
@@ -46,6 +52,19 @@
   .lens { border:0; background:transparent; color:var(--muted); border-radius:999px;
     padding:6px 13px; cursor:pointer; font-size:12px; white-space:nowrap; font-family:var(--font-body); }
   .lens.active { background:var(--annotation); color:var(--field); font-weight:600; }
+  /* Below 980px the centred pill bar is wider than the viewport — it centred
+     itself off-screen left (measured starting at -67px at 390px), putting the
+     first lenses out of reach. Drop it under the header as a full-width
+     scrollable strip, and let the brand keep the whole top row.
+     NOTE: must come AFTER the #lenses/.brand base rules — equal specificity,
+     so source order decides. */
+  @media (max-width: 980px) {
+    header .brand { max-width:none; }
+    header .brand small { display:none; }
+    #lenses { top:52px; left:8px; right:8px; transform:none;
+      justify-content:flex-start; overflow-x:auto; scrollbar-width:none; }
+    #lenses::-webkit-scrollbar { display:none; }
+  }
   .lens:focus-visible, #dock .chip:focus-visible, .win button:focus-visible {
     outline:1.5px solid var(--annotation); outline-offset:1px; }
 
@@ -102,9 +121,14 @@
     border-radius:7px; padding:4px 9px; cursor:pointer; font-size:11.5px; }
 
   /* dossier — logic first, hashes last */
+  /* Flex column, NOT one big scroller: the body scrolls and the action bar is a
+     real footer. As a sticky child of the scroll area it floated over its own
+     content — the edge list rendered through and under the steer box. */
   #dossier { position:fixed; top:0; right:0; height:100%; width:410px; max-width:94vw; z-index:8;
     background:var(--panel); border-left:1px solid var(--hairline); backdrop-filter:blur(12px);
-    transform:translateX(100%); transition:transform .24s ease; overflow:auto; padding:22px 22px 44px; }
+    transform:translateX(100%); transition:transform .24s ease;
+    display:flex; flex-direction:column; overflow:hidden; padding:22px 22px 0; }
+  #dossier-body { flex:1 1 auto; overflow:auto; min-height:0; padding-bottom:14px; }
   #dossier.open { transform:none; }
   #dossier h2 { font-family:var(--font-display); font-weight:600; margin:2px 0; font-size:22px; word-break:break-word; }
   #dossier .kindline { color:var(--muted); font-size:11.5px; margin-bottom:14px; font-family:var(--font-mono); }
@@ -125,8 +149,12 @@
   details.artifacts summary { cursor:pointer; color:var(--muted); font-size:10.5px;
     text-transform:uppercase; letter-spacing:.8px; }
   details.artifacts li { font-family:var(--font-mono); font-size:12px; }
-  .actions { position:sticky; bottom:0; background:linear-gradient(transparent, var(--panel) 30%);
-    padding-top:14px; margin-top:10px; }
+  /* A sticky footer whose own background starts transparent lets the panel's
+     scrolling content (the edge list) show THROUGH the steer box. The band
+     itself must be opaque — matching the dossier gradient's foot — with the
+     fade lifted into a strip above it. */
+  .actions { flex:none; background:#090b13; margin:0 -22px; padding:14px 22px 18px;
+    border-top:1px solid var(--hairline); }
   textarea { width:100%; min-height:58px; border:1px solid var(--hairline); border-radius:8px;
     background:#05070e99; color:var(--starlight); padding:8px; font:13px/1.4 var(--font-body); resize:vertical; }
   .btns { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
@@ -1457,6 +1485,13 @@ function openDossier(u){
       <div id="status"></div><div id="outcome"></div>
     </div>`;
   document.getElementById('dossier-body').innerHTML=body;
+  // Lift the action bar out of the scrolling body so it is a real panel footer
+  // (built in the same template for locality; hoisted once per render). Drop the
+  // previous footer first — appending blindly stacks one per render.
+  const _dos=document.getElementById('dossier');
+  _dos.querySelectorAll(':scope > .actions').forEach(n=>n.remove());
+  const _act=document.querySelector('#dossier-body .actions');
+  if(_act) _dos.appendChild(_act);
   document.getElementById('dossier').classList.add('open');
   if (STATIC){ for (const id of ['steerBtn','revertBtn','approveBtn','rejectBtn']){ const b=document.getElementById(id);
     b.disabled=true; b.title='Static snapshot — run `ent serve` to act'; } }
