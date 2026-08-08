@@ -356,7 +356,8 @@ async function watchVersion(){
     try{
       const r = await fetch('/api/version'+(since===null?'':'?since='+since));
       if (r.status !== 200) return;
-      const {version} = await r.json();
+      const {version, watching} = await r.json();
+      if (watching === false) return;          // plain `ent serve` — no reload to wait for
       if (since !== null && String(version) !== String(since)){ location.reload(); return; }
       since = version;
     }catch(e){ await new Promise(res=>setTimeout(res, 2000)); }
