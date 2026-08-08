@@ -58,6 +58,15 @@ From there: click a unit → read its dossier → hit **Steer** and let a Claude
 Code operator (`ent serve --operator`) make the change through the unit's
 claims, with the verdict and blast radius surfacing in the map.
 
+**Use it inside Claude Code** — the MCP server, the operator/retrofit skills,
+and the boundary hook install as one plugin; see
+**[docs/deploy-claude-code.md](./docs/deploy-claude-code.md)**:
+
+```
+/plugin marketplace add akashdatageek/Entiendo
+/plugin install entiendo@entiendo-marketplace
+```
+
 **Platform support:** macOS and Linux are first-class. On Windows, the core
 works with degraded guarantees — history locking falls back from `fcntl` to
 `msvcrt`, and the eval sandbox skips POSIX rlimits (timeouts still apply) —

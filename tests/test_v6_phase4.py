@@ -94,16 +94,26 @@ def test_ent_dev_alias_registers() -> None:
 # --------------------------------------------------------------------------- #
 
 def test_plugin_manifest_validates_and_references_real_files() -> None:
-    plugin_dir = REPO_ROOT / ".claude-plugin"
-    plugin = json.loads((plugin_dir / "plugin.json").read_text())
+    """Paths resolve from the PLUGIN ROOT — the repo root, i.e. what
+    ${CLAUDE_PLUGIN_ROOT} expands to at runtime. Resolving them from
+    .claude-plugin/ instead once hid a '../' that escaped the repo entirely."""
+    plugin_root = REPO_ROOT                      # marketplace source is "./"
+    plugin = json.loads((plugin_root / ".claude-plugin/plugin.json").read_text())
     assert plugin["name"] == "entiendo" and plugin["version"]
     assert plugin["mcpServers"]["entiendo"]["command"] == "ent"
     for rel in plugin["skills"]:
-        assert (plugin_dir / rel).resolve().is_dir(), f"skill missing: {rel}"
+        target = (plugin_root / rel).resolve()
+        assert target.is_dir(), f"skill missing: {rel}"
+        assert plugin_root in target.parents, f"skill escapes the plugin: {rel}"
+        assert (target / "SKILL.md").is_file(), f"skill has no SKILL.md: {rel}"
     hook_cmds = [h["command"] for entry in plugin["hooks"]["PreToolUse"]
                  for h in entry["hooks"]]
     assert any("enforce_claims.py" in c for c in hook_cmds)
-    assert (REPO_ROOT / ".claude/hooks/enforce_claims.py").is_file()
+    for cmd in hook_cmds:                        # every hook path must exist
+        rel = cmd.split("${CLAUDE_PLUGIN_ROOT}/")[1].rstrip('"')
+        target = (plugin_root / rel).resolve()
+        assert target.is_file(), f"hook missing: {rel}"
+        assert plugin_root in target.parents, f"hook escapes the plugin: {rel}"
 
 
 def test_marketplace_manifest_lists_the_plugin() -> None:
