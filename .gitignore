@@ -21,6 +21,11 @@ htmlcov/
 /entiendo/graph.json
 /entiendo/coverage.json
 /entiendo/render.html
+# A real project SHOULD commit its flight recorder — the history is the point.
+# This repo does not: CI runs `ent eval` on every push, so the ledger would
+# churn with events from throwaway checkouts rather than recording anything a
+# reader of this repo needs.
+/entiendo/history/
 
 # Local env
 .env

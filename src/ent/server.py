@@ -280,6 +280,19 @@ def inject_csrf(html: str, token: str) -> str:
     return html.replace("<head>", "<head>\n" + tag, 1)
 
 
+def version_payload(watcher: Any | None) -> dict[str, Any]:
+    """Body for `/api/version`. Separated from the handler so the no-watcher
+    contract is unit-testable without a socket (same pattern as check_csrf).
+
+    `watching: False` is the signal that live reload is not running — the page
+    stops polling rather than treating the answer as a version that never
+    changes.
+    """
+    if watcher is None:
+        return {"version": None, "watching": False}
+    return {"version": watcher.version, "watching": True}
+
+
 def serve(root: Path, port: int = 7373, *, client: Any | None = None,
           watch: bool = False) -> None:  # pragma: no cover
     import secrets
@@ -313,14 +326,18 @@ def serve(root: Path, port: int = 7373, *, client: Any | None = None,
                 self._send(200, app_html, "text/html; charset=utf-8")
                 return
             # live reload (v6 4.2): bounded long-poll — returns when the tree
-            # changes or after ~25s, whichever first.
-            if watcher and urlparse(self.path).path == "/api/version":
-                qs = parse_qs(urlparse(self.path).query)
-                since = qs.get("since", [""])[0]
-                deadline = _time.time() + 25.0
-                while (str(watcher.version) == since and _time.time() < deadline):
-                    _time.sleep(0.25)
-                self._send(200, {"version": watcher.version}, "application/json")
+            # changes or after ~25s, whichever first. The route answers even
+            # with no watcher (plain `ent serve`): the page asks on every load,
+            # and a 404 there reads as a broken surface. `watching: false` tells
+            # it to stop asking instead.
+            if urlparse(self.path).path == "/api/version":
+                if watcher is not None:
+                    qs = parse_qs(urlparse(self.path).query)
+                    since = qs.get("since", [""])[0]
+                    deadline = _time.time() + 25.0
+                    while (str(watcher.version) == since and _time.time() < deadline):
+                        _time.sleep(0.25)
+                self._send(200, version_payload(watcher), "application/json")
                 return
             status, payload = handle_api(root, "GET", self.path, None, client=client)
             if urlparse(self.path).path == "/api/graph":

@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .. import sandbox, verdicts
+from .. import gitinfo, history, sandbox, verdicts
 from ..evals.runner import Check, EvalResult, run_tier0, run_tier1, run_tier2
 from ..manifest import discover, load, Node, find_node
 
@@ -46,6 +46,8 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
     p.add_argument("--root", default=".", help="project root (default: current directory)")
     p.add_argument("--no-sandbox", action="store_true",
                    help="run entrypoints in-process (no child process, no timeout/rlimits)")
+    p.add_argument("--no-journal", action="store_true",
+                   help="do not record the result in entiendo/history (default: record)")
     p.set_defaults(handler=_run)
 
 
@@ -82,12 +84,25 @@ def _run(args: argparse.Namespace) -> int:
     # entrypoint is killed on the wall clock instead of hanging the runner.
     use_sandbox = tier_num in (0, 1) and not getattr(args, "no_sandbox", False) \
         and not sandbox.in_sandbox()
+    # The flight recorder only recorded when `ent snapshot` ran, so the history
+    # tab and the timeline lens stayed empty for anyone who never found that
+    # command — the most common act in the tool left no trace. Journal here too.
+    journal = not getattr(args, "no_journal", False)
+    commit = gitinfo.short_commit(root) if journal else None
+    ts = gitinfo.now_iso() if journal else None
+
     codes: list[int] = []
     for node in sorted(nodes, key=lambda n: n.id):
         if use_sandbox:
             result = _from_dict(sandbox.run_sandboxed(root, node, tier_num))
         else:
             result = runner(node, root)
+        if journal:
+            try:
+                history.append_eval(root, node.id, result.verdict, tier_num,
+                                    commit=commit, ts=ts)
+            except OSError as exc:      # a read-only tree must not fail the eval
+                print(f"  (not journalled: {exc})")
         _print_result(result, tier=tier_name, verbose=not args.all)
         if tier_num == 1:
             _print_blesser(root, node.id)
