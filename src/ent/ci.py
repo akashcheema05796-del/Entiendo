@@ -72,6 +72,7 @@ def run_ci(root: Path, *, soft: bool = False, min_coverage: float | None = None)
         stages.append(_coverage_stage(ext, min_coverage))
     stages.append(_eval_stage(root))
     stages.append(_tier1_stage(root))
+    stages.append(_budget_stage(root))
     return CiResult(stages=stages)
 
 
@@ -129,6 +130,46 @@ def _eval_stage(root: Path) -> Stage:
         severity = 2 if counts[verdicts.ERROR] else 1     # ERROR outranks RED (v6 3.2)
         return Stage("eval", False, f"{summary} — {', '.join(failing)}", severity=severity)
     return Stage("eval", True, summary)
+
+
+def _budget_stage(root: Path) -> Stage:
+    """Declared budgets vs measured reality (research rec C).
+
+    `tokensPerCall` / `costPerCallUsd` / `p95LatencyMs` were declared but never
+    enforced — dead schema fields. Measurements come from recorded traces
+    (manual capture or the OTel gen_ai reader); a unit over any declared budget
+    is DEGRADED (severity 4), the same lane as UNSTABLE: not broken, but not
+    within its own declaration either. Units with no declared budgets or no
+    measurements simply pass — partial coverage is the normal state.
+    """
+    from . import history, verdicts
+    from .manifest import Node, discover, load
+    from .render import _measured_budgets
+
+    measured = _measured_budgets(history.traces(root))
+    over: list[str] = []
+    checked = 0
+    for path in discover(root):
+        node = Node.from_manifest(load(path), path)
+        declared = (node.raw.get("budgets") or {})
+        m = measured.get(node.id)
+        if not declared or not m:
+            continue
+        checked += 1
+        pairs = (("tokensPerCall", m.get("avgTokens"), "tokens/call"),
+                 ("costPerCallUsd", m.get("avgCostUsd"), "$/call"),
+                 ("p95LatencyMs", m.get("p95LatencyMs"), "ms p95"))
+        for key, got, label in pairs:
+            limit = declared.get(key)
+            if limit is not None and got is not None and got > limit:
+                over.append(f"{node.id}: {got} > {limit} {label}")
+    if over:
+        return Stage("budgets", False,
+                     f"{len(over)} unit(s) over declared budget",
+                     warnings=over, severity=verdicts.EXIT_CODE[verdicts.DEGRADED])
+    return Stage("budgets", True,
+                 f"{checked} unit(s) within declared budgets" if checked
+                 else "no declared budgets with measurements")
 
 
 def _tier1_stage(root: Path) -> Stage:

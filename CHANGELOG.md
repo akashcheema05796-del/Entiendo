@@ -6,6 +6,16 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Added
+- **OTel GenAI span reader** (`ent otel <otlp.json>`): ingest
+  `gen_ai.usage.input_tokens`/`output_tokens` and
+  `gen_ai.request.model`/`gen_ai.response.model` from the spans standard
+  auto-instrumentation (OpenLLMetry/OpenLIT style) already emits — read, never
+  proxied, so the read-only invariant holds. Nested LLM spans roll up to the
+  enclosing unit via `entiendo.node_id` or `observability.spanName`.
+- **Budgets now gate**: `tokensPerCall`/`costPerCallUsd`/`p95LatencyMs` were
+  declared but never enforced. `ent ci` gains a budgets stage — over budget is
+  DEGRADED (exit 4). refundly's deliberate gateway overage is now asserted in
+  CI as the proof the gate works.
 - **`contract.harness`** — the seam for units whose entrypoint is not a
   one-argument function. A harness is called as `harness(row, ctx)` with
   `ctx.entrypoint`/`ctx.root`/`ctx.node` and returns the output that invariants

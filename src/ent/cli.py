@@ -24,6 +24,7 @@ from typing import Sequence
 
 from . import __api_version__, __version__
 from .commands import init as init_cmd
+from .commands import otel as otel_cmd
 from .commands import validate as validate_cmd
 from .commands import extract as extract_cmd
 from .commands import eval as eval_cmd
@@ -73,6 +74,7 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor_cmd.register(sub)
     fixtures_cmd.register(sub)
     ci_cmd.register(sub)
+    otel_cmd.register(sub)
 
     return parser
 

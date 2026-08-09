@@ -93,6 +93,15 @@ def test_new_events_carry_v1_and_readers_tolerate_absence(tmp_path: Path) -> Non
 def refundly(tmp_path: Path) -> Path:
     dest = tmp_path / "refundly"
     shutil.copytree(REFUNDLY, dest)
+    # These tests assert TIER1 exit codes precisely. refundly deliberately
+    # ships a gateway cost overage (its budget showcase), which now gates ci
+    # at DEGRADED(4) and would mask the tier1 severities under the max-rule —
+    # raise that one budget in this copy so tier1 alone drives the exit code.
+    import yaml
+    gpath = dest / "src/gateway/entiendo.node.yaml"
+    gdoc = yaml.safe_load(gpath.read_text())
+    gdoc.setdefault("budgets", {})["costPerCallUsd"] = 0.10
+    gpath.write_text(yaml.safe_dump(gdoc, sort_keys=False))
     return dest
 
 

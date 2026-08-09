@@ -12,8 +12,8 @@ group: surface
 owner: akashdatageek
 status: experimental
 claims:
-- src/ent/cli.py
 - src/ent/ci.py
+- src/ent/cli.py
 - src/ent/commands/__init__.py
 - src/ent/commands/_stub.py
 - src/ent/commands/baseline.py
@@ -27,6 +27,7 @@ claims:
 - src/ent/commands/init.py
 - src/ent/commands/mcp.py
 - src/ent/commands/new.py
+- src/ent/commands/otel.py
 - src/ent/commands/pin.py
 - src/ent/commands/render.py
 - src/ent/commands/replay.py
@@ -52,6 +53,7 @@ dependencies:
   - ent.contracts
   - ent.evalkit
   - ent.graph
+  - ent.observer
   - ent.packaging
   - ent.surface
   - ent.timetravel
