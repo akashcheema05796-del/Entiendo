@@ -67,10 +67,16 @@ ent dev                         # → the Universe on http://127.0.0.1:7373,
                                 #   live-reloading as you edit
 ```
 
-From there: click a unit → its window opens (**inside** shows the functions and
-classes it holds) → hit **Steer**, and your coding agent makes the change
-through the unit's claims, with the verdict and blast radius surfacing in the
-map.
+The map opens as a **layered DAG** — callers on the left, foundations on the
+right, each layer labelled in plain words (the constellation view remains a
+toggle). From there: click a unit → its window opens (**inside** shows the
+functions and classes it holds, and — if the unit declares `interior.steps` —
+*how it works, in order*, each step typed by the OTel GenAI span kinds and
+optionally hash-bound to a file so the story cannot silently rot) → press
+**f** to focus the unit's *cone* (everything it depends on, everything that
+depends on it; the rest fades) → hit **Steer**, and your coding agent makes
+the change through the unit's claims, with the verdict and blast radius
+surfacing in the map.
 
 **Use it inside your builder.** Entiendo speaks **MCP**, so any MCP-capable
 editor can read and write *through units* — **Claude Code**, **Cursor**,
@@ -332,7 +338,12 @@ The words are deliberately plain: *"writes data"*, not `sideEffects: writes`;
 
 Agentic units aren't opaque orbs: their `interior` renders as **satellites on an
 orbit ring**, each tethered across the border to the unit its tool crosses (the
-ring dashes when the registry isn't enforced).
+ring dashes when the registry isn't enforced). A unit can also declare
+`interior.steps` — its ordered story, each step one of the five OTel GenAI span
+kinds (*asks a model, uses a tool, hands off to an agent, embeds text, runs a
+sub-flow*) and optionally **hash-bound** to a file: edit the file and the step
+goes stale, a reconciliation error that prints the new hash. Descriptions that
+cannot silently rot.
 
 ### Steer + approve on the canvas — `ent serve`
 
