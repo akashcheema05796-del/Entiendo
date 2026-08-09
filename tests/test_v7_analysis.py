@@ -170,9 +170,9 @@ def test_acyclic_graph_reports_no_cycles(tmp_path: Path) -> None:
     assert extract(root).graph["dependencyCycles"] == []
 
 
-def test_dossier_carries_cycle_membership() -> None:
+def test_unit_window_carries_cycle_membership() -> None:
     html = (REPO_ROOT / "src/ent/universe.html").read_text()
-    assert "dependencyCycles" in html and "dependency cycle with" in html
+    assert "dependencyCycles" in html and "circular dependency with" in html
 
 
 # --------------------------------------------------------------------------- #

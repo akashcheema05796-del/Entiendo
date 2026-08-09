@@ -48,18 +48,26 @@ def test_trace_descends_into_interiors() -> None:
 
 
 def test_red_trajectory_names_the_rule() -> None:
+    """A broken tool ORDER must name the rule it broke, not just say RED."""
     html = _html()
-    assert "trajectory RED" in html and "failedRule" in html     # the violated rule in the dossier
+    assert "tool order broke a rule" in html and "failedRule" in html
 
 
-def test_dossier_reads_logic_first() -> None:
+def test_unit_window_reads_logic_first() -> None:
+    """Prose before mechanics: what the unit is FOR, and what it can do, come
+    before its rules and edges. The unit window replaced the docked panel;
+    the ordering rule survives it."""
     html = _html()
-    # description ("What it does") appears before Contract; interior before contract.
-    assert html.index(">What it does</h3>") < html.index(">Contract</h3>")
-    assert html.index("interiorSection(u)") < html.index(">Contract</h3>")
+    inside = html.index("if (tab==='inside')")
+    promises = html.index("if (tab==='promises')")
+    assert inside < promises                       # 'inside' is the first tab
+    assert html.index("n.description?`<div class=\"wprose\"") < promises
+    assert html.index("winInterior(n)") < promises
 
 
-def test_interior_section_shows_process_and_maxsteps() -> None:
+def test_interior_shows_process_and_maxsteps() -> None:
+    """An agentic unit's insides are its tools and how many steps it may take —
+    shown in the same 'inside' tab as a plain unit's functions."""
     html = _html()
-    assert "function interiorSection" in html
-    assert "u.interior.process" in html and "maxSteps" in html
+    assert "function winInterior" in html
+    assert "n.interior.process" in html and "maxSteps" in html

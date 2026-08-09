@@ -33,26 +33,28 @@ def _html() -> str:
 # the approval surface: proposals section, Approve + Reject, both wired
 # --------------------------------------------------------------------------- #
 
-def test_dossier_has_proposals_section_and_both_actions() -> None:
+def test_the_gate_offers_both_actions() -> None:
+    """The gate lives in the unit window's steer tab now — one surface per unit,
+    so two open units cannot approve each other's proposal."""
     html = _html()
-    assert 'id="proposals"' in html                 # where an open proposal renders
+    assert 'class="wsteer-props"' in html            # where an open proposal renders
     assert ">Approve<" in html and ">Reject<" in html
-    assert 'id="approveBtn"' in html and 'id="rejectBtn"' in html
-    assert "async function approve" in html and "async function reject" in html
+    assert "wappr-btn" in html and "wrej-btn" in html
+    assert "async function winSettle" in html
 
 
 def test_gated_unit_loads_its_open_proposal() -> None:
     html = _html()
-    # opening a gated unit fetches the open proposals for it (H5)
-    assert "function loadProposals" in html
-    assert "u.approvalRequired" in html and "loadProposals(u.id)" in html
+    # opening the steer tab fetches the open proposals for THAT unit (H5)
+    assert "async function winProposals" in html
+    assert "n.approvalRequired" in html and "winProposals(id, w.el)" in html
     assert "/api/proposals" in html
 
 
 def test_approve_reject_call_the_real_endpoints() -> None:
     html = _html()
-    assert "/api/proposals/${id}/approve" in html
-    assert "/api/proposals/${id}/reject" in html
+    assert "/api/proposals/${pid}/${action}" in html      # approve | reject
+    assert "'approve'" in html and "'reject'" in html
 
 
 # --------------------------------------------------------------------------- #
@@ -91,6 +93,7 @@ def test_waiting_gate_pulses_gold_on_the_map() -> None:
 
 def test_static_snapshot_disables_the_gate_actions() -> None:
     html = _html()
-    # in a static render there is no server to approve against — actions are inert
-    assert "Static snapshot" in html
-    assert "'steerBtn','revertBtn','approveBtn','rejectBtn'" in html
+    # in a static render there is no server to approve against — the steer tab
+    # refuses to draw any control, and every action returns early
+    assert "run <code>ent serve</code> to steer" in html
+    assert html.count("if (STATIC) return;") >= 5

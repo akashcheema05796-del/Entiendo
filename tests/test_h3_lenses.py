@@ -76,14 +76,13 @@ def test_timeline_scrubber_present() -> None:
     html = _html()
     assert "renderScrubber" in html and 'id="scrub"' in html
     assert "tickAtCommit" in html and "view.commits" in html
-    assert "replayFingerprint" in html                 # tick action wired to replay
+    assert "winReplay" in html                        # tick action wired to replay
 
 
 def test_cost_overlay_and_legend() -> None:
     html = _html()
     assert "budgetBurn" in html                         # measured/declared arc
-    assert "spend is health" in html or "spend AND" in html or "correctness AND spend" in html \
-        or "spend/latency vs budget" in html
+    assert "speed/cost budget" in html                # the arc is explained in the legend
 
 
 def test_flow_edge_labels() -> None:
