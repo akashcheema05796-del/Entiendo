@@ -1,0 +1,51 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.akashdatageek/entiendo",
+  "title": "Entiendo",
+  "description": "Enforced system map for AI-built software: units with contracts and evals, a reconciler that fails the build on drift (undeclared deps, stale docs, silent model swaps), and steer/edit/eval tools that work through unit boundaries.",
+  "repository": {
+    "url": "https://github.com/akashdatageek/Entiendo",
+    "source": "github"
+  },
+  "version": "0.2.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "entiendo",
+      "version": "0.2.0",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--from",
+          "value": "entiendo[mcp]",
+          "description": "the MCP server lives behind the [mcp] extra (runtime deps stay minimal)"
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp",
+          "description": "start the stdio MCP server"
+        },
+        {
+          "type": "named",
+          "name": "--root",
+          "value": "{project_root}",
+          "description": "the repo the map is built from (defaults to the current directory)",
+          "variables": {
+            "project_root": {
+              "description": "absolute path to the project Entiendo manages",
+              "default": ".",
+              "isRequired": false
+            }
+          }
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

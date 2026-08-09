@@ -1,6 +1,17 @@
 # Entiendo — steer your codebase like mission control
 
+<!-- mcp-name: io.github.akashdatageek/entiendo -->
+
 [![CI](https://github.com/akashdatageek/Entiendo/actions/workflows/ci.yml/badge.svg)](https://github.com/akashdatageek/Entiendo/actions/workflows/ci.yml)
+
+> **The map that fails your build when it lies.** Every architecture diagram
+> goes stale; Entiendo's is **generated and enforced**. Declare what each unit
+> is, what it depends on, and which model answers for it — and the reconciler
+> turns every gap between declaration and reality into a build failure: an
+> undeclared dependency, a description bound to code that changed, **a model
+> your app started using that nobody reviewed**. Alerts tell you something
+> moved; Entiendo refuses to ship it until a human either fixes the code or
+> accepts the change as a new, diffable version.
 
 > **The control plane for AI-built software.** Manifests hold the declared desired
 > state; a reconciler continuously verifies reality against it; evals are the
@@ -128,6 +139,7 @@ $ ent baseline accept <n> # promote a pending baseline
 $ ent snapshot            # record composite versions + verdicts to append-only history
 $ ent render              # self-contained HTML map: seven lenses + "executable N/M"
 $ ent edit <node>         # scoped edit loop: context + boundary + verdict + approval
+$ ent otel <otlp.json>    # ingest standard GenAI spans: tokens, models, per-unit rollup
 $ ent pin <n> model=<id>  # pin a fingerprint dimension; the fingerprint moves onto the Timeline
 $ ent replay <n> --against <fp>  # golden metric now vs an old fingerprint, delta attributed by dimension
 $ ent retrofit <root>     # infer nodes in an unmanaged repo → staged manifest proposals
@@ -138,6 +150,15 @@ $ ent serve               # the Universe: click a unit, steer it from your agent
 > `ent eval retrieval.chunk_ranker`. It goes **RED** and names the failed
 > invariant with the real numbers (`len(output.chunks)=2 <= input.k=1`). That is
 > the difference between an instrument and a diagram — see [`docs/phase7.md`](./docs/phase7.md).
+
+> **The model-identity test:** pin a unit's model
+> (`ent pin refundly.decide model=claude-sonnet-5`), point `ent otel` at the
+> OTLP/JSON your tracing already exports, and let `ent ci` compare the pin to
+> `gen_ai.response.model`. A silent swap **fails the build** and the fix is
+> printed: repair the app, or accept the swap with `ent pin` — which moves the
+> unit's composite fingerprint, so the swap becomes a reviewed, diffable
+> version instead of a dismissed alert. (A pin of `claude-sonnet-5` accepts its
+> dated forms; a dated pin accepts nothing looser.)
 
 What **is** real today:
 
