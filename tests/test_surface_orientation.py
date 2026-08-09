@@ -44,3 +44,26 @@ def test_header_cannot_grow_into_the_centred_lens_bar() -> None:
     assert "width:calc(50% - 300px)" in html, "the left cluster must be bounded"
     # and the mobile rules must come AFTER the base #lenses rule to take effect
     assert html.index("#lenses { position:fixed") < html.index("@media (max-width: 980px)")
+
+
+def test_layered_dag_is_the_default_layout() -> None:
+    """Research rec A: force-directed layouts lose to layered DAGs for
+    comprehension — every tool developers keep open defaults to layered LR.
+    Constellation survives as the toggle, not the default."""
+    html = UNIVERSE.read_text()
+    assert "let layoutMode='layered';" in html
+    assert "setLayout('constellation'" in html or "'constellation':'layered'" in html
+    # first paint IS the finished DAG — no glide-in from random positions
+    assert "u.x=u._tx; u.y=u._ty;" in html
+    # ranked columns are labelled
+    assert "drawLayerLabels" in html and "foundations" in html
+
+
+def test_focus_cone_scopes_the_map() -> None:
+    """Research rec A: 'blast-radius-scoped subgraph views matter more than
+    the layout algorithm itself'. `f` (or the impact tab's button) scopes the
+    map to one unit's upstream+downstream cone; everything else fades."""
+    html = UNIVERSE.read_text()
+    assert "function focusCone(id)" in html and "function clearFocus()" in html
+    assert "wfocus-btn" in html                       # reachable from the window
+    assert "press f to clear" in html                 # and the exit is stated

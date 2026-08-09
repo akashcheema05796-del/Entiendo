@@ -432,3 +432,21 @@ def test_inside_tab_shows_the_parts_of_a_unit(env, page) -> None:
     body = win.locator(".wbody").text_content()
     assert "part" in body and "src/decide/agent.py" in body
     assert win.locator(".ipart").count() >= 1          # real functions listed
+
+
+def test_layered_default_and_focus_cone(env, page) -> None:
+    """The map opens as a ranked left-to-right DAG, and `f` scopes it to the
+    selected unit's dependency cone (research rec A)."""
+    assert page.evaluate("layoutMode") == "layered"
+    ranks = page.evaluate(
+        "[...new Set(units.filter(u=>!u.container&&u._tx!=null).map(u=>Math.round(u._tx)))].length")
+    assert ranks >= 2                                  # a DAG, not a clump
+    page.evaluate("selectState('refundly.decide')")
+    page.keyboard.press("f")
+    page.wait_for_timeout(400)
+    size = page.evaluate("focusSet ? focusSet.size : 0")
+    assert size >= 2, size                             # decide plus its cone
+    assert page.evaluate("document.getElementById('focusnote').style.display") != "none"
+    page.keyboard.press("f")
+    page.wait_for_timeout(300)
+    assert page.evaluate("focusSet") is None

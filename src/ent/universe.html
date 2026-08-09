@@ -248,10 +248,13 @@
 <div id="tools">
   <button id="btn-search" title="Search (/)">⌕ search</button>
   <button id="btn-fit" title="Fit to view (0)">⊡ fit</button>
-  <button id="btn-layout" title="Toggle constellation / layered dependency layout">⌗ constellation</button>
+  <button id="btn-layout" title="Toggle layered dependency layout / constellation">⌗ layered</button>
   <button id="recollapse" title="Collapse all groups">⊟ groups</button>
 </div>
 
+<div id="focusnote" style="display:none;position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  z-index:6;background:var(--panel);border:1px solid var(--hairline);border-radius:999px;
+  padding:6px 14px;font-size:11.5px;color:var(--muted);font-family:var(--font-mono)"></div>
 <div id="search"><input id="search-input" placeholder="Jump to a unit — id, name, or task…" autocomplete="off"><div id="results"></div></div>
 
 <div id="legend"></div>
@@ -400,7 +403,8 @@ function openWindow(id){
   // listeners would go stale (and stack).
   el.addEventListener('click', e=>{
     const t=e.target;
-    if (t.closest('.wreplay-btn')) { e.stopPropagation();
+    if (t.closest('.wfocus-btn')) { e.stopPropagation(); focusCone(id); }
+    else if (t.closest('.wreplay-btn')) { e.stopPropagation();
       const b=t.closest('.wreplay-btn'); winReplay(b.dataset.unit, b.dataset.composite, el); }
     else if (t.closest('.wsteer-btn')) { e.stopPropagation(); winSteer(id, el); }
     else if (t.closest('.wrevert-btn')) { e.stopPropagation(); winRevert(id, el); }
@@ -605,11 +609,13 @@ function winInterior(n){
   }
   if (tab==='impact'){
     const down=[...computeBlast(n.id)];
-    if (!down.length) return '<div style="color:var(--muted)">nothing else depends on this — '
+    const focusBtn = `<div class="btns" style="margin-bottom:8px"><button class="act wfocus-btn">Focus the map on this</button></div>`;
+    if (!down.length) return focusBtn + '<div style="color:var(--muted)">nothing else depends on this — '
       + 'changing it cannot break another unit</div>';
     const FX={writes:'⚠ writes data', irreversible:'⚠ cannot be undone',
               external:'calls an outside service', none:'safe'};
-    return `<div style="color:var(--muted);margin-bottom:6px">${down.length} unit${down.length===1?'':'s'} `
+    return focusBtn
+      + `<div style="color:var(--muted);margin-bottom:6px">${down.length} unit${down.length===1?'':'s'} `
       + `could break if this changes</div>` + down.map(id=>{ const d=nodeOf(id)||{};
       const risky=(d.sideEffects==='writes'||d.sideEffects==='irreversible');
       return `<div class="row2"><span>${esc(id)}</span>
@@ -838,6 +844,8 @@ async function boot(){
     + (view.commit?` · @${view.commit}`:'');
   expanded = view.nodes.length > COLLAPSE_THRESHOLD ? new Set() : new Set(groupsOf(view.nodes));
   buildLayout();
+  if (layoutMode==='layered'){                 // first paint IS the finished DAG
+    for (const u of units){ if (u._tx!=null){ u.x=u._tx; u.y=u._ty; u.vx=u.vy=0; } } }
   drawLegend();
   fitToView();
   // Land already framed. fitToView starts an eased flight, so the first paint
@@ -904,7 +912,10 @@ function buildLayout(){
 // CDN: longest-path layering over dependency edges, one barycenter ordering
 // pass. Same input → same picture, always; units GLIDE to their slots
 // (Magic-Move), physics resumes when you toggle back to constellation.
-let layoutMode='constellation';
+// Layered left-to-right is the DEFAULT (research rec A): every graph tool
+// developers keep open reads as a directional DAG; force-directed stays as
+// the 'constellation' toggle for the celestial mood, not the default lens.
+let layoutMode='layered';
 function assignLayeredTargets(){
   const ids=units.map(u=>u.id), idset=new Set(ids), depth={};
   ids.forEach(i=>depth[i]=0);
@@ -931,6 +942,21 @@ function assignLayeredTargets(){
   ks.forEach((k,ci)=>{ const col=cols.get(k);
     col.forEach((id,ri)=>{ const u=byId[id]; if(!u) return;
       u._tx = x0 + ci*gapX; u._ty = H/2 + (ri-(col.length-1)/2)*gapY; }); });
+  // column geometry for the stage labels — anchored to each column's OWN top
+  // unit, so a short column's label doesn't float off into empty sky
+  layerCols = ks.map((k,ci)=>({x: x0 + ci*gapX,
+    top: H/2 - (cols.get(k).length-1)/2*gapY - 58}));
+}
+let layerCols=[];
+function drawLayerLabels(){
+  if (layoutMode!=='layered' || !layerCols.length || lens==='city') return;
+  ctx.save(); ctx.font='10px '+getComputedStyle(document.body).getPropertyValue('--font-mono');
+  ctx.fillStyle='rgba(138,147,173,.55)'; ctx.textAlign='center';
+  layerCols.forEach((c,i)=>{
+    const label = i===0 ? 'layer 1 · called first'
+      : i===layerCols.length-1 ? `layer ${i+1} · foundations` : `layer ${i+1}`;
+    ctx.fillText(label, c.x, c.top); });
+  ctx.restore();
 }
 function setLayout(m){
   layoutMode=m;
@@ -1376,10 +1402,15 @@ function loop(ts){
   ctx.setTransform(DPR*cam.scale,0,0,DPR*cam.scale, DPR*cam.x, DPR*cam.y);
   if (lens==='city'){ drawCity(); }
   else {
-    for (const e of edges) drawEdge(e);
+    for (const e of edges){ if (focusSet && !(focusSet.has(e.from)&&focusSet.has(e.to))) continue; drawEdge(e); }
     drawParticles();
-    for (const u of units) drawUnit(u);
+    for (const u of units){
+      if (focusSet && !u.container && !focusSet.has(u.id)){
+        ctx.save(); ctx.globalAlpha=0.07; drawUnit(u); ctx.restore(); continue; }
+      drawUnit(u);
+    }
     drawComet();
+    drawLayerLabels();
   }
   ctx.setTransform(DPR,0,0,DPR,0,0);
   drawTethers();
@@ -1487,6 +1518,38 @@ function selectState(id){
 }
 function select(id){ selectState(id); openWindow(id); writeUrlState(); }
 function unitFromView(id){ const n=view.nodes.find(x=>x.id===id); return n?unitItem(n):null; }
+// Focus: the map scoped to one unit's dependency cone — everything that can
+// break it or be broken by it. Everything else fades to context. `f` toggles.
+let focusSet=null, focusUnit=null;
+function focusCone(id){
+  if (focusUnit===id){ clearFocus(); return; }
+  const up=new Set([id]), down=new Set([id]);
+  let grew=true;
+  while (grew){ grew=false;
+    for (const e of view.edges){
+      if (down.has(e.from) && !down.has(e.to)){ down.add(e.to); grew=true; }
+      if (up.has(e.to) && !up.has(e.from)){ up.add(e.from); grew=true; } } }
+  focusSet=new Set([...up, ...down]); focusUnit=id;
+  const note=document.getElementById('focusnote');
+  if (note){ note.style.display='block';
+    note.textContent=`focused on ${id} — ${focusSet.size} related unit(s) · press f to clear`; }
+  fitToFocus();
+}
+function clearFocus(){ focusSet=null; focusUnit=null;
+  const note=document.getElementById('focusnote'); if (note) note.style.display='none';
+  fitToView(); }
+function fitToFocus(){
+  if (!focusSet) return;
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9,n=0;
+  for (const u of units){ if (u.container||!focusSet.has(u.id)) continue; n++;
+    const px=(layoutMode==='layered'&&u._tx!=null)?u._tx:u.x;
+    const py=(layoutMode==='layered'&&u._ty!=null)?u._ty:u.y;
+    minx=Math.min(minx,px-u.r); miny=Math.min(miny,py-u.r);
+    maxx=Math.max(maxx,px+u.r); maxy=Math.max(maxy,py+u.r); }
+  if (!n) return;
+  const w=maxx-minx||1, h=maxy-miny||1;
+  flyTo((minx+maxx)/2,(miny+maxy)/2, clampScale(Math.min((W-160)/w,(H-180)/h,1.6)));
+}
 function computeBlast(id){ const rev={}; for (const e of view.edges){ (rev[e.to] ??= []).push(e.from); }
   const seen=new Set(), stack=[id]; while(stack.length){ const c=stack.pop();
     for (const d of (rev[c]||[])){ if(!seen.has(d)){ seen.add(d); stack.push(d); } } } return seen; }
@@ -1537,6 +1600,10 @@ window.addEventListener('keydown', e=>{
   const tag=(document.activeElement||{}).tagName;
   if (tag==='INPUT'||tag==='TEXTAREA') return;
   if (e.key>='1' && e.key<='7'){ const l=LENS_KEYS[+e.key-1]; if (l) setLens(l); return; }
+  if (e.key==='f' && !e.metaKey && !e.ctrlKey){
+    if (focusSet) clearFocus();
+    else if (selected) focusCone(selected);
+    return; }
   if (e.key==='/'){ e.preventDefault(); openSearch(); }
   else if (e.key==='Escape'){
     const open=[...wins.values()].filter(w=>!w.minimized);
