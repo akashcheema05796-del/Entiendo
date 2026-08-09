@@ -58,7 +58,7 @@ def test_greenfield_passes_all_stages() -> None:
     result = run_ci(GREENFIELD)
     assert result.ok and result.exit_code == 0
     stages = _stages(result)
-    assert {"validate", "reconcile", "eval", "tier1", "budgets"} == set(stages)
+    assert {"validate", "reconcile", "eval", "tier1", "budgets", "model"} == set(stages)
     assert all(s.ok for s in result.stages)
     # greenfield's golden is unblessed → advisory, never gating (v6 3.2)
     assert "advisory" in stages["tier1"].detail

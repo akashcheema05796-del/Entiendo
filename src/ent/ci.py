@@ -73,6 +73,7 @@ def run_ci(root: Path, *, soft: bool = False, min_coverage: float | None = None)
     stages.append(_eval_stage(root))
     stages.append(_tier1_stage(root))
     stages.append(_budget_stage(root))
+    stages.append(_model_stage(root))
     return CiResult(stages=stages)
 
 
@@ -170,6 +171,38 @@ def _budget_stage(root: Path) -> Stage:
     return Stage("budgets", True,
                  f"{checked} unit(s) within declared budgets" if checked
                  else "no declared budgets with measurements")
+
+
+def _model_stage(root: Path) -> Stage:
+    """Declared model pin vs observed gen_ai.response.model (research rec C).
+
+    A silent model swap is a regression nobody reviewed — severity 1, the
+    RED/REGRESSED lane, until the human fixes the app or accepts the swap with
+    `ent pin <unit> model=<observed>` (a diffable fingerprint move). Units with
+    observations but no pin pass with a warning proposing the pin; units with
+    no observations at all are simply not judged.
+    """
+    from .otel import model_drift
+
+    rows = model_drift(root)
+    drifted = [r for r in rows if r["status"] == "drift"]
+    unpinned = [r for r in rows if r["status"] == "unpinned"]
+    if drifted:
+        details = [f"{r['unit']}: declared {r['declared']!r}, observed "
+                   f"{', '.join(r['offending'])} — fix the app or "
+                   f"`ent pin {r['unit']} model={r['offending'][0]}`"
+                   for r in drifted]
+        return Stage("model", False,
+                     f"{len(drifted)} unit(s) running a model they did not declare",
+                     warnings=details, severity=1)
+    notes = [f"{r['unit']}: observed {', '.join(r['observed'])} — consider "
+             f"`ent pin {r['unit']} model={r['observed'][0]}`" for r in unpinned]
+    checked = len(rows) - len(unpinned)
+    return Stage("model", True,
+                 (f"{checked} pinned unit(s) match their observed model"
+                  if checked else "no model observations to judge")
+                 + (f", {len(unpinned)} unpinned" if unpinned else ""),
+                 warnings=notes)
 
 
 def _tier1_stage(root: Path) -> Stage:

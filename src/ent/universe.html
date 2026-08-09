@@ -503,6 +503,15 @@ function winInterior(n){
       ${claims.length? `<pre>${claims.map(esc).join('\n')}</pre>`
         : n.nodeKind==='external' ? '<div class="warn">none — it is not our code</div>'
         : '<div class="warn">owns no files</div>'}</div>
+      ${(n.modelCheck && n.modelCheck.status==='drift')
+        ? `<div class="warn" style="margin-top:10px">⚠ running a model it did not declare — `
+          + `declared <code>${esc(n.modelCheck.declared)}</code>, observed `
+          + `<code>${esc((n.modelCheck.offending||[]).join(', '))}</code>. `
+          + `Fix the app, or accept the swap with <code>ent pin</code> (a new version).</div>`
+        : (n.modelCheck && n.modelCheck.status==='unpinned')
+        ? `<div style="margin-top:10px;color:var(--muted)">model observed but not pinned: `
+          + `<code>${esc((n.modelCheck.observed||[]).join(', '))}</code> — pin it to make `
+          + `silent swaps impossible.</div>` : ''}
       <div style="margin-top:10px"><b>Version</b>
         <div style="color:var(--muted);font-size:11px;margin-bottom:4px">changes when any of these change</div>
         <div class="row2"><span>overall</span><span><code>${esc((n.version||{}).composite||'—')}</code></span></div>
