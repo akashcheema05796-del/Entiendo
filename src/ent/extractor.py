@@ -271,6 +271,40 @@ def _build_edges(
                     f"dependencies, or remove the tool from the registry"
                 )
 
+    # Interior steps (research rec B): each step is shaped as an OTel GenAI
+    # span type, and a step may bind itself to code by content hash — docs
+    # that cannot rot (Swimm-style Verify). A stale hash is DRIFT: the code
+    # moved and the step's story about it may no longer be true.
+    import hashlib
+    for node in nodes:
+        for step in (node.raw.get("interior", {}) or {}).get("steps", []) or []:
+            sname = step.get("name")
+            crosses = step.get("crosses")
+            if crosses and crosses not in node_ids:
+                errors.append(
+                    f"{node.id}: interior step '{sname}' crosses to unknown node '{crosses}'")
+            elif crosses:
+                e = pairs.get((node.id, crosses))
+                if e is None or not e["declared"]:
+                    errors.append(
+                        f"{DRIFT_PREFIX} interior step '{sname}' of {node.id} crosses to "
+                        f"{crosses} but no dependency edge is declared")
+            bound = step.get("boundTo")
+            if bound:
+                target = root / bound["file"]
+                if not target.is_file():
+                    errors.append(
+                        f"{node.id}: interior step '{sname}' is bound to missing file "
+                        f"'{bound['file']}'")
+                    continue
+                actual = hashlib.sha256(target.read_bytes()).hexdigest()[:12]
+                if actual != bound["hash"]:
+                    errors.append(
+                        f"{DRIFT_PREFIX} interior step '{sname}' of {node.id} is stale: "
+                        f"{bound['file']} is now {actual}, step was written against "
+                        f"{bound['hash']} — re-read the code, update the step, then set "
+                        f"hash: {actual}")
+
     # Undeclared (drift) → hard failure.
     for (frm, to), e in sorted(pairs.items()):
         if e["verified"] and not e["declared"]:

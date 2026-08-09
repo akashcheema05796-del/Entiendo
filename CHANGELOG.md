@@ -16,6 +16,32 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   declared but never enforced. `ent ci` gains a budgets stage — over budget is
   DEGRADED (exit 4). refundly's deliberate gateway overage is now asserted in
   CI as the proof the gate works.
+- **Model-drift enforcement**: the manifest pins a model (`version.model`);
+  the OTel reader records what actually answered (`gen_ai.response.model`).
+  A silent model swap now fails `ent ci` (severity 1) until the human fixes
+  the app or accepts the swap with `ent pin` — which moves the composite
+  fingerprint, so an accepted swap is a diffable version, not a silenced
+  alert. Prefix matching is one-way: a pin of `claude-sonnet-5` accepts its
+  dated forms; a dated pin accepts nothing looser.
+- **Layered map by default**: the Universe now opens on a left-to-right
+  layered DAG (callers left, foundations right, per-layer labels in plain
+  words) instead of the constellation scatter — the constellation remains a
+  toggle. Press `f` (or the button in a unit's impact tab) to focus the
+  **cone** of one unit: everything it depends on and everything that depends
+  on it; the rest of the map fades.
+- **The first manifest pays rent immediately**: `ent retrofit --accept` now
+  regenerates the map, reports the accepted unit's edges, and runs its reflex
+  eval in the same command — value on the spot, not a homework list. Partial
+  coverage is pinned as a first-class state: one manifest in a many-file repo
+  validates, extracts, evals and passes `ent ci`, with every undeclared file
+  named (never silently partial).
+- **`interior.steps`** — a unit's window can now tell the story of *how it
+  works, in order*: named steps typed by the OTel GenAI span kinds
+  (`chat`/`execute_tool`/`invoke_agent`/`embeddings`/`workflow`, rendered as
+  plain words), each optionally bound to a file at a content hash. Editing a
+  bound file makes the step **stale — a drift-class reconciliation error that
+  names the new hash**, so the description cannot silently rot (the Swimm
+  model). A step that `crosses` into another unit must match a declared edge.
 - **`contract.harness`** — the seam for units whose entrypoint is not a
   one-argument function. A harness is called as `harness(row, ctx)` with
   `ctx.entrypoint`/`ctx.root`/`ctx.node` and returns the output that invariants

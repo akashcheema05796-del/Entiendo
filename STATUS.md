@@ -12,7 +12,7 @@ they're reconciled.
   on pypi.org)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **477 passing** (~16s), plus an optional
+- **Tests:** `python -m pytest -q` → **496 passing** (~20s), plus an optional
   browser suite: `pytest tests/frontend/frontend_universe.py` (16 Playwright
   tests, not collected by default).
 
@@ -103,9 +103,10 @@ Ordered by impact (see the gap analysis for detail).
    Python path unchanged. Still Python-only past extraction: instrumentation
    (`@ent.node()`), the invariant evaluator, and `contract.entrypoint` execution.
    Next: a real tokenizer, and a language-agnostic execution/eval seam.
-2. **Live telemetry → Universe** — Trace / cost / health are strong on fixtures
-   and recorded traces; continuous production capture (OTel auto-ingest, durable
-   Parquet/DuckDB by default) is thin.
+2. **Live telemetry → Universe** — `ent otel <otlp.json>` reads standard
+   GenAI spans (tokens, request/response models) and feeds budgets + the
+   model-drift gate; continuous capture (a listening OTLP endpoint, durable
+   Parquet/DuckDB by default) is still thin — today ingest is file-at-a-time.
 3. **Soft adoption + fixture assist** — `ent extract --soft` (warn-only reconcile:
    drift → warning, structural still fails) ✅ and `ent fixtures <unit>` (scaffold
    smoke-fixture skeletons from recorded traces — dep stubs pre-wired, error

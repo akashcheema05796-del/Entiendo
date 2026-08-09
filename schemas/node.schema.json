@@ -386,6 +386,65 @@
           "description": "Upper bound on interior steps.",
           "type": "integer",
           "minimum": 1
+        },
+        "steps": {
+          "description": "The ordered steps of the interior, each shaped as an OTel GenAI span type (gen_ai.operation.name) rather than a bespoke schema \u2014 so every step is interoperable with the trace backends the ecosystem already uses, and observability.spanName doubles as the step-to-span link. Docs bound to a content hash cannot rot (Swimm-style Verify): a boundTo hash that no longer matches the file is reconciliation drift.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "kind"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "description": "OTel GenAI operation this step performs.",
+                "enum": [
+                  "chat",
+                  "execute_tool",
+                  "invoke_agent",
+                  "embeddings",
+                  "workflow"
+                ]
+              },
+              "what": {
+                "description": "One plain-words sentence: what this step does.",
+                "type": "string"
+              },
+              "crosses": {
+                "description": "Unit id this step reaches (verified like a tool crossing).",
+                "type": "string"
+              },
+              "spanName": {
+                "description": "Span name this step emits \u2014 the step\u2194trace link.",
+                "type": "string"
+              },
+              "boundTo": {
+                "description": "Content binding: the step documents THIS code at THIS hash.",
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "file",
+                  "hash"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string"
+                  },
+                  "hash": {
+                    "description": "First 12 hex chars of sha256(file bytes).",
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{12}$"
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
