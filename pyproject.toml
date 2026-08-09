@@ -47,6 +47,10 @@ dev = [
 
 [project.scripts]
 ent = "ent.cli:main"
+# alias matching the PyPI package name, so `uvx entiendo` works (the MCP
+# Registry runs pypi packages through uvx, which looks for a script named
+# after the package)
+entiendo = "ent.cli:main"
 
 [project.urls]
 Homepage = "https://entiendo.dev"

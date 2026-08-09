@@ -13,6 +13,7 @@ owner: akashdatageek
 status: experimental
 claims:
 - pyproject.toml
+- server.json
 - src/ent/__init__.py
 contract:
   invariants:

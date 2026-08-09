@@ -16,6 +16,12 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   declared but never enforced. `ent ci` gains a budgets stage — over budget is
   DEGRADED (exit 4). refundly's deliberate gateway overage is now asserted in
   CI as the proof the gate works.
+- **MCP Registry readiness**: `server.json` at the repo root (official
+  registry schema, `io.github.akashdatageek/entiendo`), an `entiendo` console
+  script alias so `uvx entiendo` works, the PyPI ownership marker embedded in
+  the README, and `docs/registry.md` — the one-command publish checklist for
+  the day the package lands on PyPI. Tests keep the versions and markers from
+  drifting apart before then.
 - **Model-drift enforcement**: the manifest pins a model (`version.model`);
   the OTel reader records what actually answered (`gen_ai.response.model`).
   A silent model swap now fails `ent ci` (severity 1) until the human fixes

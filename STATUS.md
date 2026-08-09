@@ -118,7 +118,10 @@ Ordered by impact (see the gap analysis for detail).
    one validate+reconcile+eval gate for CI/pre-commit, see `docs/ci.md` — ✅ landed.)
 5. **Eval depth** — tier2 needs a default judge harness; behaviour delta needs
    goldens; no sandboxed side-effect simulation.
-6. **Packaging & first-run** — version `0.1.0`, no binary distribution.
+6. **Packaging & first-run** — `0.2.0`; wheel + sdist build clean; PyPI
+   release wired (Trusted Publishing) but not yet performed; MCP Registry
+   `server.json` prepared (see `docs/registry.md`) and blocked only on the
+   PyPI release. No binary distribution.
 
 ## Explicitly deferred (PLAN_v4 §9)
 
