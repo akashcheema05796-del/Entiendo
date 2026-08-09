@@ -74,5 +74,29 @@ def _accept(root: Path, args: argparse.Namespace) -> int:
         print(f"ent retrofit: no proposal for '{args.accept}'")
         return 2
     print(f"✓ accepted {args.accept} → {dest.relative_to(root)}")
-    print("  next: give it a task + one fixture -> expected verdict, then `ent eval`.")
+
+    # The first manifest must immediately RETURN value (research rec E — a
+    # manifest that only imposes discipline dies): regenerate the map, show
+    # what this unit connects to, and run its reflex eval right now.
+    from ..evals.runner import run_tier0
+    from ..extractor import extract, write_artifacts
+    from ..manifest import find_node
+
+    ext = extract(root)
+    write_artifacts(ext, root)
+    cov = ext.coverage
+    print(f"  map: {len(ext.graph['nodes'])} unit(s), "
+          f"{len(ext.graph['edges'])} edge(s), coverage "
+          f"{(cov.get('coverage') or 0)*100:.0f}% — `ent dev` to see it")
+    outs = [e for e in ext.graph["edges"] if e["from"] == args.accept]
+    ins = [e for e in ext.graph["edges"] if e["to"] == args.accept]
+    if outs or ins:
+        print(f"  edges: depends on {len(outs)}, depended on by {len(ins)} — "
+              f"`ent eval {args.accept}` guards it, blast radius is live")
+    node = find_node(root, args.accept)
+    if node is not None:
+        res = run_tier0(node, root)
+        print(f"  eval: {args.accept} → {res.verdict}"
+              + ("" if res.verdict != "UNTESTED"
+                 else " — add contract.entrypoint + one fixture row to make it runnable"))
     return 0
