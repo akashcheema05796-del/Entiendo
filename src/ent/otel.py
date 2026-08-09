@@ -247,3 +247,44 @@ def observed_models(root: Path) -> dict[str, list[str]]:
                 if nid and m not in out.setdefault(nid, []):
                     out[nid].append(m)
     return out
+
+
+def model_drift(root: Path) -> list[dict[str, Any]]:
+    """Declared model pin vs observed gen_ai.response.model, per unit.
+
+    Three states, in decreasing severity:
+      drift    — a model is pinned and something ELSE answered. A silent model
+                 swap is a behaviour change nobody reviewed; the market only
+                 alerts on this — Entiendo fails the build until the human
+                 either fixes the app or accepts the swap with `ent pin`
+                 (which moves the composite fingerprint: a diffable version).
+      unpinned — models observed but nothing declared. Not a failure (partial
+                 coverage is normal); reported so the human can pin.
+      ok       — pinned, and every observed model matches.
+
+    Matching is prefix-tolerant one way only: a pin of `claude-sonnet-5`
+    accepts the dated `claude-sonnet-5-20260114` the provider actually
+    reports, but a pin of the dated form accepts nothing looser.
+    """
+    from .manifest import Node, discover, load
+
+    root = Path(root)
+    observed = observed_models(root)
+    out: list[dict[str, Any]] = []
+    for path in discover(root):
+        node = Node.from_manifest(load(path), path)
+        seen = observed.get(node.id)
+        if not seen:
+            continue
+        declared = (node.raw.get("version") or {}).get("model")
+        if not declared:
+            out.append({"unit": node.id, "declared": None, "observed": seen,
+                        "status": "unpinned"})
+            continue
+        def matches(m: str) -> bool:
+            return m == declared or m.startswith(declared + "-")
+        offending = [m for m in seen if not matches(m)]
+        out.append({"unit": node.id, "declared": declared, "observed": seen,
+                    "status": "drift" if offending else "ok",
+                    "offending": offending})
+    return out

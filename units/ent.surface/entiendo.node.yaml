@@ -33,6 +33,7 @@ dependencies:
   - ent.contracts
   - ent.evalkit
   - ent.graph
+  - ent.observer
   - ent.packaging
   - ent.timetravel
   - ent.versioning

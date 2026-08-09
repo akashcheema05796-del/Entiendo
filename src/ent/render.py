@@ -38,6 +38,8 @@ def build_view(root: Path) -> dict[str, Any]:
             traffic[hop["node"]] = traffic.get(hop["node"], 0) + 1
     measured = _measured_budgets(trace_events)
     tier1_latest = _tier1_latest(root)
+    from .otel import model_drift
+    model_by_unit = {r["unit"]: r for r in model_drift(root)}
     blind = result.graph.get("possibleUndeclaredDynamicDep", [])
 
     by_id = {n.id: n for n in nodes}
@@ -77,6 +79,10 @@ def build_view(root: Path) -> dict[str, Any]:
             # what's actually INSIDE the unit — a unit is a box on the map until
             # you can see the parts it is made of.
             "inside": _inside(root, gnode.get("claims", []) or []),
+            # model identity, verified (research rec C): what the manifest pins
+            # vs what gen_ai.response.model actually reported. drift → the ci
+            # model stage fails; the window says it in words.
+            "modelCheck": model_by_unit.get(gnode["id"]),
             "evals": _evals_rollup(result0, tier1_latest.get(gnode["id"])),
             "history": _history_rows(history.timeline(root, gnode["id"])),
             "neighbours": _neighbours(gnode["id"], result.graph["edges"]),
