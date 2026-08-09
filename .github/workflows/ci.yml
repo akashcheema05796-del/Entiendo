@@ -52,12 +52,15 @@ jobs:
 
       # `ent ci` exits with the MAX severity across its stages (v6 3.2):
       #   0 pass/within-band · 1 RED/REGRESSED · 2 ERROR · 4 UNSTABLE/DEGRADED
-      # The tier1 stage gates on BLESSED goldens only; unblessed datasets are
-      # advisory and never block. The example goldens stay unblessed until a
-      # human runs `ent bless`, so this is exit 0 today — the wiring is the point.
+      # refundly deliberately ships its gateway OVER its declared cost budget
+      # (0.05 spent vs 0.01 declared — the cost-overlay showcase). Budgets now
+      # GATE, so the example doubles as the proof: assert the documented
+      # DEGRADED exit rather than pretending the overage isn't there.
       - name: ent ci (single gate, severity exit codes)
         working-directory: examples/refundly
-        run: ent ci
+        run: |
+          set +e; ent ci; code=$?
+          test "$code" -eq 4 || { echo "expected exit 4 (seeded budget overage), got $code"; exit 1; }
 
   # Supply-chain honesty for a trust-first tool: audit the dependency tree and
   # publish a CycloneDX SBOM as a build artifact on every run.

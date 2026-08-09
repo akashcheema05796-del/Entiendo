@@ -6,7 +6,10 @@ task: Bind callables to unit ids with @ent.node() and turn recorded spans into v
   observations.
 description: 'The only Entiendo code that lives inside the observed app. Times calls, re-raises
   exceptions unchanged, never alters return values (Invariant 2: read-only observer, never
-  in the request path). Span capture feeds the trace lens and flips declared edges to runtime-verified.'
+  in the request path). Span capture feeds the trace lens and flips declared edges to runtime-verified.
+  The OTel GenAI reader ingests gen_ai.* spans emitted by standard auto-instrumentation (OpenLLMetry/OpenLIT
+  style) — reading, never proxying: token usage and observed model identity arrive without
+  Entiendo entering the request path.'
 nodeKind: compute
 group: runtime
 owner: akashdatageek
@@ -15,6 +18,7 @@ claims:
 - src/ent/instrument.py
 - src/ent/tracing.py
 - src/ent/spans.py
+- src/ent/otel.py
 contract:
   invariants:
   - output['result'] == 42
@@ -31,5 +35,6 @@ observability:
   spanName: ent.observer
 dependencies:
   calls:
+  - ent.contracts
   - ent.packaging
   writes: []

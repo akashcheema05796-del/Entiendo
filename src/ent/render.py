@@ -306,16 +306,19 @@ def _measured_budgets(traces: list[dict[str, Any]]) -> dict[str, dict[str, Any]]
             nid = hop.get("node")
             if nid is None:
                 continue
-            a = agg.setdefault(nid, {"lat": [], "cost": []})
+            a = agg.setdefault(nid, {"lat": [], "cost": [], "tok": []})
             if hop.get("duration_ms") is not None:
                 a["lat"].append(hop["duration_ms"])
             if hop.get("cost_usd") is not None:
                 a["cost"].append(hop["cost_usd"])
+            # tokens: manual record() and the OTel gen_ai reader both land here
+            if hop.get("tokens") is not None:
+                a["tok"].append(hop["tokens"])
     out: dict[str, dict[str, Any]] = {}
     for nid, a in agg.items():
-        lat, cost = a["lat"], a["cost"]
+        lat, cost, tok = a["lat"], a["cost"], a["tok"]
         out[nid] = {
-            "calls": len(lat),
+            "calls": max(len(lat), len(tok)),
             "avgLatencyMs": round(sum(lat) / len(lat), 3) if lat else None,
             "p95LatencyMs": round(_percentile(lat, 95), 3) if lat else None,
             # label honesty (v6 5.4): below ~20 samples the 95th percentile IS
@@ -324,6 +327,8 @@ def _measured_budgets(traces: list[dict[str, Any]]) -> dict[str, dict[str, Any]]
                          if lat else None),
             "avgCostUsd": round(sum(cost) / len(cost), 6) if cost else None,
             "totalCostUsd": round(sum(cost), 6) if cost else None,
+            "avgTokens": round(sum(tok) / len(tok), 1) if tok else None,
+            "maxTokens": max(tok) if tok else None,
         }
     return out
 
