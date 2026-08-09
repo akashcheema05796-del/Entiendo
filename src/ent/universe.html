@@ -212,6 +212,12 @@
   .ipart .inm { font-family:var(--font-mono); font-size:11.5px; color:var(--starlight); }
   .ipart .idoc { color:var(--muted); font-size:10.5px; overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
+  .istep { padding:4px 0 4px 8px; border-left:1px solid var(--hairline); margin-bottom:2px; }
+  .istep .isn { display:inline-block; width:16px; height:16px; border-radius:50%;
+    background:var(--annotation); color:var(--field); font-size:10px; font-weight:700;
+    text-align:center; line-height:16px; margin-right:6px; }
+  .istep .inm { font-family:var(--font-mono); font-size:11.5px; }
+  .istep .idoc { margin-left:22px; }
   .win .wbody .btns button { padding:6px 11px; font-size:12px; }
   .win .warn { color: var(--signal-amber); }
   .win .vok { color: var(--signal-green); }
@@ -477,13 +483,27 @@ function winTabHtml(n, tab){
 // the same question as "what functions does this file hold", one level up.
 function winInterior(n){
   if (!n.interior) return '';
+  const KINDW={chat:'asks a model', execute_tool:'uses a tool',
+               invoke_agent:'hands off to an agent', embeddings:'embeds text',
+               workflow:'runs a sub-flow'};
+  const steps=(n.interior.steps||[]).map((st,i)=>`<div class="istep">
+      <span class="isn">${i+1}</span>
+      <span class="inm">${esc(st.name)}</span>
+      <span class="pill">${esc(KINDW[st.kind]||st.kind)}</span>
+      ${st.crosses?`<span style="color:var(--muted);font-size:10.5px">→ ${esc(st.crosses)}</span>`:''}
+      ${st.what?`<div class="idoc" style="white-space:normal">${esc(st.what)}</div>`:''}
+    </div>`).join('');
+  const stepsHtml = steps ? `<div style="margin-bottom:8px"><b>How it works, in order</b>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:4px">each step is a
+      standard trace span type — and steps bound to code by hash cannot silently rot</div>
+      ${steps}</div>` : '';
   const tv=n.trajectoryVerdict;
   const tvHtml = tv ? (tv.verdict==='RED'
       ? `<div class="warn">tool order broke a rule — ${esc(tv.failedRule||'')}</div>`
       : `<span class="pill">tool order checked · ${esc(tv.verdict)}</span>`) : '';
   const tools=(n.interior.tools||[]).map(tl=>
     `<div class="row2"><span>${esc(tl.name)}</span><span style="color:var(--muted)">reaches ${esc(tl.crosses||'—')}</span></div>`).join('');
-  return `<div style="margin-bottom:10px"><b>What it can do</b>
+  return stepsHtml + `<div style="margin-bottom:10px"><b>What it can do</b>
     ${n.interior.process?`<div class="wprose" style="font-size:12px">${esc(n.interior.process)}</div>`:''}
     ${tools}
     <div style="color:var(--muted);font-size:11px">at most ${esc(n.interior.maxSteps??'—')} steps</div>

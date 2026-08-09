@@ -3,64 +3,99 @@ kind: Node
 id: refundly.decide
 name: Refund Decider
 task: Decide whether to refund an order, and if so issue it and log the case.
-description: >
-  The brain of the pipeline: an agent that parses the request, looks up the
-  order, reads policy, decides refund vs deny, issues the refund when it should,
-  and records the case. Its interior tools cross to the other units; the *order*
-  of those calls is checked, so a refund issued before the order was verified is
-  caught even when the amount is right.
+description: 'The brain of the pipeline: an agent that parses the request, looks up the order,
+  reads policy, decides refund vs deny, issues the refund when it should, and records the
+  case. Its interior tools cross to the other units; the *order* of those calls is checked,
+  so a refund issued before the order was verified is caught even when the amount is right.
+
+  '
 nodeKind: compute
 group: refundly
 owner: mehar
 status: experimental
 claims:
-  - src/decide/agent.py
+- src/decide/agent.py
 contract:
   entrypoint: src/decide/agent.py::decide
   invariants:
-    - "output.decision == 'refund' or output.decision == 'deny'"
-    - "output.amount >= 0"
+  - output.decision == 'refund' or output.decision == 'deny'
+  - output.amount >= 0
   sideEffects: none
 dependencies:
-  calls: [refundly.parse_email, refundly.orders, refundly.gateway]
-  writes: [refundly.ledger]
-  config: [refundly.policy]
+  calls:
+  - refundly.parse_email
+  - refundly.orders
+  - refundly.gateway
+  writes:
+  - refundly.ledger
+  config:
+  - refundly.policy
 interior:
-  process: >
-    Parse the email, look up the order, read policy, decide refund/deny, issue
-    the refund on approval, then write the case. Tool calls are gated + ordered.
+  process: 'Parse the email, look up the order, read policy, decide refund/deny, issue the
+    refund on approval, then write the case. Tool calls are gated + ordered.
+
+    '
   tools:
-    - {name: parse, crosses: refundly.parse_email}
-    - {name: order_lookup, crosses: refundly.orders}
-    - {name: read_policy, crosses: refundly.policy}
-    - {name: issue_refund, crosses: refundly.gateway}
-    - {name: write_ledger, crosses: refundly.ledger}
+  - name: parse
+    crosses: refundly.parse_email
+  - name: order_lookup
+    crosses: refundly.orders
+  - name: read_policy
+    crosses: refundly.policy
+  - name: issue_refund
+    crosses: refundly.gateway
+  - name: write_ledger
+    crosses: refundly.ledger
   maxSteps: 8
+  steps:
+  - name: parse
+    kind: execute_tool
+    crosses: refundly.parse_email
+    what: Pull the order id and reason out of the customer's email.
+    boundTo:
+      file: src/decide/agent.py
+      hash: 26cbde7701da
+  - name: look up the order
+    kind: execute_tool
+    crosses: refundly.orders
+    what: Fetch the order so the decision is about a real purchase.
+  - name: read policy
+    kind: execute_tool
+    crosses: refundly.policy
+    what: Load the refund thresholds — config, not code.
+  - name: decide
+    kind: chat
+    what: Refund or deny, judged against policy. The order of the next two steps is what the
+      trajectory eval guards.
+  - name: issue the refund
+    kind: execute_tool
+    crosses: refundly.gateway
+    what: Only on approval — an irreversible external call.
+  - name: write the case
+    kind: execute_tool
+    crosses: refundly.ledger
+    what: Record what was decided and why.
 evals:
   tier0:
-    - type: invariant_check
-    - {type: smoke, fixture: evals/refundly.decide/smoke.jsonl}
-    - type: trajectory
-      fixture: evals/refundly.decide/trajectory.jsonl
-      order:
-        - "parse before order_lookup"
-        - "order_lookup before issue_refund"
-        - "issue_refund before write_ledger"
-      maxSteps: 8
-      registryOnly: true
+  - type: invariant_check
+  - type: smoke
+    fixture: evals/refundly.decide/smoke.jsonl
+  - type: trajectory
+    fixture: evals/refundly.decide/trajectory.jsonl
+    order:
+    - parse before order_lookup
+    - order_lookup before issue_refund
+    - issue_refund before write_ledger
+    maxSteps: 8
+    registryOnly: true
   tier1:
-    # A golden set that discriminates (v6 4.4): two rows encode IDEAL behaviour
-    # the current agent gets wrong — an unknown order is refunded $0 instead of
-    # denied, and a capitalised "Order o1" fails to parse — so the baseline
-    # lands at 0.80, not a saturated 1.0. humanBlessed stays false until Mehar
-    # reviews the rows and runs `ent bless`.
-    - type: golden
-      dataset: evals/refundly.decide/golden_v3.jsonl
-      humanBlessed: false
-      metric: exact_match
-      baseline: 0.8
-      minRuns: 3
-      significance: 0.05
+  - type: golden
+    dataset: evals/refundly.decide/golden_v3.jsonl
+    humanBlessed: false
+    metric: exact_match
+    baseline: 0.8
+    minRuns: 3
+    significance: 0.05
 budgets:
   p95LatencyMs: 500
   costPerCallUsd: 0.02
