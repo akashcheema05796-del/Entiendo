@@ -31,6 +31,33 @@ class ImportEdge:
     detail: str
 
 
+@dataclass(frozen=True)
+class AdapterCapabilities:
+    """What one language adapter can and cannot resolve — the honest boundary
+    of the closed-world guarantee for that language.
+
+    Every adapter has constructs it is blind to (dynamic dispatch, reflection,
+    unresolved build config). The differentiation "verified, not inferred"
+    collapses exactly where resolution is partial — so the holes are declared
+    up front, machine-readably, and surfaced in the graph rather than hidden.
+
+    grade        how edges are derived: 'compiler' (type-directed resolution),
+                 'ast' (real parse, static resolution), 'regex-poc' (textual)
+    evidenceTag  the `verificationSource` its edges carry. Partial-grade
+                 adapters must NOT use 'import' — the renderer and the
+                 reconciler treat 'import'/'span' as complete evidence.
+    cannotResolve  named constructs this adapter produces no edges for.
+    """
+
+    grade: str
+    evidenceTag: str
+    cannotResolve: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        return self.grade in ("compiler", "ast")
+
+
 @runtime_checkable
 class LanguageExtractor(Protocol):
     """Parse + resolve the imports of one language."""
@@ -45,4 +72,8 @@ class LanguageExtractor(Protocol):
         inside `root` are omitted — the reconciler only reasons about edges
         between the project's own units.
         """
+        ...
+
+    def capabilities(self) -> AdapterCapabilities:
+        """The adapter's declared blind spots (never empty in honest adapters)."""
         ...

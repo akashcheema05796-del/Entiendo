@@ -202,6 +202,18 @@ def _run(args: argparse.Namespace) -> int:
     for c in checks:
         print(f"  {_MARK[c.level]} {c.name.ljust(width)}  {c.detail}")
 
+    # The honest boundary of the closed-world guarantee: each language
+    # adapter's declared blind spots. Where resolution is partial, the map has
+    # inference-shaped holes — say so here rather than let anyone assume
+    # "verified" means "omniscient".
+    from .. import languages
+    print("\nlanguage adapters (what the map cannot see):")
+    for ex in languages.registered():
+        caps = ex.capabilities()
+        print(f"  {ex.name} [{caps.grade}] → edges tagged '{caps.evidenceTag}'")
+        for hole in caps.cannotResolve:
+            print(f"      · {hole}")
+
     worst = worst_level(checks)
     print()
     if worst == FAIL:

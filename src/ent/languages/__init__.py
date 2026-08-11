@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .base import ImportEdge, LanguageExtractor
+from .base import AdapterCapabilities, ImportEdge, LanguageExtractor
 from .python import PythonExtractor
 from .typescript import TypeScriptExtractor
 
-__all__ = ["ImportEdge", "LanguageExtractor", "for_file", "extensions", "register"]
+__all__ = ["AdapterCapabilities", "ImportEdge", "LanguageExtractor",
+           "for_file", "extensions", "register", "registered"]
 
 _REGISTRY: list[LanguageExtractor] = []
 
@@ -35,6 +36,12 @@ def for_file(file: Path) -> LanguageExtractor | None:
 def extensions() -> frozenset[str]:
     """Every extension any registered extractor handles."""
     return frozenset(e for ex in _REGISTRY for e in ex.extensions)
+
+
+def registered() -> list[LanguageExtractor]:
+    """Every registered extractor — the graph publishes their capability
+    manifests so the closed-world guarantee's holes are declared, not hidden."""
+    return list(_REGISTRY)
 
 
 # Built-ins. Python first so it wins any (currently non-existent) clash.

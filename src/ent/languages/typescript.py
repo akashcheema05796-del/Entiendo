@@ -33,7 +33,7 @@ import json
 import re
 from pathlib import Path
 
-from .base import ImportEdge
+from .base import AdapterCapabilities, ImportEdge
 
 # Source extensions we resolve against, in resolution priority (TS before JS).
 _SOURCE_EXTS = (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
@@ -52,6 +52,17 @@ _CALL = re.compile(r"""\b(?:require|import)\s*\(\s*['"]([^'"]+)['"]\s*\)""")
 class TypeScriptExtractor:
     name = "typescript"
     extensions = (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
+
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            grade="regex-poc",
+            evidenceTag="ts-poc",
+            cannotResolve=(
+                "import-like text inside comments or strings (regex, no tokenizer)",
+                "tsconfig `extends` chains (only the local tsconfig is read)",
+                "non-relative specifiers with no tsconfig alias or baseUrl match",
+                "type-directed resolution of any kind — no compiler behind this",
+            ))
 
     def resolved_imports(self, file: Path, root: Path) -> list[ImportEdge]:
         try:

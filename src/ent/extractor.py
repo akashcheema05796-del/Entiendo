@@ -210,11 +210,11 @@ def _build_edges(
             extractor = languages.for_file(file)
             if extractor is None:
                 continue
-            # v6 3.5 — honesty about evidence grade: the TS extractor is a
-            # regex PoC, not a compiler-backed resolver, so its edges are
-            # tagged "ts-poc" (rendered declared-grade), never "import".
-            source = ("ts-poc" if getattr(extractor, "name", "") == "typescript"
-                      else "import")
+            # v6 3.5, generalised by the capability manifest: each adapter
+            # declares its own evidence tag, and partial-grade adapters
+            # (regex PoCs) must not claim the complete-evidence tag "import" —
+            # the renderer draws their edges declared-grade.
+            source = extractor.capabilities().evidenceTag
             for imp in extractor.resolved_imports(file, root):
                 target_node = owner.get(_rel(imp.target, root))
                 if not target_node or target_node == node.id:
@@ -314,6 +314,12 @@ def _build_edges(
                 f"(observed: {evidence}) — declare it in {frm}'s manifest or remove it"
             )
 
+    # Per-edge resolution grade (research round 2): 'complete' when at least
+    # one complete-evidence source backs it (real AST import or a runtime
+    # span), 'partial' when only partial-grade adapters saw it (regex PoC —
+    # an inference-shaped hole, surfaced not hidden), 'none' when declared
+    # but never verified by anything.
+    COMPLETE_SOURCES = {"import", "span"}
     edges = [
         {
             "from": frm,
@@ -323,6 +329,8 @@ def _build_edges(
             "verified": e["verified"],
             # tri-state metadata (V1): who verified it, how often, when last seen.
             "verificationSource": sorted(e["sources"]),
+            "resolution": ("complete" if e["sources"] & COMPLETE_SOURCES
+                           else "partial" if e["sources"] else "none"),
             "observationCount": e["observationCount"],
             "lastVerifiedAt": e["lastVerifiedAt"],
             "evidence": sorted(set(e["evidence"])),
@@ -517,6 +525,20 @@ def extract(root: Path, *, spans: dict[tuple[str, str], Any] | None = None) -> E
         # v7 — circular dependency groups (SCCs > 1). A knot the layered
         # layout can't untangle deserves a name, not silence.
         "dependencyCycles": _dependency_cycles({n.id for n in nodes}, edges),
+        # research round 2 — each language adapter's capability manifest: the
+        # constructs it produces no edges for. The closed-world guarantee is
+        # only as complete as each adapter's resolver; the holes are declared
+        # in the artifact itself, machine-readably, never hidden.
+        "adapters": [
+            {
+                "language": ex.name,
+                "extensions": sorted(ex.extensions),
+                "grade": ex.capabilities().grade,
+                "evidenceTag": ex.capabilities().evidenceTag,
+                "cannotResolve": list(ex.capabilities().cannotResolve),
+            }
+            for ex in languages.registered()
+        ],
     }
     return ExtractResult(graph=graph, coverage=coverage, errors=errors)
 
