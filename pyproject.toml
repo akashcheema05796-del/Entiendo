@@ -5,12 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "entiendo"
 version = "0.2.0"
-description = "Build-time instrumentation, a generated system map, and a scoped editing loop — where the node, not the file tree, is the unit of work."
+description = "The enforced system map for AI-built software: units with contracts and evals, a reconciler that fails the build on drift (undeclared deps, stale docs, silent model swaps), and a steerable Universe — where the unit, not the file tree, is the unit of work."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Entiendo" }]
-keywords = ["instrumentation", "llm", "observability", "evals", "codegen", "system-map"]
+keywords = ["instrumentation", "llm", "observability", "evals", "codegen",
+            "system-map", "control-plane", "drift-detection", "mcp", "agents"]
 
 # Runtime dependencies. Kept deliberately minimal — the tool must be trivially
 # recoverable (SPEC.md §12). Heavier deps (opentelemetry, duckdb) arrive with the

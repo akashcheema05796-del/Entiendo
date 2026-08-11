@@ -140,7 +140,8 @@ $ ent new <id> --task ... --fixture ... --expect ...   # fixture-first unit birt
 $ ent extract             # graph.json + coverage.json; fails on drift; proposes entrypoints
 $ ent eval <node>         # tier0 EXECUTES the node → GREEN/RED/UNTESTED/ERROR
 $ ent eval --all --tier 1 # golden: minRuns + significance + budgets (the pre-merge gate)
-$ ent bless <node>        # sign a golden dataset's content (humanBlessed, void on change)
+$ ent bless <node>        # sign a golden dataset's content (humanBlessed, void on change;
+                          #   prints the oracle-class census, quarantines implementation-derived rows)
 $ ent baseline accept <n> # promote a pending baseline
 $ ent snapshot            # record composite versions + verdicts to append-only history
 $ ent render              # self-contained HTML map: seven lenses + "executable N/M"
@@ -537,21 +538,28 @@ L5  Steer + approve        unit → context → edit → verdict     src/ent/edi
 Entiendo/
   SPEC.md                     the specification (source of truth)
   README.md                   this file
-  pyproject.toml              package + `ent` console script
+  pyproject.toml              package + `ent` console script (`entiendo` alias for uvx)
+  server.json                 MCP Registry entry (prepared; publishes after PyPI)
   schemas/
     node.schema.json          manifest contract (JSON-Schema)
   src/ent/                    the tool
     cli.py                    argparse entry; one file per subcommand under commands/
     commands/                 init, new, validate, extract, eval, bless, baseline,
                               snapshot, render, pin, replay, edit, serve, mcp,
-                              retrofit, doctor, fixtures, ci
+                              retrofit, doctor, fixtures, ci, otel
     manifest.py               L0  unit model: discover, load, Node
     schema.py                 L0  schema load + validator
     validation.py             L0  schema + semantic checks
     extractor.py              L1  reconciler (AST edges vs declared deps; drift = fail)
+    languages/                L1  per-language adapters + capability manifests
+                              (python AST; TypeScript PoC — declared blind spots)
     version.py                L1/L3 composite fingerprinting (code/prompt/config/model)
     instrument.py             L2  @ent.node() decorator + ent.guard registry gate
     evals/, invariants.py     L2  tiered eval runner + restricted-AST invariants
+                              (incl. contract.secondStage — deferred contracts w/ blame)
+    sandbox.py                L2  bounded eval child (rlimits, timeout, effect probe)
+    goldens.py                L2  oracle-class provenance (the tautological-oracle guard)
+    otel.py                   L2  OTel GenAI span reader (tokens, models, drift rows)
     history.py                L3  append-only versions/evals/traces store
     render.py, universe.html  L4  the Universe: one canvas, seven lenses, interiors
     editloop.py               L5  scoped context + boundary + verdict + behaviour delta
@@ -560,8 +568,8 @@ Entiendo/
     replay.py                 L4  fingerprint replay for the Timeline scrubber
   examples/greenfield/        a five-unit example project (the MVP walkthrough)
   examples/refundly/          the 6-unit agentic pipeline + v4 demo (interiors, approval)
-  docs/                       architecture, build order, manifest, edit-surface, bridge
-  tests/                      the suite (251 tests, ~3s)
+  docs/                       architecture, build order, builders, registry, ci, bridge
+  tests/                      the suite (531 tests, ~22s)
 ```
 
 ---
@@ -571,10 +579,13 @@ Entiendo/
 ```bash
 pip install -e ".[dev]"     # editable install; provides the `ent` command
 ent --version
-pytest                       # the full suite (251 tests, ~3s)
+pytest                       # the full suite (531 tests, ~22s)
 ```
 
 Guiding invariants (SPEC.md §2): the map is generated never drawn; Entiendo is a
 read-only observer, never in the request path; no node without a contract, no
 contract without a tier-0 eval; every file is claimed exactly once or explicitly
-unclaimed; manifests are verified, not trusted; secrets are never rendered.
+unclaimed; manifests are verified, not trusted; secrets are never rendered;
+health is baseline + significance, never a raw score; the AI edits through the
+node, not the repo; and the oracle is not agent-writable (SPEC §17 — the
+verifier's state is closed to the proposer by access control).
