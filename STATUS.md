@@ -57,6 +57,25 @@ dock restores; gate integrity proven (no new MCP tools, no bless affordance,
 zero diff to claims/sandbox/steering). Statistics deviation, declared: no
 p-values exist — `significant` means the bootstrap CI excludes zero.
 
+**Research round 2 (propose-verify architecture) ✅ complete** — six steps,
+one PR each: the **oracle boundary** made mechanical (the claims hook
+fail-closes on history/baselines/steering, the generated map, and blessed
+goldens; bypassing writes still void the blessing signature; adversarially
+tested), **oracle-class provenance** on golden rows (implementation-derived
+rows quarantined at bless time behind an explicit human flag; harvested rows
+tagged by construction), **adapter capability manifests** (each language
+adapter's blind spots published in `graph.json`, every edge graded
+`resolution: complete|partial|none`, `ent doctor` prints what the map cannot
+see), the **effect probe** (sandbox audit hook; a false `sideEffects: none`
+goes RED — first catch was `ent.surface`'s own git subprocess; absence of
+effects stays graded evidence per Rice), **higher-order contracts**
+(`contract.secondStage` + `thenCall`, Findler–Felleisen blame), and the
+**SPEC §17 / Invariant 9** positioning statement. Deviations from the
+research, deliberate: SCIP adoption and a compiler-backed TS adapter are
+deferred (the regex PoC now honestly declares its grade instead), and no
+container-level eval isolation yet — the hook + signature layers are the
+implemented boundary; process/container isolation is the documented next rung.
+
 **PLAN_v6 remaining human items:** Mehar reviews + blesses the goldens (`ent bless refundly.parse_email`, `ent bless refundly.decide`); Mehar records the live H5 session (runbook: `docs/H5_DEMO_RUNBOOK.md`, reset: `scripts/demo_reset.sh`).
 
 **PLAN_v5 (close the loop) — in progress:** V0 audit ✅ (`PLAN_v5_AUDIT.md`);
