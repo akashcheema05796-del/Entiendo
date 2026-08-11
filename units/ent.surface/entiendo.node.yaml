@@ -2,11 +2,11 @@ apiVersion: entiendo/v1
 kind: Node
 id: ent.surface
 name: The Universe
-task: Build the payloadVersion-2 view model and serve the canvas on 127.0.0.1 with CSRF-guarded
-  POSTs.
-description: build_view assembles nodes, edges, evals rollups, history rows, windows workspace,
-  and traces into one payload; the stdlib HTTP server adds live reload, the Bridge endpoints,
-  and workspace persistence. No web framework, no external requests.
+task: Build the payloadVersion-2 view model and serve the canvas on 127.0.0.1 with
+  CSRF-guarded POSTs.
+description: build_view assembles nodes, edges, evals rollups, history rows, windows
+  workspace, and traces into one payload; the stdlib HTTP server adds live reload,
+  the Bridge endpoints, and workspace persistence. No web framework, no external requests.
 nodeKind: compute
 group: surface
 owner: akashdatageek
@@ -19,7 +19,7 @@ contract:
   entrypoint: src/ent/render.py::build_view
   invariants:
   - output['payloadVersion'] == 2
-  sideEffects: none
+  sideEffects: external
 evals:
   tier0:
   - type: invariant_check

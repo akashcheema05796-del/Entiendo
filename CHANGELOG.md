@@ -16,6 +16,16 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   declared but never enforced. `ent ci` gains a budgets stage — over budget is
   DEGRADED (exit 4). refundly's deliberate gateway overage is now asserted in
   CI as the proof the gate works.
+- **Effect probe in the eval sandbox — evaluability as graded evidence.**
+  The sandboxed child installs an audit hook and records the unit's observed
+  effects (fs-write / network / subprocess; interpreter cache, OS tempdir and
+  the plane's own journal excluded as runtime noise). Only the sound
+  direction gates: `sideEffects: none` plus an observed effect is a
+  demonstrably false contract → **RED**, with the effect named. Observing
+  nothing reports "no effects observed under probe" — an evidence grade,
+  never a verified invariant (Rice's theorem; the note is in the artifact).
+  First catch on landing: `ent.surface` declared `none` while `build_view`
+  shells out to git for the commit axis — now honestly `external`.
 - **Adapter capability manifests + per-edge resolution grades** — the honest
   boundary of the closed-world guarantee. Every language adapter declares its
   blind spots (`capabilities()`: grade `ast`/`regex-poc`/`compiler`, evidence
