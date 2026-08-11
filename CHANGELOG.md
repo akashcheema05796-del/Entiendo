@@ -16,6 +16,14 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   declared but never enforced. `ent ci` gains a budgets stage — over budget is
   DEGRADED (exit 4). refundly's deliberate gateway overage is now asserted in
   CI as the proof the gate works.
+- **Higher-order contracts** (`contract.secondStage`) — the Findler–Felleisen
+  wrap-and-defer pattern for factory units (compile()/match factories,
+  configured closures), whose first-stage output cannot be judged eagerly.
+  Fixture rows invoke the returned callable via `thenCall: [{input,
+  expect?}]`; the deferred contract judges each invocation **with blame**: a
+  `domain` violation blames the caller (broken fixture → eval ERROR, the
+  unit is not at fault), a range violation blames the unit (→ RED). A
+  declared second stage whose first stage returns plain data is RED outright.
 - **Effect probe in the eval sandbox — evaluability as graded evidence.**
   The sandboxed child installs an audit hook and records the unit's observed
   effects (fs-write / network / subprocess; interpreter cache, OS tempdir and

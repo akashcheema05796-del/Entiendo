@@ -215,6 +215,48 @@ def run_tier0(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
                 checks.append(Check("schema_validation", "fail", f"'{name}': {err}"))
                 return done(verdicts.RED, checks)
 
+        # --- second stage (higher-order contracts, Findler–Felleisen) ---
+        # A factory's returned closure cannot be judged eagerly; each thenCall
+        # invokes it and the deferred contract judges that invocation, with
+        # blame: a domain violation is the CALLER's (bad fixture row → ERROR),
+        # a range violation is the UNIT's (→ RED).
+        second = contract.get("secondStage")
+        if second is not None:
+            if not callable(output):
+                checks.append(Check("second_stage", "fail",
+                                    f"'{name}': contract declares a second stage but the "
+                                    f"first stage returned {type(output).__name__}, not a callable"))
+                return done(verdicts.RED, checks)
+            for j, call in enumerate(row.get("thenCall", []) or []):
+                call_input = call.get("input")
+                label = f"'{name}' thenCall[{j}]"
+                for inv in second.get("domain", []) or []:
+                    ok, detail = _try_invariant(inv, call_input, None)
+                    if not ok:
+                        checks.append(Check("second_stage_domain", "error",
+                                            f"{label}: domain contract \"{inv}\" rejected the "
+                                            f"argument — blame: the caller (this fixture row), "
+                                            f"not the unit: {detail}"))
+                        return done(verdicts.ERROR, checks)
+                try:
+                    result2 = output(call_input)
+                except Exception as exc:
+                    checks.append(Check("second_stage", "fail",
+                                        f"{label}: the returned callable raised "
+                                        f"{type(exc).__name__}: {exc} — blame: the unit"))
+                    return done(verdicts.RED, checks)
+                for inv in second.get("invariants", []) or []:
+                    ok, detail = _try_invariant(inv, call_input, result2)
+                    if not ok:
+                        checks.append(Check("second_stage", "fail",
+                                            f"{label}: range contract \"{inv}\" failed: {detail} "
+                                            f"— blame: the unit"))
+                        return done(verdicts.RED, checks)
+                if "expect" in call and result2 != call["expect"]:
+                    checks.append(Check("second_stage", "fail",
+                                        f"{label}: result != expected — blame: the unit"))
+                    return done(verdicts.RED, checks)
+
         # --- invariants (real evaluation) ---
         if do_invariants:
             for inv in contract.get("invariants", []) or []:
@@ -237,6 +279,15 @@ def run_tier0(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
         checks.append(Check("row", "pass", f"'{name}' ran, conforms, invariants hold"))
 
     return done(verdicts.GREEN, checks)
+
+
+def _try_invariant(inv: str, inp: Any, output: Any) -> tuple[bool, str]:
+    """eval_invariant with evaluation failure folded into (False, why) — the
+    second stage reports every outcome through blame, never by raising."""
+    try:
+        return eval_invariant(inv, inp, output)
+    except Exception as exc:
+        return False, f"could not evaluate: {exc}"
 
 
 def _schema_check(contract: dict, inp: Any, output: Any, manifest_dir: Path) -> str | None:
