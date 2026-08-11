@@ -16,6 +16,16 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   declared but never enforced. `ent ci` gains a budgets stage — over budget is
   DEGRADED (exit 4). refundly's deliberate gateway overage is now asserted in
   CI as the proof the gate works.
+- **The oracle boundary is mechanical**: the `enforce_claims` hook now
+  fail-closes on the verifier's own state — `entiendo/history` (the append-only
+  record), `entiendo/baselines` (baselines + blessing signatures),
+  `entiendo/steering` (verdicts enter via `post_verdict`), the generated
+  `graph.json`/`coverage.json` (Invariant 1, now enforced at the keystroke),
+  and any **human-blessed golden dataset**. Agents demonstrably game evals by
+  editing the evaluator's state; the proposer being *mechanically unable* to
+  touch the oracle is the propose-verify separation the reward-hacking
+  literature calls non-negotiable. Writes that bypass the hook still void the
+  blessing's content signature — both layers are adversarially tested.
 - **MCP Registry readiness**: `server.json` at the repo root (official
   registry schema, `io.github.akashdatageek/entiendo`), an `entiendo` console
   script alias so `uvx entiendo` works, the PyPI ownership marker embedded in
