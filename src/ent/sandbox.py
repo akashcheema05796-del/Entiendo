@@ -69,22 +69,113 @@ def _apply_rlimits() -> None:  # pragma: no cover - exercised in the child only
             continue                       # never fail the eval over a limit we can't set
 
 
+def _install_probe(root: str) -> list:  # pragma: no cover - child only
+    """Audit-hook effect probe (research round 2, rec D) — graded EVIDENCE.
+
+    Rice's theorem says "this unit performs no I/O" is undecidable, and a
+    dynamic probe only sees executed branches — so what this records is
+    containment evidence, never a soundness claim. One direction IS sound:
+    an effect the probe observed is an effect the unit can perform.
+
+    Excluded as plane/runtime noise, not unit behaviour: the interpreter's
+    bytecode cache, the OS tempdir (scratch space), and the project's own
+    `entiendo/` tree (the eval journal). Known hole, stated in the report:
+    `sys.addaudithook` does not cross a subprocess boundary — but the spawn
+    itself IS recorded.
+    """
+    import os as _os
+    import sys as _sys
+    import tempfile as _tempfile
+
+    events: list = []
+    tmp = _os.path.realpath(_tempfile.gettempdir())
+    root_real = _os.path.realpath(root)
+    plane = _os.path.join(root_real, "entiendo")
+
+    def _counts(path: object) -> bool:
+        # re-opening an existing descriptor (int fd) creates no new effect
+        if not isinstance(path, (str, bytes, _os.PathLike)):
+            return False
+        real = _os.path.realpath(_os.fsdecode(path))
+        if "__pycache__" in real or real.endswith((".pyc", ".pyo")):
+            return False
+        if real.startswith(plane):
+            return False                   # the plane's own journal, not the unit
+        if real.startswith(root_real):
+            return True                    # writing the project counts, wherever it lives
+        return not real.startswith(tmp)    # outside the project, tempdir is scratch
+
+    def hook(event: str, args: tuple) -> None:
+        try:
+            if event == "open":
+                mode = str(args[1] or "r")
+                if any(c in mode for c in "wax+") and _counts(args[0]):
+                    events.append(("fs-write", str(args[0])))
+            elif event in ("socket.connect", "socket.create_connection",
+                           "socket.bind", "socket.sendto"):
+                events.append(("network", event))
+            elif event in ("subprocess.Popen", "os.system", "os.posix_spawn",
+                           "os.spawn", "os.exec"):
+                events.append(("subprocess", event))
+        except Exception:
+            pass                    # the probe must never break the eval
+    _sys.addaudithook(hook)
+    return events
+
+
+def _effect_report(node: Any, events: list, result: dict) -> None:
+    """Attach probe evidence; gate ONLY the sound direction.
+
+    Declared `sideEffects: none` + an observed effect = the contract is
+    demonstrably false → RED with the effect named. Observing nothing adds
+    the evidence line "no effects observed under probe" — an evidence grade,
+    never a verified invariant (that promotion would be unsound).
+    """
+    declared = (node.raw.get("contract", {}) or {}).get("sideEffects", "none")
+    kinds = sorted({k for k, _ in events})
+    samples: dict[str, str] = {}
+    for kind, detail in events:
+        samples.setdefault(kind, detail)
+    result["effects"] = {
+        "grade": "probe",
+        "declared": declared,
+        "observed": kinds,
+        "samples": samples,
+        "note": ("probe evidence: an observed effect proves the unit can "
+                 "perform it; observing none proves nothing (Rice's theorem; "
+                 "unexecuted branches and subprocess interiors are unseen)."),
+    }
+    if declared == "none" and kinds:
+        from . import verdicts
+        result["verdict"] = verdicts.RED
+        result.setdefault("checks", []).append({
+            "type": "effect_probe", "status": "fail",
+            "detail": (f"contract declares sideEffects: none, but the probe "
+                       f"observed {', '.join(kinds)} "
+                       f"(e.g. {samples[kinds[0]]}) — fix the unit or declare "
+                       f"the effect in the manifest"),
+        })
+
+
 _CHILD_CODE = """
 import contextlib, json, sys
 from pathlib import Path
-from ent.sandbox import _apply_rlimits
+from ent.sandbox import _apply_rlimits, _install_probe, _effect_report
 _apply_rlimits()
+req = json.load(sys.stdin)
+events = _install_probe(req["root"])
 from ent.manifest import find_node
 from ent.evals.runner import run_tier0, run_tier1
-req = json.load(sys.stdin)
 node = find_node(Path(req["root"]), req["node_id"])
 if node is None:
     print(json.dumps({"error": f"no node {req['node_id']!r}"})); raise SystemExit(0)
 runner = run_tier1 if req["tier"] == 1 else run_tier0
 # stdout is the result protocol; an entrypoint that print()s (a CLI unit, a
 # chatty library) must not corrupt it — divert user output to stderr.
+events.clear()          # probe the UNIT's execution, not the import machinery
 with contextlib.redirect_stdout(sys.stderr):
     result = runner(node, Path(req["root"])).as_dict()
+_effect_report(node, events, result)
 print(json.dumps(result))
 """
 
