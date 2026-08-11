@@ -21,6 +21,12 @@ component with a contract, a composite version, tiered evals, and history.
    `apply_edit` rejects writes outside a node's `claims` — if you need to touch
    an unclaimed file, propose a boundary change (amend `claims` in the manifest)
    and get explicit human sign-off first.
+9. **The oracle is not agent-writable** (SPEC §17). Never edit
+   `entiendo/history|baselines|steering`, the generated
+   `graph.json`/`coverage.json`, or a human-blessed golden dataset — the
+   claims hook denies these mechanically, and the legitimate write paths are
+   the ent CLI/APIs (`ent extract`, `ent baseline`, `ent bless`,
+   `post_verdict`).
 
 ## Eval authorship (the bootstrapping trap)
 

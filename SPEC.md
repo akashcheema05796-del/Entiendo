@@ -190,6 +190,11 @@ approval:
 6. **Secrets are never rendered.** Only the fact of change and its timestamp.
 7. **Health is judged against a baseline with a significance threshold**, never a raw score. Otherwise the map flickers and people stop opening it.
 8. **The AI edits through the node, not through the repo.**
+9. **The oracle is not agent-writable.** The verifier's own state — history,
+   baselines, blessing signatures, steering verdicts, the generated map, and
+   any human-blessed golden dataset — is closed to the proposer by access
+   control, not by policy. Agents demonstrably game verifiers they can write
+   to; the propose-verify separation is mechanical (see §17).
 
 ---
 
@@ -497,3 +502,48 @@ steering it produces a diff-first **proposal**. It exercises every feature — t
 law, agentic units, rendered interiors, the approval gate, trace playback, and
 fingerprint replay — with committed traces (including a bad-order run where the
 refund is issued before the order is verified) driving the Trace lens.
+
+---
+
+## 17. The oracle boundary — propose-verify, mechanically separated
+
+The most-validated finding across propose-verify systems (Clover, AlphaProof,
+AI-Control, and the reward-hacking literature: METR, ImpossibleBench,
+SWE-Bench+) is that an AI proposer that can read, write, or influence its
+verifier games it — at documented rates of 54–100%. Entiendo is therefore
+built as **spine + adapters + a confined proposer**:
+
+- **The deterministic spine never calls a model.** Validation, reconciliation,
+  claims, fingerprints, tier-0 evals, the tier-1 gate, budgets, and the
+  model-identity check are all model-free. The only model-in-the-loop surface
+  (a tier-2 judge) is advisory and never gates a build.
+- **The proposer cannot write the oracle.** The `enforce_claims` hook
+  fail-closes on `entiendo/history|baselines|steering`, the generated
+  `graph.json`/`coverage.json`, and any human-blessed golden dataset
+  (Invariant 9). Writes that bypass the hook still void the blessing's
+  content signature, so the tier-1 gate degrades to advisory rather than
+  trusting tampered rows.
+- **Golden expected values must not come from the code under test.** Every
+  row carries `oracleClass` (`contract-derivable` vs `implementation-derived`
+  — the tautological oracle); harvested rows are tagged
+  implementation-derived by construction, and blessing them requires an
+  explicit human flag.
+- **Evaluability is graded evidence, never a verified claim.** "This unit
+  performs no I/O" is undecidable (Rice's theorem), so the sandbox's effect
+  probe gates only the sound direction — an observed effect against a
+  `sideEffects: none` contract is RED — and reports absence as
+  "no effects observed under probe", an evidence grade.
+- **The closed-world guarantee is bounded by each adapter's resolver, and
+  says so.** Every language adapter publishes a capability manifest (its
+  named blind spots) into `graph.json`; every edge carries `resolution:
+  complete | partial | none`. Where resolution is partial — dynamic dispatch,
+  reflection, regex-grade extraction — the map has inference-shaped holes,
+  and they are surfaced, never hidden.
+- **Higher-order contracts defer with blame.** A factory unit's returned
+  closure is judged per invocation (`contract.secondStage` + `thenCall`
+  rows), Findler–Felleisen style: domain violations blame the caller (a
+  broken fixture is an eval error), range violations blame the unit (RED).
+
+The honest positioning that follows: Entiendo's green is trustworthy not
+because the agent is trusted, but because the agent is *mechanically unable*
+to make it green by any path except making the code actually conform.

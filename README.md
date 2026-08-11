@@ -157,6 +157,20 @@ $ ent serve               # the Universe: click a unit, steer it from your agent
 > invariant with the real numbers (`len(output.chunks)=2 <= input.k=1`). That is
 > the difference between an instrument and a diagram — see [`docs/phase7.md`](./docs/phase7.md).
 
+**Why you can trust the green.** Agents demonstrably game verifiers they can
+write to (the reward-hacking literature puts it at 54–100% when the evaluator
+is reachable), so Entiendo's propose-verify split is **access control, not
+policy** (SPEC §17): the deterministic spine never calls a model; the claims
+hook fail-closes on the oracle (history, baselines, blessing signatures,
+steering verdicts, the generated map, any blessed golden dataset); golden
+rows carry `oracleClass` provenance so expected values derived from the code
+under test are quarantined until a human consciously accepts them; the eval
+sandbox's effect probe turns a false `sideEffects: none` into a RED; and
+every language adapter publishes its blind spots into the graph, with each
+edge graded `complete | partial | none`. The green is trustworthy because
+the agent is *mechanically unable* to produce it except by making the code
+actually conform.
+
 > **The model-identity test:** pin a unit's model
 > (`ent pin refundly.decide model=claude-sonnet-5`), point `ent otel` at the
 > OTLP/JSON your tracing already exports, and let `ent ci` compare the pin to

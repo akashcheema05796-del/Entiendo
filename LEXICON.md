@@ -113,6 +113,31 @@ operator blesses. Blessing your own grader is a tautology, not a signal.
 **Baseline** — the reference score a golden eval is judged against; promoted only
 on human confirmation (`ent baseline accept`).
 
+**Oracle boundary** — the verifier's own state (history, baselines, blessing
+signatures, steering verdicts, the generated map, blessed golden datasets),
+mechanically closed to the proposer: the claims hook denies agent writes, and
+content signatures void on tamper (SPEC §17, Invariant 9).
+
+**Oracle class** — a golden row's provenance: `contract-derivable` (the
+expected value follows from the spec alone) or `implementation-derived`
+(captured from the code's own output — a value that can never disagree with
+it; quarantined until a human consciously accepts it at bless time).
+
+**Effect probe** — the sandbox's audit-hook record of a unit's observed
+effects (fs-write / network / subprocess). Gates one direction only: an
+observed effect against `sideEffects: none` is RED; observing nothing is
+graded evidence, never verification (Rice's theorem).
+
+**Capability manifest** — a language adapter's declared blind spots,
+published in `graph.json` (`adapters`); every edge carries `resolution:
+complete | partial | none`. The closed-world guarantee is bounded by each
+adapter's resolver, and says so.
+
+**Second stage** — the deferred contract of the callable a factory unit
+returns (`contract.secondStage` + fixture `thenCall` rows), judged per
+invocation with blame: domain violations blame the caller, range violations
+blame the unit (Findler–Felleisen).
+
 ---
 
 ## Agentic units
