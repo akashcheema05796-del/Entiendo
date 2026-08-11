@@ -10,7 +10,14 @@ Blessing is a human gate (V3): it requires an interactive TTY (even with
 `--yes`), and it records a real identity (`--as` → `entiendo/config.toml` →
 `git config user.email`) — never `"unknown"`, and no env-var bypass.
 
-Exit codes: 0 blessed / aborted · 2 no dataset / node / identity · 3 non-interactive
+Rows carry oracle-class provenance (src/ent/goldens.py): expected values
+captured from the implementation's own output (`oracleClass:
+implementation-derived`) can never disagree with it — the tautological-oracle
+trap — so blessing a dataset containing them additionally requires
+`--accept-implementation-derived`. The census prints either way.
+
+Exit codes: 0 blessed / aborted · 2 no dataset / node / identity / quarantined
+rows without the accept flag · 3 non-interactive
 """
 
 from __future__ import annotations
@@ -19,7 +26,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .. import baselines, gitinfo
+from .. import baselines, gitinfo, goldens
 from ..evals.runner import load_rows
 from ..identity import IdentityError, resolve_identity
 from ..manifest import find_node
@@ -36,6 +43,10 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
                    help="who is blessing (else entiendo/config.toml, else git user.email)")
     p.add_argument("--by", dest="as_", help=argparse.SUPPRESS)   # back-compat alias for --as
     p.add_argument("--yes", action="store_true", help="skip the confirmation prompt (still needs a TTY)")
+    p.add_argument("--accept-implementation-derived", action="store_true",
+                   help="bless even though some rows' expected values were captured "
+                        "from the implementation's own output (the tautology risk "
+                        "is yours, consciously)")
     p.add_argument("--root", default=".", help="project root (default: current directory)")
     p.set_defaults(handler=_run)
 
@@ -52,6 +63,28 @@ def _run(args: argparse.Namespace) -> int:
         print(f"ent bless: {args.node} has no golden dataset to bless")
         return 2
 
+    dataset_rel = golden["dataset"]
+    dataset_path = root / dataset_rel
+    if not dataset_path.exists():
+        print(f"ent bless: dataset '{dataset_rel}' not found")
+        return 2
+    rows = load_rows(dataset_path)
+
+    # The tautological-oracle guard: rows whose expected values were captured
+    # from the implementation's own output can only ever agree with it.
+    # Blessing them is allowed — a human accepting actual-as-expected is a
+    # legitimate choice — but never a default.
+    bad = goldens.quarantined(rows)
+    if bad and not args.accept_implementation_derived:
+        print(f"ent bless: {len(bad)} row(s) are implementation-derived — their "
+              f"expected values came from the code's own output, so they can "
+              f"never disagree with it: {', '.join(bad[:5])}"
+              f"{'…' if len(bad) > 5 else ''}")
+        print("Re-derive them from the contract/spec (oracleClass: "
+              "contract-derivable), or bless anyway with "
+              "--accept-implementation-derived.")
+        return 2
+
     # A human gate: blessing requires an interactive session — even with --yes,
     # and with no env-var escape hatch. CI cannot bless a baseline.
     if not sys.stdin.isatty():
@@ -66,14 +99,8 @@ def _run(args: argparse.Namespace) -> int:
         print(f"ent bless: {exc}")
         return 2
 
-    dataset_rel = golden["dataset"]
-    dataset_path = root / dataset_rel
-    if not dataset_path.exists():
-        print(f"ent bless: dataset '{dataset_rel}' not found")
-        return 2
-
-    rows = load_rows(dataset_path)
-    print(f"Golden dataset for {args.node}: {dataset_rel} ({len(rows)} rows)\n")
+    print(f"Golden dataset for {args.node}: {dataset_rel} ({len(rows)} rows)")
+    print(f"oracle classes: {goldens.describe(goldens.census(rows))}\n")
     for i, row in enumerate(rows):
         print(f"  [{i}] {row.get('name', '')}: input={row.get('input')}  expect={row.get('expect')}")
     print(f"\nblessing as: {blessed_by}")
