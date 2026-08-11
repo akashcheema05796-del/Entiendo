@@ -72,7 +72,12 @@ def propose_from_traces(root: Path, unit_id: str) -> list[FixtureProposal]:
         stub_targets = _stub_targets(node, trace_nodes)
         deps = {t: [{}] for t in stub_targets}          # one placeholder stub each
 
-        fixture: dict[str, Any] = {"name": name, "input": {"_": INPUT_PLACEHOLDER}}
+        # provenance is honest by construction: these rows are carved from
+        # recorded behaviour, so anything a human later promotes to a golden
+        # expectation started implementation-derived (see src/ent/goldens.py)
+        fixture: dict[str, Any] = {"name": name, "input": {"_": INPUT_PLACEHOLDER},
+                                   "provenance": "trace-harvest",
+                                   "oracleClass": "implementation-derived"}
         if deps:
             fixture["deps"] = deps
 

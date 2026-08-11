@@ -16,6 +16,15 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   declared but never enforced. `ent ci` gains a budgets stage — over budget is
   DEGRADED (exit 4). refundly's deliberate gateway overage is now asserted in
   CI as the proof the gate works.
+- **Golden rows carry oracle-class provenance** — the tautological-oracle
+  guard. Every golden row may declare `oracleClass`: `contract-derivable`
+  (the expected value follows from the spec alone) or
+  `implementation-derived` (captured from the code's own output — a value
+  that can never disagree with it). `ent bless` prints the census and
+  **refuses** to bless a dataset containing implementation-derived rows
+  unless the human passes `--accept-implementation-derived`; rows harvested
+  by `ent fixtures` are tagged implementation-derived by construction;
+  refundly's spec-first goldens are tagged contract-derivable.
 - **The oracle boundary is mechanical**: the `enforce_claims` hook now
   fail-closes on the verifier's own state — `entiendo/history` (the append-only
   record), `entiendo/baselines` (baselines + blessing signatures),
