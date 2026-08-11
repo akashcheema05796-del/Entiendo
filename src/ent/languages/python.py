@@ -11,12 +11,24 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from .base import ImportEdge
+from .base import AdapterCapabilities, ImportEdge
 
 
 class PythonExtractor:
     name = "python"
     extensions = (".py",)
+
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            grade="ast",
+            evidenceTag="import",
+            cannotResolve=(
+                "importlib.import_module / __import__ with runtime arguments "
+                "(flagged as possibleUndeclaredDynamicDep, not resolved to edges)",
+                "getattr / string-keyed dispatch onto modules",
+                "subprocess-spawned interpreters and os.system calls",
+                "network calls (requests/httpx/urllib) — out-of-process by nature",
+            ))
 
     def resolved_imports(self, file: Path, root: Path) -> list[ImportEdge]:
         try:

@@ -16,6 +16,14 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   declared but never enforced. `ent ci` gains a budgets stage — over budget is
   DEGRADED (exit 4). refundly's deliberate gateway overage is now asserted in
   CI as the proof the gate works.
+- **Adapter capability manifests + per-edge resolution grades** — the honest
+  boundary of the closed-world guarantee. Every language adapter declares its
+  blind spots (`capabilities()`: grade `ast`/`regex-poc`/`compiler`, evidence
+  tag, named `cannotResolve` constructs); the graph publishes them
+  (`graph.adapters`), every edge carries `resolution:
+  complete|partial|none`, and `ent doctor` prints "what the map cannot see".
+  "Verified, not inferred" collapses exactly where resolution is partial —
+  so the holes are declared machine-readably, never hidden.
 - **Golden rows carry oracle-class provenance** — the tautological-oracle
   guard. Every golden row may declare `oracleClass`: `contract-derivable`
   (the expected value follows from the spec alone) or
