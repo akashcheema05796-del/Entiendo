@@ -152,6 +152,27 @@
           "description": "Optional adapter for units whose entrypoint is not a single-argument function: '<path>::<callable>', called as harness(row, ctx) where ctx carries .entrypoint, .root and .node. It returns the output that invariants and schema checks then judge. Lives with the fixtures (evals/), NOT in the node's claims \u2014 it is test scaffolding, so it does not enter the composite fingerprint.",
           "type": "string",
           "pattern": "^[^:]+\\.py::[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "secondStage": {
+          "description": "The deferred contract of the CALLABLE the entrypoint returns (Findler\u2013Felleisen wrap-and-defer, for factory units: compile()/match factories, configured closures). A factory's first-stage output cannot be judged eagerly, so fixture rows invoke it via `thenCall: [{input, expect?}]` and each invocation is judged here \u2014 with blame: `domain` invariants judge the invocation's input (a violation blames the CALLER \u2014 the fixture row \u2014 and is an eval error, not a unit failure); `invariants` judge its output (a violation blames the UNIT and is RED).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "description": "Invariants over each `thenCall` input (the closure's argument). Violation = blame the caller \u2192 eval ERROR.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "invariants": {
+              "description": "Invariants over each `thenCall` result (the closure's output). Violation = blame the unit \u2192 RED.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     },
