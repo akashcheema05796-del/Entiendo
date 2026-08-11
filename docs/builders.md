@@ -104,8 +104,12 @@ hint    : propose a boundary change (edit the manifest's `claims`) …
 ```
 
 **2. The agent's *own* edit tool can be blocked too — in all three editors.**
-Each supports a hook that runs *before* a write and can refuse it. They disagree
-only about the JSON, so one script speaks all three:
+Each supports a hook that runs *before* a write and can refuse it. Besides
+unclaimed files, the hook fail-closes on the **oracle**: the verifier's own
+state (`entiendo/history|baselines|steering`, the generated `graph.json` /
+`coverage.json`, and any human-blessed golden dataset) is never agent-writable
+— the reward-hacking literature's non-negotiable, made mechanical. The editors
+disagree only about the JSON, so one script speaks all three:
 
 ```bash
 python3 .claude/hooks/enforce_claims.py --format claude       # default

@@ -21,10 +21,16 @@ claimed-but-unresolved first, else the oldest pending request.
 
 Fail-open by design outside managed repos: no `entiendo/graph.json` above the
 target → allow (this hook governs operator sessions inside managed trees; it
-must never brick an ordinary repo). Plane-owned paths are always allowed:
-manifests (`entiendo.node.yaml`), the `entiendo/` artifact tree, and `evals/`
-fixtures — those are the control plane's files, not unit interiors, and their
-changes are reviewed by humans in PRs. `ENT_HOOK_DISABLE=1` bypasses entirely.
+must never brick an ordinary repo). Plane-owned paths are allowed —
+manifests (`entiendo.node.yaml`) and `evals/` fixtures are the control plane's
+files, reviewed by humans in PRs — with one fail-CLOSED exception: the ORACLE.
+The verifier's own state (`entiendo/history|baselines|steering`, the generated
+`graph.json`/`coverage.json`, and any human-blessed golden dataset) is never
+agent-writable; its only write paths are the ent CLI/APIs in their own
+process. That is the propose-verify separation the reward-hacking literature
+(METR, ImpossibleBench, SWE-Bench+) calls non-negotiable: the proposer must be
+mechanically unable to touch the oracle. `ENT_HOOK_DISABLE=1` bypasses
+entirely (a human act, visible in the session).
 
 Speaks three editors. Claude Code, Cursor and Antigravity all support blocking
 a write before it happens; they disagree only about the JSON. `--format claude`
@@ -173,6 +179,44 @@ def main() -> None:
     except ValueError:
         _allow()
     rel_posix = rel.as_posix()
+
+    # ---- the oracle boundary (fail-CLOSED, checked before every allow) ----
+    # The verifier's own state is never agent-writable — not even as
+    # "plane-owned". Agents demonstrably game evals by editing the evaluator's
+    # state (METR / ImpossibleBench / SWE-Bench+); the legitimate write paths
+    # (`ent extract`, `ent baseline`, `ent bless`, the history appender, the
+    # Bridge server) are separate processes that never come through an editor's
+    # write tools — so an editor write to these paths is tampering by
+    # construction, whoever asks for it:
+    #   entiendo/history/    the append-only record (versions, verdicts, traces)
+    #   entiendo/baselines/  baselines, pending baselines, blessing signatures
+    #   entiendo/steering/   the Bridge queue — verdicts enter via post_verdict
+    #   entiendo/graph.json + coverage.json — generated, never drawn (Invariant 1)
+    ORACLE_DIRS = ("entiendo/history/", "entiendo/baselines/", "entiendo/steering/")
+    ORACLE_FILES = ("entiendo/graph.json", "entiendo/coverage.json")
+    if rel_posix.startswith(ORACLE_DIRS) or rel_posix in ORACLE_FILES:
+        _deny(f"{rel_posix} is the verifier's own state — agents never write it "
+              "directly. Use the real write path: `ent extract` regenerates the "
+              "map, `ent baseline` / `ent bless` are human acts, history is "
+              "append-only through the ent APIs, and steering verdicts go "
+              "through post_verdict.")
+
+    # A human-blessed golden dataset is a signed oracle: an editor write voids
+    # the signature at best and games the tier-1 gate at worst. Changes go in
+    # as a new revision a human re-blesses — never as an in-place edit.
+    try:
+        bless_dir = root / "entiendo" / "baselines"
+        if bless_dir.is_dir():
+            for bf in bless_dir.glob("*.bless.json"):
+                rec = json.loads(bf.read_text(encoding="utf-8"))
+                if Path(str(rec.get("dataset", ""))).as_posix() == rel_posix:
+                    _deny(f"{rel_posix} is a human-blessed golden dataset "
+                          f"(signed by {rec.get('blessedBy', 'a human')}) — "
+                          "editing it voids the blessing. Propose a revised "
+                          "dataset and ask a human to `ent bless` it.")
+    except Exception:
+        pass          # unreadable blessing record — the content signature still voids
+
     if target.name == "entiendo.node.yaml" or rel_posix.startswith(("entiendo/", "evals/")):
         _allow()
 
