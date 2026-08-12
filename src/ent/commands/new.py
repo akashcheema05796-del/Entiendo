@@ -146,4 +146,6 @@ def _run(args: argparse.Namespace) -> int:
     print(f"    code      {code_rel}   (replace the TODO with real logic)")
     print(f"    fixture   {fixture_rel}   (defines 'done')")
     print(f"  next: ent eval {args.id}   → GREEN from birth")
+    print(f"  evaluability: ready (probed) — awaiting goldens. Not 'untested': "
+          f"a data chore away from trusted, and the map says so.")
     return 0

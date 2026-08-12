@@ -43,6 +43,10 @@ def build_view(root: Path) -> dict[str, Any]:
     blind = result.graph.get("possibleUndeclaredDynamicDep", [])
 
     by_id = {n.id: n for n in nodes}
+    # evaluability grades (three states instead of one UNTESTED smear):
+    # ready / evaluable-after-refactor / interior, with graded evidence
+    from .evaluability import grade_all
+    evaluability_by_id = grade_all(root, nodes)
     node_views = []
     executable = 0
     for gnode in result.graph["nodes"]:
@@ -55,9 +59,19 @@ def build_view(root: Path) -> dict[str, Any]:
         raw = node.raw if node else {}
         contract = raw.get("contract", {}) or {}
         declared_budgets = raw.get("budgets", {}) or {}
+        evaluability = evaluability_by_id.get(gnode["id"])
+        health_colour = verdicts.colour(health)
+        if health == verdicts.UNTESTED and evaluability:
+            # an untested unit isn't one smear of grey: ready = blue (a data
+            # chore away from trust), needs-refactor = amber (shaped wrong),
+            # interior stays grey (never contracted, by design)
+            health_colour = {"ready": "blue",
+                             "evaluable-after-refactor": "amber"}.get(
+                                 evaluability["grade"], "grey")
         view = {
             **gnode, "health": health,
-            "healthColour": verdicts.colour(health), "version": version,
+            "healthColour": health_colour, "version": version,
+            "evaluability": evaluability,
             # dossier, logic-first: description (paragraph) → task (line) → contract
             "description": raw.get("description"),
             "task": raw.get("task") or raw.get("name") or gnode["id"],
