@@ -42,6 +42,15 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   complete|partial|none`, and `ent doctor` prints "what the map cannot see".
   "Verified, not inferred" collapses exactly where resolution is partial —
   so the holes are declared machine-readably, never hidden.
+- **Repo-wide golden hash manifest** (`entiendo/goldens.lock`): SHA-256 of
+  every golden file — datasets manifests declare *plus* anything matching
+  `evals/**/golden*`, so a planted-but-undeclared golden is caught as an
+  addition. `ent goldens verify` (exit 1 on mismatch, `--require-lock` for
+  opted-in repos), `ent goldens bless` (loud, refuses under CI — the gate
+  cannot re-pin itself), tier-1 grading refuses tampered ground truth
+  (ERROR, never a pass), a required `integrity.yml` workflow, and the lock
+  itself joins the hook's oracle deny-list. `SECURITY.md` documents the
+  model, its limits, and the Sigstore upgrade path.
 - **Golden rows carry oracle-class provenance** — the tautological-oracle
   guard. Every golden row may declare `oracleClass`: `contract-derivable`
   (the expected value follows from the spec alone) or

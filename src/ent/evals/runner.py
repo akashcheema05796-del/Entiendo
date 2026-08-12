@@ -323,6 +323,15 @@ def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
     if golden is None:
         return done(verdicts.UNTESTED, [Check("golden", "skip", "no tier1 golden configured")])
 
+    # Repo-wide integrity net (hardening Phase 1): grading refuses to run
+    # when the goldens on disk disagree with entiendo/goldens.lock. Fatal,
+    # never a warning — a tampered ground truth grades nothing.
+    from .. import integrity
+    try:
+        integrity.ensure_verified(root)
+    except integrity.GoldenTamperError as exc:
+        return done(verdicts.ERROR, [Check("integrity", "error", str(exc))])
+
     dataset_path = root / golden["dataset"] if golden.get("dataset") else None
     rows = load_rows(dataset_path) if dataset_path else []
     if not rows:

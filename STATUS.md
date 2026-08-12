@@ -12,7 +12,7 @@ they're reconciled.
   on pypi.org)
 - **Runtime:** Python (`ent` CLI). Runtime deps minimal (pyyaml, jsonschema);
   heavier features behind extras (`.[dev]`, `.[serve]`, `.[mcp]`).
-- **Tests:** `python -m pytest -q` → **531 passing** (~22s), plus an optional
+- **Tests:** `python -m pytest -q` → **542 passing** (~25s), plus an optional
   browser suite: `pytest tests/frontend/frontend_universe.py` (16 Playwright
   tests, not collected by default).
 

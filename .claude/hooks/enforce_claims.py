@@ -193,7 +193,8 @@ def main() -> None:
     #   entiendo/steering/   the Bridge queue — verdicts enter via post_verdict
     #   entiendo/graph.json + coverage.json — generated, never drawn (Invariant 1)
     ORACLE_DIRS = ("entiendo/history/", "entiendo/baselines/", "entiendo/steering/")
-    ORACLE_FILES = ("entiendo/graph.json", "entiendo/coverage.json")
+    ORACLE_FILES = ("entiendo/graph.json", "entiendo/coverage.json",
+                    "entiendo/goldens.lock")
     if rel_posix.startswith(ORACLE_DIRS) or rel_posix in ORACLE_FILES:
         _deny(f"{rel_posix} is the verifier's own state — agents never write it "
               "directly. Use the real write path: `ent extract` regenerates the "

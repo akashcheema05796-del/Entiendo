@@ -14,6 +14,7 @@ status: experimental
 claims:
 - src/ent/baselines.py
 - src/ent/goldens.py
+- src/ent/integrity.py
 - src/ent/identity.py
 contract:
   invariants:
@@ -29,3 +30,8 @@ evals:
     fixture: evals/ent.trust/smoke.jsonl
 observability:
   spanName: ent.trust
+dependencies:
+  calls:
+  - ent.contracts
+  - ent.packaging
+  - ent.versioning

@@ -42,6 +42,7 @@ from .commands import new as new_cmd
 from .commands import doctor as doctor_cmd
 from .commands import fixtures as fixtures_cmd
 from .commands import ci as ci_cmd
+from .commands import goldens as goldens_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -75,6 +76,7 @@ def _build_parser() -> argparse.ArgumentParser:
     fixtures_cmd.register(sub)
     ci_cmd.register(sub)
     otel_cmd.register(sub)
+    goldens_cmd.register(sub)
 
     return parser
 

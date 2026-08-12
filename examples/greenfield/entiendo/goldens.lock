@@ -1,0 +1,8 @@
+{
+  "createdAt": "2026-08-12T04:45:36+00:00",
+  "files": {
+    "evals/retrieval.chunk_ranker/golden_v2.jsonl": "bb03ab2f78f27a48177daad02dfd57018c30fa9ac672e9eb076f00231bdbbdf1"
+  },
+  "schemaVersion": 1,
+  "toolVersion": "0.2.0"
+}
