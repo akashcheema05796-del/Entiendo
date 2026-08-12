@@ -45,6 +45,7 @@ from .commands import ci as ci_cmd
 from .commands import goldens as goldens_cmd
 from .commands import lock as lock_cmd
 from .commands import detect as detect_cmd
+from .commands import import_tests as import_tests_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -81,6 +82,7 @@ def _build_parser() -> argparse.ArgumentParser:
     goldens_cmd.register(sub)
     lock_cmd.register(sub)
     detect_cmd.register(sub)
+    import_tests_cmd.register(sub)
 
     return parser
 
