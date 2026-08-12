@@ -4,27 +4,30 @@ id: ent.evalkit
 name: Tiered Eval Runner
 task: Execute tier0/tier1 evals for a unit in an isolated sandbox with stubbed neighbours,
   and produce verdicts.
-description: 'Entrypoint resolution (packaged or standalone modules), fixture execution under
-  rlimits, dependency stubbing so tier0 stays free of I/O, metrics, significance verdicts
-  (paired bootstrap), invariant checking. Its own tier0 runs the runner against a passing
-  AND a deliberately failing fixture unit, so a runner that rubber-stamps everything fails
-  this unit. Known limit of self-evaluation: a mutation that disables invariant ENFORCEMENT
-  cannot be caught by an invariant — the detector is the mutated code. That case is covered
-  by the pytest suite, which runs outside the eval machinery (verified: the mutation fails
-  3 tests).'
+description: 'Entrypoint resolution (packaged or standalone modules), fixture execution
+  under rlimits, dependency stubbing so tier0 stays free of I/O, metrics, significance
+  verdicts (paired bootstrap), invariant checking. Its own tier0 runs the runner against
+  a passing AND a deliberately failing fixture unit, so a runner that rubber-stamps
+  everything fails this unit. Known limit of self-evaluation: a mutation that disables
+  invariant ENFORCEMENT cannot be caught by an invariant — the detector is the mutated
+  code. That case is covered by the pytest suite, which runs outside the eval machinery
+  (verified: the mutation fails 3 tests).'
 nodeKind: compute
 group: quality
 owner: akashdatageek
 status: experimental
 claims:
+- src/ent/detectors/__init__.py
+- src/ent/detectors/time_dynamic.py
+- src/ent/detectors/time_static.py
 - src/ent/evals/__init__.py
 - src/ent/evals/entrypoint.py
 - src/ent/evals/metrics.py
 - src/ent/evals/runner.py
 - src/ent/invariants.py
 - src/ent/sandbox.py
-- src/ent/verdicts.py
 - src/ent/testing.py
+- src/ent/verdicts.py
 contract:
   invariants:
   - output['good'] == 'GREEN'

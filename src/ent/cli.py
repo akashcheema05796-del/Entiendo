@@ -44,6 +44,7 @@ from .commands import fixtures as fixtures_cmd
 from .commands import ci as ci_cmd
 from .commands import goldens as goldens_cmd
 from .commands import lock as lock_cmd
+from .commands import detect as detect_cmd
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -79,6 +80,7 @@ def _build_parser() -> argparse.ArgumentParser:
     otel_cmd.register(sub)
     goldens_cmd.register(sub)
     lock_cmd.register(sub)
+    detect_cmd.register(sub)
 
     return parser
 

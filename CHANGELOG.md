@@ -42,6 +42,19 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   complete|partial|none`, and `ent doctor` prints "what the map cannot see".
   "Verified, not inferred" collapses exactly where resolution is partial —
   so the holes are declared machine-readably, never hidden.
+- **Clock-dependency detector** (`ent detect time [unit…]`): `time_pure`
+  becomes a reported component *property*, never a test failure. The static
+  pass (AST) flags `datetime.now`/`date.today`/`time.time`/`uuid.uuid1`/
+  unseeded `random`/`os.environ['TZ']` and propagates transitively through
+  an intra-project call graph (a unit calling a clock-touching helper two
+  files away is flagged, with the chain as evidence). The dynamic pass
+  (`.[detect]`, time-machine) replays smoke fixtures under shifted clocks —
+  +1d/+180d/+1y, a DST boundary, Feb 29, a TZ flip, and a 12-step month
+  sweep so a seasonal `month == 12` branch is always crossed — and any
+  output delta is `time_pure: false` with the failing shift named. Units
+  time-machine cannot intercept (C extensions, subprocesses) are
+  `time_check: incomplete` with libfaketime documented as the escalation
+  path. Harvested fixtures now record `capturedAt` so drift is attributable.
 - **The Bash bypass hole is closed with detect-and-revert.** Predict-and-block
   on shell strings is unwinnable (`python -c`, `sed -i`, `tee`, heredocs,
   `git checkout <sha> --` all rewrite files without an editor tool), so a
