@@ -3,7 +3,10 @@
 All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 (0.x: minor bumps may break, patch bumps never do).
 
-## Unreleased
+## 0.2.0 — 2026-08-12
+
+The first published release. Everything from the 2026-08-04 beta cut (below)
+plus two research-adaptation rounds and the trust-hardening plan.
 
 ### Added
 - **OTel GenAI span reader** (`ent otel <otlp.json>`): ingest
@@ -168,9 +171,9 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   retrofit starting state, not an invalid one. Actually-invalid manifests
   still exit 2 without `--allow-invalid`.
 
-## 0.2.0 — 2026-08-04
+### The beta cut — 2026-08-04
 
-First public beta. Everything below shipped since the 0.1.0 scaffold, across
+Everything below shipped since the 0.1.0 scaffold, across
 PLAN v4 (the Universe), PLAN v5 (close the loop), and PLAN v6 (trust
 hardening); 389 tests plus an optional 11-test Playwright browser suite.
 
