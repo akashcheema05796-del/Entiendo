@@ -11,6 +11,10 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # This environment's git proxy cannot push tag refs, so the release can
+  # also be fired by hand — same workflow file + `pypi` environment, which
+  # is exactly what the Trusted Publishing pending publisher matches on.
+  workflow_dispatch:
 
 jobs:
   build:
