@@ -24,6 +24,7 @@ claims:
 - src/ent/evals/entrypoint.py
 - src/ent/evals/metrics.py
 - src/ent/evals/runner.py
+- src/ent/evaluability.py
 - src/ent/invariants.py
 - src/ent/sandbox.py
 - src/ent/testing.py
@@ -47,5 +48,6 @@ dependencies:
   calls:
   - ent.contracts
   - ent.packaging
+  - ent.trust
   - ent.versioning
   writes: []

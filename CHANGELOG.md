@@ -3,6 +3,24 @@
 All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 (0.x: minor bumps may break, patch bumps never do).
 
+## Unreleased
+
+### Added
+- **Evaluability grades** — three states instead of one smear of UNTESTED
+  red. Every unit now carries `evaluability`: **ready** (takes values, no
+  effects beyond its declarations, statically clock-clean — only ground
+  truth is missing: "awaiting goldens/blessing", a data chore, not a design
+  problem), **evaluable-after-refactor** (I/O fused with the logic — reads
+  the clock, talks to the world with no declared edge to stub; `ent extract`
+  fires the law at build time with the split named, before the code
+  hardens), or **interior** (documented, never contracted). The health lens
+  paints untested-but-ready **blue**, needs-refactor amber, interior grey;
+  the window answers "Can it be judged?" in plain words; the system summary
+  counts the three states; `ent new` births units as "ready (probed) —
+  awaiting goldens", not "untested". Honesty: the grade is always evidence —
+  `(probed)` or `(static)`, never "verified" (the probe only observes the
+  paths it executes; the grade upgrades as real fixtures arrive).
+
 ## 0.2.0 — 2026-08-12
 
 The first published release. Everything from the 2026-08-04 beta cut (below)

@@ -14,7 +14,7 @@
     --muted:#8A93AD; --panel:#0c1220f2;
     --signal-green:#3FBF7F; --signal-amber:#E0A83C; --signal-red:#E05252;
     --green:var(--signal-green); --amber:var(--signal-amber); --red:var(--signal-red);
-    --grey:#6E7690; --accent:#8FA0C8;
+    --grey:#6E7690; --accent:#8FA0C8; --blue:#5B9BD9;
     --compute:#8FA0C8; --state:#B48FD8; --schema:#9B7FD0; --config:#6B7488;
     --external:var(--annotation); --pipeline:#6FA8C0;
     --font-display:'Fraunces','Iowan Old Style','Georgia',serif;
@@ -297,7 +297,7 @@ const KIND_FORM = { compute:'chip', state:'cylinder', schema:'hex', config:'tag'
                     external:'cut', pipeline:'container' };
 const KIND_COLOUR = { compute:'--compute', state:'--state', schema:'--schema',
                       config:'--config', external:'--external', pipeline:'--pipeline' };
-const HEALTH_COLOUR = { green:'--green', red:'--red', amber:'--amber', degraded:'--amber', grey:'--grey' };
+const HEALTH_COLOUR = { green:'--green', red:'--red', amber:'--amber', degraded:'--amber', grey:'--grey', blue:'--blue' };
 const cvar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#889';
 const esc = s => (s??'').toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
@@ -521,6 +521,9 @@ function winInterior(n){
       <div class="row2"><span>Looked after by</span><span>${esc(n.owner||'—')}</span></div>
       <div class="row2"><span>Maturity</span><span>${esc(n.status||'—')}</span></div>
       <div class="row2"><span>Side effects</span><span class="${warnFx?'warn':''}">${esc(FX[fx]||fx||'none')}</span></div>
+      ${n.evaluability ? `<div class="row2"><span>Can it be judged?</span>
+        <span style="color:${n.evaluability.grade==='ready'?'var(--blue)':n.evaluability.grade==='interior'?'var(--muted)':'var(--amber)'}">${esc(n.evaluability.label)}</span></div>
+        ${(n.evaluability.why||[]).map(w=>`<div style="margin:2px 0 0 0;color:var(--muted);font-size:11px">· ${esc(w)}</div>`).join('')}` : ''}
       <div class="row2"><span>Needs sign-off to change</span>
         <span class="${n.approvalRequired?'warn':''}">${n.approvalRequired?'yes':'no'}</span></div>
       <div style="margin-top:10px"><b>Files it owns</b> <span style="color:var(--muted)">(only these can change it)</span>
@@ -854,10 +857,21 @@ async function boot(){
   // appear NOWHERE on screen — you had to open every unit or decode ring styles
   // to learn that most of them were untested. State it in words, worst first.
   const tally = {};
-  for (const n of view.nodes) tally[n.health||'UNTESTED'] = (tally[n.health||'UNTESTED']||0)+1;
-  const order = ['RED','ERROR','DEGRADED','UNSTABLE','UNTESTED','GREEN'];
+  for (const n of view.nodes){
+    let k = n.health||'UNTESTED';
+    if (k==='UNTESTED' && n.evaluability){
+      // untested is not one state: ready = a data chore away, needs-refactor
+      // = shaped wrong for trust, interior = never contracted (by design)
+      k = n.evaluability.grade==='ready' ? 'ready, awaiting goldens'
+        : n.evaluability.grade==='evaluable-after-refactor' ? 'needs refactor'
+        : 'interior';
+    }
+    tally[k] = (tally[k]||0)+1;
+  }
+  const order = ['RED','ERROR','DEGRADED','UNSTABLE','needs refactor',
+                 'ready, awaiting goldens','interior','UNTESTED','GREEN'];
   const healthBits = order.filter(k=>tally[k])
-    .map(k=>`${tally[k]} ${k.toLowerCase()}`).join(' · ');
+    .map(k=>`${tally[k]} ${k===k.toUpperCase()?k.toLowerCase():k}`).join(' · ');
   document.getElementById('summary').textContent =
     `${view.nodes.length} units · ${healthBits} · coverage ${Math.round((c.coverage||0)*100)}% · `
     + `${view.reconciled?'reconciled ✓':'drift ✗'}`

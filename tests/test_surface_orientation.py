@@ -22,9 +22,15 @@ UNIVERSE = REPO_ROOT / "src/ent/universe.html"
 
 def test_summary_states_the_health_tally() -> None:
     html = UNIVERSE.read_text()
-    assert "tally[n.health" in html, "the summary must count units by verdict"
+    # the summary still counts units by verdict — and UNTESTED is no longer
+    # one smear: it splits into ready / needs refactor / interior (strictly
+    # more informative than the old single tally)
+    assert "n.health||'UNTESTED'" in html, "the summary must count units by verdict"
+    assert "ready, awaiting goldens" in html
+    assert "needs refactor" in html and "interior" in html
     # worst-first ordering: an operator should read RED before GREEN
-    assert "['RED','ERROR','DEGRADED','UNSTABLE','UNTESTED','GREEN']" in html
+    assert ("['RED','ERROR','DEGRADED','UNSTABLE','needs refactor',\n"
+            "                 'ready, awaiting goldens','interior','UNTESTED','GREEN']" in html)
 
 
 def test_landing_does_not_collapse_a_mid_size_repo() -> None:

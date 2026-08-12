@@ -129,6 +129,23 @@ def _run(args: argparse.Namespace) -> int:
         for w in blind:
             print(f"    ? {w['node']}: {w['file']} uses {w['pattern']}")
 
+    # Evaluability (the law, fired at build time): units whose I/O is fused
+    # with their logic get told to split NOW, before the code hardens.
+    # Advisory — a property, never a gate.
+    try:
+        from ..evaluability import AFTER_REFACTOR, grade_all
+        from ..manifest import Node, discover, load
+        enodes = [Node.from_manifest(load(p), p) for p in discover(root)]
+        needs = {uid: g for uid, g in grade_all(root, enodes).items()
+                 if g["grade"] == AFTER_REFACTOR}
+        if needs:
+            print("\n  evaluable only after a refactor (split before it hardens):")
+            for uid in sorted(needs):
+                for why in needs[uid]["why"]:
+                    print(f"    ! {uid}: {why}")
+    except Exception:
+        pass                        # grading must never break extraction
+
     # V1: declared edges no span has confirmed yet (only when --with-spans ran).
     unverified = graph.get("unverifiedDeclaredEdges", [])
     if getattr(args, "with_spans", None) is not None and unverified:
