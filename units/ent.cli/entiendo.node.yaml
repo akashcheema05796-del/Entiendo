@@ -26,6 +26,7 @@ claims:
 - src/ent/commands/extract.py
 - src/ent/commands/fixtures.py
 - src/ent/commands/goldens.py
+- src/ent/commands/import_tests.py
 - src/ent/commands/init.py
 - src/ent/commands/lock.py
 - src/ent/commands/mcp.py
@@ -58,6 +59,7 @@ dependencies:
   - ent.graph
   - ent.observer
   - ent.packaging
+  - ent.retrofit
   - ent.surface
   - ent.timetravel
   - ent.versioning

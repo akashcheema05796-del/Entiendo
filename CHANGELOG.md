@@ -42,6 +42,15 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   complete|partial|none`, and `ent doctor` prints "what the map cannot see".
   "Verified, not inferred" collapses exactly where resolution is partial —
   so the holes are declared machine-readably, never hidden.
+- **Test-case extraction** (`ent import-tests <path> [--method
+  ast|collect|both]`): mine an existing pytest suite into case files under
+  `entiendo/proposals/imported-tests/`. The AST path never executes repo
+  code and never emits an evaluated value (computed parametrize lists are
+  counted-skipped); the collection path (`pytest --collect-only` + a
+  plugin, module import only — sandbox for untrusted repos) resolves
+  computed and fixture params; whatever cannot be represented faithfully is
+  a flagged `needs_harness` entry. The coverage line ("extracted N of M…")
+  is always printed — gaps are visible, never hidden.
 - **Clock-dependency detector** (`ent detect time [unit…]`): `time_pure`
   becomes a reported component *property*, never a test failure. The static
   pass (AST) flags `datetime.now`/`date.today`/`time.time`/`uuid.uuid1`/
