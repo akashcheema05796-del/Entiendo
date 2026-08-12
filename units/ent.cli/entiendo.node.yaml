@@ -26,6 +26,7 @@ claims:
 - src/ent/commands/fixtures.py
 - src/ent/commands/goldens.py
 - src/ent/commands/init.py
+- src/ent/commands/lock.py
 - src/ent/commands/mcp.py
 - src/ent/commands/new.py
 - src/ent/commands/otel.py

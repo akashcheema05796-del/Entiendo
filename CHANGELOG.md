@@ -42,6 +42,19 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
   complete|partial|none`, and `ent doctor` prints "what the map cannot see".
   "Verified, not inferred" collapses exactly where resolution is partial —
   so the holes are declared machine-readably, never hidden.
+- **The Bash bypass hole is closed with detect-and-revert.** Predict-and-block
+  on shell strings is unwinnable (`python -c`, `sed -i`, `tee`, heredocs,
+  `git checkout <sha> --` all rewrite files without an editor tool), so a
+  **PostToolUse hook on Bash** (stdlib-only, works pre-install in a fresh
+  clone) recomputes every root's goldens against its lock after each shell
+  command: mismatches are restored from HEAD, rogue untracked goldens are
+  deleted, and the agent gets the warning on stderr (exit 2).
+  `ENTIENDO_BLESS_IN_PROGRESS=1` lets a human re-bless flow through.
+  `.claude/settings.json` additionally carries `permissions.deny` rules for
+  golden paths and the lock (deny rules hold even in
+  `--dangerously-skip-permissions`), the PreToolUse matcher gains
+  NotebookEdit, and `ent lock --os` (chattr/chflags, `--undo` counterpart)
+  offers the only true pre-execution block where privileges allow.
 - **Repo-wide golden hash manifest** (`entiendo/goldens.lock`): SHA-256 of
   every golden file — datasets manifests declare *plus* anything matching
   `evals/**/golden*`, so a planted-but-undeclared golden is caught as an

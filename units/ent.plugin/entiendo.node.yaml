@@ -19,6 +19,8 @@ claims:
 - .claude-plugin/plugin.json
 - .claude-plugin/marketplace.json
 - .claude/hooks/enforce_claims.py
+- .claude/hooks/post_bash_integrity.py
+- .claude/settings.json
 - .claude/skills/entiendo-operator/SKILL.md
 - .claude/skills/entiendo-retrofit/SKILL.md
 - .mcp.json
