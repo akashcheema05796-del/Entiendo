@@ -1,0 +1,9 @@
+{
+  "createdAt": "2026-08-12T04:45:35+00:00",
+  "files": {
+    "evals/refundly.decide/golden_v3.jsonl": "a66302811353af3afdee8f79dd1252b4457a635af4b122902d12034eb8b07b21",
+    "evals/refundly.parse_email/golden_v3.jsonl": "ad160f4430aa32cc1175f1ef6b0283034fe712b6dd199b5241549b6e2c14f1fe"
+  },
+  "schemaVersion": 1,
+  "toolVersion": "0.2.0"
+}

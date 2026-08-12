@@ -2,11 +2,11 @@ apiVersion: entiendo/v1
 kind: Node
 id: ent.cli
 name: Terminal Surface
-task: Parse ent subcommands, dispatch to the engine, and exit with the severity table (0 pass,
-  1 red, 2 error, 4 unstable).
-description: 'Every human-facing command: init, new, validate, extract, eval, baseline, bless,
-  pin, replay, serve/dev, render, retrofit, snapshot, fixtures, doctor, ci, mcp, edit. Thin
-  argparse wrappers over the engine units.'
+task: Parse ent subcommands, dispatch to the engine, and exit with the severity table
+  (0 pass, 1 red, 2 error, 4 unstable).
+description: 'Every human-facing command: init, new, validate, extract, eval, baseline,
+  bless, pin, replay, serve/dev, render, retrofit, snapshot, fixtures, doctor, ci,
+  mcp, edit. Thin argparse wrappers over the engine units.'
 nodeKind: compute
 group: surface
 owner: akashdatageek
@@ -24,6 +24,7 @@ claims:
 - src/ent/commands/eval.py
 - src/ent/commands/extract.py
 - src/ent/commands/fixtures.py
+- src/ent/commands/goldens.py
 - src/ent/commands/init.py
 - src/ent/commands/mcp.py
 - src/ent/commands/new.py

@@ -1,0 +1,39 @@
+# Golden integrity (hardening Phase 1) — a required check.
+#
+# Verifies every project root's goldens against its committed
+# entiendo/goldens.lock on every PR and push to main. An agent (or anyone)
+# editing a golden without the matching lock change cannot pass; a lock
+# change always shows as a reviewable diff in the PR. Blessing is refused
+# under CI by construction — the gate cannot re-pin itself.
+name: Integrity
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  goldens:
+    runs-on: ubuntu-latest
+    env:
+      ENTIENDO_CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -e .
+      - name: Verify golden integrity (repo root)
+        run: ent goldens verify
+      - name: Verify golden integrity (refundly)
+        run: ent goldens verify --require-lock --root examples/refundly
+      - name: Verify golden integrity (greenfield)
+        run: ent goldens verify --require-lock --root examples/greenfield
+      - name: Bless refuses to run here (the gate cannot re-pin itself)
+        run: |
+          set +e
+          ent goldens bless --root examples/refundly
+          code=$?
+          set -e
+          test "$code" -eq 3 || { echo "expected CI refusal (exit 3), got $code"; exit 1; }
