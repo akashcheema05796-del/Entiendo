@@ -114,7 +114,10 @@ def test_hook_is_registered_in_settings() -> None:
     pre = settings["hooks"]["PreToolUse"]
     assert any("enforce_claims.py" in h["command"]
                for entry in pre for h in entry["hooks"])
-    assert any(entry["matcher"] == "Edit|Write|MultiEdit" for entry in pre)
+    # every editor write tool is matched (Phase-2 hardening added NotebookEdit)
+    matchers = [entry["matcher"] for entry in pre]
+    assert any(all(tool in m for tool in ("Edit", "Write", "MultiEdit", "NotebookEdit"))
+               for m in matchers)
 
 
 # --------------------------------------------------------------------------- #

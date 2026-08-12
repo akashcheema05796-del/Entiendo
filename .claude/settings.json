@@ -1,12 +1,37 @@
 {
+  "permissions": {
+    "deny": [
+      "Edit(entiendo/history/**)",
+      "Write(entiendo/history/**)",
+      "Edit(entiendo/baselines/**)",
+      "Write(entiendo/baselines/**)",
+      "Edit(entiendo/steering/**)",
+      "Write(entiendo/steering/**)",
+      "Edit(**/entiendo/goldens.lock)",
+      "Write(**/entiendo/goldens.lock)",
+      "Edit(**/evals/**/golden*)",
+      "Write(**/evals/**/golden*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/enforce_claims.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/post_bash_integrity.py\""
           }
         ]
       }
