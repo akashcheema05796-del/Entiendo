@@ -23,8 +23,10 @@ jobs:
           python-version: "3.11"
       - name: Build sdist + wheel
         run: |
-          pip install build cyclonedx-bom
+          pip install build cyclonedx-bom twine
           python -m build
+      - name: Metadata sanity (twine check)
+        run: twine check dist/*
       - name: SBOM for the release
         run: |
           pip install dist/*.whl
@@ -48,4 +50,9 @@ jobs:
       - name: Remove non-package files
         run: rm -f dist/sbom.cdx.json
       - name: Publish to PyPI (Trusted Publishing)
-        uses: pypa/gh-action-pypi-publish@release/v1
+        # Pinned to a full commit SHA (v1.14.2): a moving tag on the publisher
+        # is a supply-chain hole — the one action that touches PyPI must be
+        # byte-exact. Bump deliberately, with the version noted here.
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
+        with:
+          attestations: true      # PEP 740 digital attestations, explicit
