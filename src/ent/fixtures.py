@@ -78,6 +78,11 @@ def propose_from_traces(root: Path, unit_id: str) -> list[FixtureProposal]:
         fixture: dict[str, Any] = {"name": name, "input": {"_": INPUT_PLACEHOLDER},
                                    "provenance": "trace-harvest",
                                    "oracleClass": "implementation-derived"}
+        # when the captured behaviour happened (Phase 3): a golden captured
+        # at a known epoch makes later clock-drift attributable — re-run the
+        # capture under a frozen clock at this instant to reproduce it
+        if trace.get("ts"):
+            fixture["capturedAt"] = trace["ts"]
         if deps:
             fixture["deps"] = deps
 

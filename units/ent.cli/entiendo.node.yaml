@@ -19,6 +19,7 @@ claims:
 - src/ent/commands/baseline.py
 - src/ent/commands/bless.py
 - src/ent/commands/ci.py
+- src/ent/commands/detect.py
 - src/ent/commands/doctor.py
 - src/ent/commands/edit.py
 - src/ent/commands/eval.py
