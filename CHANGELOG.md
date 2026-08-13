@@ -6,6 +6,18 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Added
+- **The semantic sweep protocol** in the `entiendo-retrofit` skill: the
+  LLM-agent side of the division of labor, codified. Where `ent` measures
+  deterministically, the agent reads every unit's code and authors its test
+  set — probe first (pure core / missing runtime / data), fixture rows
+  covering typical + boundary + error paths, harnesses under `evals/`,
+  execute-before-stage (`ent eval` must pass before a fixture is real, and
+  a failing row means your reading is wrong — investigate, never force),
+  provenance stated (contract-derivable vs implementation-derived), missing
+  runtimes declared instead of left as ERROR, config units left honestly
+  interior. Ends with the before/after eval line as the deliverable. Hard
+  limits restated: propose tier1, never bless; never redraw accepted
+  boundaries without sign-off.
 - **The steering bridge: `ent ci --enqueue-failures`** (astrobee gap 6, the
   design answer to "why doesn't Entiendo take help of the builder?"). Red
   verdicts used to be report lines, and report lines cannot be delegated.
