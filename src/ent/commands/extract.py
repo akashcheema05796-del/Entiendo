@@ -103,16 +103,23 @@ def _run(args: argparse.Namespace) -> int:
         f"  {len(graph['nodes'])} node(s), {len(graph['edges'])} edge(s) "
         f"({sum(1 for e in graph['edges'] if e['verified'])} verified)"
     )
+    from ..extractor import coverage_headline
+    print(f"  {coverage_headline(cov)}")
     print(
-        f"  coverage {cov['coverage'] * 100:.0f}%  "
-        f"({cov['claimedCount']} claimed, {cov['acknowledgedUnclaimedCount']} "
+        f"  ({cov['claimedCount']} claimed, {cov['acknowledgedUnclaimedCount']} "
         f"acknowledged, {cov['unaccountedCount']} unaccounted of {cov['total']})"
     )
 
     if cov["unaccounted"]:
+        shown = cov["unaccounted"][:20]
         print("\n  unaccounted files (claim them, or list in entiendo/unclaimed.txt):")
-        for f in cov["unaccounted"]:
+        for f in shown:
             print(f"    ? {f}")
+        hidden = len(cov["unaccounted"]) - len(shown)
+        if hidden:
+            # never a silent cap: the count is stated, the full list is in
+            # entiendo/coverage.json
+            print(f"    … and {hidden} more — full list in entiendo/coverage.json")
 
     # v7 — circular dependency groups: named, never silent (warning, not gate).
     cycles = graph.get("dependencyCycles", [])

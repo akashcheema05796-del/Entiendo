@@ -873,8 +873,11 @@ async function boot(){
   const healthBits = order.filter(k=>tally[k])
     .map(k=>`${tally[k]} ${k==='ENV-BLOCKED'?'env-blocked (needs absent runtime)'
                          : k===k.toUpperCase()?k.toLowerCase():k}`).join(' · ');
+  const rec = c.recognized;
+  const covBits = `coverage ${Math.round((c.coverage||0)*100)}%`
+    + (rec && rec.total ? ` (${Math.round((rec.coverage||0)*100)}% of ${rec.total} recognized)` : '');
   document.getElementById('summary').textContent =
-    `${view.nodes.length} units · ${healthBits} · coverage ${Math.round((c.coverage||0)*100)}% · `
+    `${view.nodes.length} units · ${healthBits} · ${covBits} · `
     + `${view.reconciled?'reconciled ✓':'drift ✗'}`
     + (view.commit?` · @${view.commit}`:'');
   expanded = view.nodes.length > COLLAPSE_THRESHOLD ? new Set() : new Set(groupsOf(view.nodes));
