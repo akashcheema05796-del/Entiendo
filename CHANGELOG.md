@@ -5,6 +5,18 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 
 ## Unreleased
 
+### Added
+- **Retrofit probes candidate entrypoints before proposing them** (astrobee
+  gap 1): every candidate is import-checked in a bounded child (rlimits +
+  wall clock, same loader as the eval judge), and a proposal only carries an
+  entrypoint that actually imports in this environment. Candidates that need
+  an absent runtime (astrobee shipped five whose entrypoints import ROS
+  packages) fall through to the next importable candidate or produce a
+  `no importable entrypoint in this environment` note instead of a fake
+  ERROR at eval time. `ent retrofit --no-probe` restores the fast blind
+  guess. `ent.retrofit` now honestly declares `sideEffects: external` —
+  the effect probe caught the subprocess spawn the moment it landed.
+
 ### Fixed
 - **Three more defects from the famous-105 gauntlet** (react, cpython,
   kubernetes, babel, next.js and 100 friends): the **accept-time reflex eval

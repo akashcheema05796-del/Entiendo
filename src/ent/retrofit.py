@@ -13,13 +13,17 @@ Inference (deliberately simple and legible, so a human can correct it):
   - dependencies from static import analysis between candidate groups (same engine
     the extractor uses to verify edges)
   - entrypoint proposed when a group has a single obvious public function or an
-    existing @ent.node() callable
+    existing @ent.node() callable — and only when it actually IMPORTS here:
+    every candidate is probed in a bounded child first (astrobee shipped 5
+    proposals whose entrypoints import ROS packages that can never resolve
+    outside a ROS install — each one a fake ERROR waiting at eval time)
 
 Nothing is written into the real tree until a human accepts a proposal.
 """
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,18 +79,21 @@ def _infer_kind(files: list[Path]) -> tuple[str, str]:
     return "compute", "low"
 
 
-def _propose_entrypoint(node_id: str, files: list[Path], root: Path) -> tuple[str | None, str | None]:
-    """Return (entrypoint, note). Prefer an @ent.node() callable, else a lone function."""
+def _entrypoint_candidates(node_id: str, files: list[Path], root: Path) -> list[str]:
+    """Ordered candidate entrypoints: @ent.node() matches first, then every
+    file with a single obvious public function (the original heuristic, kept
+    as a ranking instead of a single blind pick)."""
     import ast
 
+    decorated_specs: list[str] = []
+    lone_specs: list[str] = []
     for f in files:
         if f.suffix != ".py":
             continue
         rel = f.relative_to(root).as_posix()
-        decorated = scan_decorated(f)
-        for func, nid in decorated.items():
+        for func, nid in scan_decorated(f).items():
             if nid == node_id:
-                return f"{rel}::{func}", None
+                decorated_specs.append(f"{rel}::{func}")
         try:
             tree = ast.parse(f.read_text())
         except (SyntaxError, UnicodeDecodeError, ValueError, OSError):
@@ -94,12 +101,81 @@ def _propose_entrypoint(node_id: str, files: list[Path], root: Path) -> tuple[st
         funcs = [n.name for n in tree.body
                  if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith("_")]
         if len(funcs) == 1:
-            return f"{rel}::{funcs[0]}", None
-    return None, "no single obvious entrypoint — set contract.entrypoint by hand"
+            lone_specs.append(f"{rel}::{funcs[0]}")
+    return decorated_specs + [s for s in lone_specs if s not in decorated_specs]
 
 
-def propose(root: Path) -> list[Proposal]:
-    """Infer candidate nodes and build proposed manifests. Writes nothing."""
+# How many candidates to probe per group before giving up — probing spawns a
+# child process each, and a group whose first three candidates all fail to
+# import is overwhelmingly one whose remaining files need the same missing
+# runtime (astrobee: rosbag across a whole scripts/ dir).
+_PROBE_MAX_CANDIDATES = 3
+_PROBE_TIMEOUT_S = 10.0
+
+# The child mirrors the EVAL loader exactly (same package-context resolution,
+# same sys.path discipline) — a probe that imports differently from the judge
+# would certify entrypoints the judge still can't load.
+_PROBE_CODE = """\
+import json, sys
+from pathlib import Path
+from ent.evals.entrypoint import _import_file
+root = Path(sys.argv[1]); spec = sys.argv[2]
+rel, _, name = spec.partition("::")
+try:
+    mod = _import_file(root / rel, "retrofit-probe", root)
+    fn = getattr(mod, name, None)
+    ok = callable(fn)
+    err = None if ok else f"'{name}' is not a callable in {rel}"
+except BaseException as exc:      # SystemExit at import is a real-world case
+    ok, err = False, f"{type(exc).__name__}: {exc}"[:300]
+print("ENT-PROBE:" + json.dumps({"ok": ok, "error": err}))
+"""
+
+
+def probe_entrypoint(root: Path, spec: str, timeout_s: float = _PROBE_TIMEOUT_S) -> str | None:
+    """None if `spec` imports to a callable in THIS environment, else why not.
+
+    Runs in a bounded child (rlimits + wall clock), never in-process: a
+    proposed entrypoint is arbitrary unvetted code — importing it may
+    sys.exit, block forever, or exhaust memory (the same lesson the accept
+    flow learned from node.js's configure script).
+    """
+    import json
+    import subprocess
+    import sys
+
+    from .sandbox import _apply_rlimits
+
+    kwargs: dict[str, Any] = {}
+    if os.name == "posix":
+        kwargs["preexec_fn"] = _apply_rlimits
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", _PROBE_CODE, str(Path(root).resolve()), spec],
+            capture_output=True, text=True, cwd=str(root),
+            timeout=timeout_s, **kwargs)
+    except subprocess.TimeoutExpired:
+        return f"import timed out after {timeout_s:.0f}s"
+    except OSError as exc:
+        return f"probe could not spawn: {exc}"
+    # A hostile import may spray stdout before the marker — scan for ours.
+    for line in reversed((proc.stdout or "").splitlines()):
+        if line.startswith("ENT-PROBE:"):
+            try:
+                data = json.loads(line[len("ENT-PROBE:"):])
+            except ValueError:
+                break
+            return None if data.get("ok") else (data.get("error") or "not importable")
+    return f"import died before completing (exit {proc.returncode})"
+
+
+def propose(root: Path, probe: bool = True) -> list[Proposal]:
+    """Infer candidate nodes and build proposed manifests. Writes nothing.
+
+    `probe=False` skips the import probe on candidate entrypoints (faster,
+    but restores the old blind-guess behaviour — proposals may then carry
+    entrypoints that can never import and will read ERROR at eval time).
+    """
     root = Path(root).resolve()
     app = _sanitize(root.name)
     files = _candidate_files(root)
@@ -138,9 +214,24 @@ def propose(root: Path) -> list[Proposal]:
         notes: list[str] = []
         entrypoint = None
         if kind == "compute":
-            entrypoint, ep_note = _propose_entrypoint(node_id, gfiles, root)
-            if ep_note:
-                notes.append(ep_note)
+            cands = _entrypoint_candidates(node_id, gfiles, root)
+            if not cands:
+                notes.append("no single obvious entrypoint — set contract.entrypoint by hand")
+            elif not probe:
+                entrypoint = cands[0]
+            else:
+                last_err: str | None = None
+                for spec in cands[:_PROBE_MAX_CANDIDATES]:
+                    err = probe_entrypoint(root, spec)
+                    if err is None:
+                        entrypoint = spec
+                        break
+                    last_err = err
+                if entrypoint is None:
+                    probed = min(len(cands), _PROBE_MAX_CANDIDATES)
+                    notes.append(
+                        f"no importable entrypoint in this environment — probed "
+                        f"{probed} candidate(s); last failure: {last_err}")
 
         contract: dict[str, Any] = {"invariants": [], "sideEffects": "none"}
         if entrypoint:

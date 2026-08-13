@@ -20,7 +20,9 @@ contract:
   entrypoint: src/ent/retrofit.py::propose
   invariants:
   - len(output) >= 1
-  sideEffects: none
+  # propose() spawns bounded probe children to import-check candidate
+  # entrypoints — a real subprocess effect, declared, not hidden
+  sideEffects: external
 evals:
   tier0:
   - type: invariant_check
