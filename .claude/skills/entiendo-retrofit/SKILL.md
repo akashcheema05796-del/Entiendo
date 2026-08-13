@@ -3,10 +3,12 @@ name: entiendo-retrofit
 description: >
   Retrofit an existing (unmanaged) repository into Entiendo nodes. Use whenever
   the user asks to "retrofit", "map", "visualize", or "bring under Entiendo" a
-  project that has no entiendo.node.yaml manifests, or to review/improve staged
-  retrofit proposals. Replaces the directory-grouping heuristic with semantic
-  boundary analysis: read the code, propose nodes with real contracts, and walk
-  the human through accepting them one by one.
+  project that has no entiendo.node.yaml manifests, to review/improve staged
+  retrofit proposals, or to run the semantic sweep ("green the gate", "add
+  fixtures", "sweep the units") on a mapped repo. Replaces the
+  directory-grouping heuristic with semantic boundary analysis: read the code,
+  propose nodes with real contracts, author per-unit test sets, and walk the
+  human through accepting them one by one.
 ---
 
 # Entiendo Retrofit — Semantic Boundary Proposal
@@ -76,6 +78,48 @@ written into the real tree until the human accepts a proposal. Never bulk-accept
    the coverage number and list unclaimed files explicitly — unclaimed is
    visible, not hidden (Invariant 4). Ask whether the leftovers should become
    nodes, be acknowledged, or be flagged as glue debt.
+
+## The semantic sweep — turning UNTESTED green
+
+Once the map exists, the eval gate usually shows a wall of UNTESTED units.
+This is the work the deterministic tool cannot do and you can: **read every
+unit's code and author its test set.** Run it when the user asks to "green
+the gate", "add fixtures", "sweep the units", or after finishing a retrofit.
+
+Per unit, in importance order (blast radius, then real logic over glue):
+
+1. **Probe first, guess never.** Try importing each claimed file the way the
+   eval loader would. Three outcomes: a *pure importable core*, a *missing
+   runtime* (rosbag outside ROS), or *no runnable code* (data/config).
+2. **Pure core → author the fixture set.** Pick the entrypoint that holds the
+   real logic (a parsing/decision function, not the CLI shim). Write rows
+   covering: one typical case, one boundary (the 40-vs-41 bin edge, the
+   commented-out line that must NOT match), one error path (`expectError`).
+   Multi-argument or class-based? Write a harness under `evals/<unit-id>/`
+   — test scaffolding, never claimed. Then **execute before you stage**:
+   `ent eval <unit>` must pass before the fixture is real. A row that fails
+   is telling you your reading of the code is wrong — investigate it, never
+   force the expectation to match.
+3. **Say where every expectation came from.** A value you derived by reading
+   the code/docs is *contract-derivable*; a value you copied from running
+   the code is *implementation-derived* — it pins today's behaviour
+   (regression netting, legitimate tier0) but is not ground truth. Mark
+   which, and never bless either yourself.
+4. **Missing runtime → declare it.** `contract.requires: [rosbag]` where the
+   schema supports it (≥0.3) so the unit reads ENV-BLOCKED; on older
+   schemas, `evals.executionMode: skip` with a comment naming the runtime.
+   Never leave a wrong-environment ERROR standing — it drowns real defects.
+5. **Config/data → interior is honest.** Don't force fixtures onto pure
+   data units; grey-by-design beats a fake smoke test. If a schema exists,
+   a `schema_validation` contract is the right upgrade.
+6. **Close the loop visibly.** Re-run `ent ci` as you go; finish by
+   reporting the before/after eval line ("0 green, 38 untested, 5 error →
+   8 green, 35 untested, 0 error") — the sweep's deliverable is that diff.
+
+Hard limits, same as everywhere: tier1 golden rows may be *proposed*, only a
+human blesses; never redraw an accepted boundary mid-sweep without sign-off;
+if `ent ci --enqueue-failures` queued steering tasks, work through those via
+`await_steering`/`post_verdict` rather than around them.
 
 ## Naming and hygiene
 
