@@ -28,6 +28,9 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
     )
     p.add_argument("root", nargs="?", default=".", help="repo to retrofit (default: current directory)")
     p.add_argument("--accept", metavar="ID", help="promote one staged proposal into place (one at a time)")
+    p.add_argument("--no-probe", action="store_true",
+                   help="skip the import probe on candidate entrypoints (faster, "
+                        "but proposals may carry entrypoints that read ERROR at eval time)")
     p.set_defaults(handler=_run)
 
 
@@ -35,12 +38,12 @@ def _run(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     if args.accept:
         return _accept(root, args)
-    return _propose(root)
+    return _propose(root, probe=not args.no_probe)
 
 
-def _propose(root: Path) -> int:
+def _propose(root: Path, probe: bool = True) -> int:
     try:
-        proposals = retrofit.propose(root)
+        proposals = retrofit.propose(root, probe=probe)
     except ModuleNotFoundError as exc:
         print(f"ent retrofit: missing dependency — {exc}. Try: pip install -e '.[dev]'")
         return 2
