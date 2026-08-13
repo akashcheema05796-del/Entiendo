@@ -6,6 +6,19 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Added
+- **The steering bridge: `ent ci --enqueue-failures`** (astrobee gap 6, the
+  design answer to "why doesn't Entiendo take help of the builder?"). Red
+  verdicts used to be report lines, and report lines cannot be delegated.
+  Each RED/ERROR unit now becomes ONE structured steering task the operator
+  loop consumes through the normal Bridge (`await_steering` → edit through
+  the unit → `post_verdict`): the diagnosis, then mechanical options ranked —
+  declare `contract.requires` (with the missing module parsed from the
+  error), repoint the entrypoint at a probed importable candidate, or fix a
+  genuine defect. Idempotent (one live task per unit; a consumed task can
+  re-queue if the unit is still red). The separation holds the whole way:
+  the judge diagnoses and delegates, never edits, and every task carries an
+  explicit prohibition on golden authorship — the builder must not write
+  the answers it is graded against (SPEC §17).
 - **`ent amend`** (astrobee gap 5): sideEffects contradictions become staged,
   reviewable amendments instead of notes that scroll away. `ent amend` lists
   every unit declaring `sideEffects: none` whose claimed files hit an
