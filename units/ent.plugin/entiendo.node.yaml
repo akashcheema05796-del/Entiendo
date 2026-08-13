@@ -27,6 +27,13 @@ claims:
 - .github/workflows/ci.yml
 - .github/workflows/integrity.yml
 - .github/workflows/release.yml
+# The by-name package resolver (gap 3) surfaced a real edge the old
+# root-only resolution was blind to: enforce_claims.py does
+# `from ent import claims` — the hook leans on the installed package as the
+# single claims authority (v6 1.4). Declared the moment it became visible.
+dependencies:
+  calls:
+  - ent.packaging
 contract:
   invariants:
   - output['root'] == 'miniproj'
