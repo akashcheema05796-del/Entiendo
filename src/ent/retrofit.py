@@ -195,15 +195,39 @@ def write_proposals(root: Path, proposals: list[Proposal]) -> Path:
     return out
 
 
-def accept(root: Path, node_id: str) -> Path | None:
-    """Move a proposal into place as a real entiendo.node.yaml. Returns the path."""
+def accept(root: Path, node_id: str) -> tuple[Path, list[tuple[str, str]]] | None:
+    """Move a proposal into place as a real entiendo.node.yaml.
+
+    Returns (path, held_back_edges) or None if no such proposal.
+
+    A proposal's inferred dependencies may point at SIBLING proposals that
+    are not accepted yet — promoting those edges verbatim leaves the partial
+    project broken (`declares dependency on unknown node`), which betrays
+    the guarantee that the first manifest yields a working project. Edges
+    to units that don't exist yet are HELD BACK and reported; when the
+    sibling is later accepted, the reconciler's undeclared-dependency drift
+    will name the missing edge — the system reminds you, mechanically.
+    """
     import yaml
+
+    from .manifest import discover, load
 
     root = Path(root).resolve()
     proposal_file = root / PROPOSALS_DIR / f"{node_id}.node.yaml"
     if not proposal_file.exists():
         return None
     manifest = yaml.safe_load(proposal_file.read_text())
+
+    accepted_ids = {load(p).get("id") for p in discover(root)} | {node_id}
+    held: list[tuple[str, str]] = []
+    deps = manifest.get("dependencies") or {}
+    for kind, targets in list(deps.items()):
+        if not isinstance(targets, list):
+            continue
+        kept = [t for t in targets if t in accepted_ids]
+        held += [(kind, t) for t in targets if t not in accepted_ids]
+        deps[kind] = kept
+
     # target dir: recompute from claims (first claim's parent)
     claims = manifest.get("claims", [])
     target_dir = root / (Path(claims[0]).parent if claims else Path("."))
@@ -211,4 +235,4 @@ def accept(root: Path, node_id: str) -> Path | None:
     dest = target_dir / "entiendo.node.yaml"
     dest.write_text(yaml.safe_dump(manifest, sort_keys=False))
     proposal_file.unlink()
-    return dest
+    return dest, held

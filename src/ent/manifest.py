@@ -88,6 +88,7 @@ def iter_project_files(root: Path) -> "Iterator[Path]":
     import os
 
     root = Path(root)
+    root_real = os.path.realpath(root)
     for dirpath, dirnames, filenames in os.walk(root):
         cur = Path(dirpath)
         if is_foreign_root(cur, root):
@@ -101,7 +102,23 @@ def iter_project_files(root: Path) -> "Iterator[Path]":
         for name in sorted(filenames):
             if name == MANIFEST_FILENAME or name.startswith("."):
                 continue
-            yield cur / name
+            f = cur / name
+            # Real repos contain hostile entries (found the hard way, on 100
+            # of them): symlinks escaping the root (jekyll ships one pointing
+            # at /etc/passwd) and names the OS cannot even stat (ENAMETOOLONG
+            # in trpc). Neither is this project's file: symlink escapes are
+            # never followed, unstat-able entries are skipped — and neither
+            # is ever fatal to the walk.
+            try:
+                if f.is_symlink():
+                    real = os.path.realpath(f)
+                    if os.path.commonpath([real, root_real]) != root_real:
+                        continue
+                if not f.is_file():
+                    continue
+            except (OSError, ValueError):
+                continue
+            yield f
 
 
 def load(path: Path) -> dict[str, Any]:

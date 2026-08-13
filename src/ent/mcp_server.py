@@ -178,10 +178,15 @@ def tool_retrofit_propose(root: Path) -> dict[str, Any]:
 
 
 def tool_retrofit_accept(root: Path, node_id: str) -> dict[str, Any]:
-    dest = retrofit_mod.accept(root, node_id)
-    if dest is None:
+    accepted = retrofit_mod.accept(root, node_id)
+    if accepted is None:
         return {"error": f"no staged proposal '{node_id}'"}
-    return {"accepted": node_id, "manifest": str(dest)}
+    dest, held = accepted
+    return {"accepted": node_id, "manifest": str(dest),
+            # edges to not-yet-accepted siblings, stripped so the partial
+            # project stays working; the reconciler re-raises real ones as
+            # drift once the sibling exists
+            "heldBackEdges": [{"kind": k, "to": t} for k, t in held]}
 
 
 def tool_validate_manifests(root: Path) -> dict[str, Any]:

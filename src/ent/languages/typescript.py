@@ -108,13 +108,20 @@ def _resolve_module_path(base: Path, root: Path) -> Path | None:
         candidates += [base / f"index{e}" for e in _SOURCE_EXTS]
 
     for cand in candidates:
-        if cand.exists() and cand.is_file():
-            resolved = cand.resolve()
-            try:                                        # must stay inside the project
-                resolved.relative_to(root)
-            except ValueError:
-                return None
-            return resolved
+        # The regex pass can mistake import-like text inside a template
+        # string for a specifier (a declared blind spot) — the resulting
+        # "path" may be unstat-able (ENAMETOOLONG on trpc's fixtures).
+        # Garbage specifiers resolve to nothing; they never crash the walk.
+        try:
+            if cand.exists() and cand.is_file():
+                resolved = cand.resolve()
+                try:                                    # must stay inside the project
+                    resolved.relative_to(root)
+                except ValueError:
+                    return None
+                return resolved
+        except OSError:
+            continue
     return None
 
 
