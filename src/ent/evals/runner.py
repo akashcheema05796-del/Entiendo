@@ -86,6 +86,23 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _missing_requirements(node: Node) -> list[str]:
+    """contract.requires entries that do not resolve to an importable module
+    here. find_spec never executes the target module itself — checking for
+    rosbag must not run rosbag."""
+    import importlib.util
+
+    missing: list[str] = []
+    for name in (node.raw.get("contract", {}) or {}).get("requires", []) or []:
+        try:
+            spec = importlib.util.find_spec(str(name))
+        except (ImportError, AttributeError, ValueError):
+            spec = None
+        if spec is None:
+            missing.append(str(name))
+    return missing
+
+
 def _tier0_fixtures(node: Node, root: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for entry in node.raw.get("evals", {}).get("tier0", []):
@@ -144,6 +161,17 @@ def run_tier0(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
 
     if node.raw.get("evals", {}).get("executionMode") == "skip":
         return done(verdicts.UNTESTED, [Check("execution", "skip", "executionMode: skip")])
+
+    # --- contract.requires: runtimes the unit needs that this environment may
+    #     lack (rosbag outside ROS). A missing one is ENV-BLOCKED, never ERROR:
+    #     "the judge is in the wrong room" is a fact about the room. ---
+    missing = _missing_requirements(node)
+    if missing:
+        return done(verdicts.ENV_BLOCKED, [
+            Check("requires", "skip",
+                  f"requires '{m}' — not importable in this environment; "
+                  f"env-blocked, not broken (run the eval where '{m}' exists)")
+            for m in missing])
 
     # --- trajectory checks (agentic units, §14.2): reason over the tool-call
     #     sequence from a run-log fixture. Deterministic, no execution. ---
@@ -322,6 +350,12 @@ def run_tier1(node: Node, root: Path, *, entrypoint: Callable[..., Any] | None =
     golden = next((e for e in node.raw.get("evals", {}).get("tier1", []) if e.get("type") == "golden"), None)
     if golden is None:
         return done(verdicts.UNTESTED, [Check("golden", "skip", "no tier1 golden configured")])
+
+    missing = _missing_requirements(node)
+    if missing:
+        return done(verdicts.ENV_BLOCKED, [
+            Check("requires", "skip",
+                  f"requires '{missing[0]}' — not importable in this environment")])
 
     # Repo-wide integrity net (hardening Phase 1): grading refuses to run
     # when the goldens on disk disagree with entiendo/goldens.lock. Fatal,

@@ -869,9 +869,10 @@ async function boot(){
     tally[k] = (tally[k]||0)+1;
   }
   const order = ['RED','ERROR','DEGRADED','UNSTABLE','needs refactor',
-                 'ready, awaiting goldens','interior','UNTESTED','GREEN'];
+                 'ready, awaiting goldens','interior','ENV-BLOCKED','UNTESTED','GREEN'];
   const healthBits = order.filter(k=>tally[k])
-    .map(k=>`${tally[k]} ${k===k.toUpperCase()?k.toLowerCase():k}`).join(' · ');
+    .map(k=>`${tally[k]} ${k==='ENV-BLOCKED'?'env-blocked (needs absent runtime)'
+                         : k===k.toUpperCase()?k.toLowerCase():k}`).join(' · ');
   document.getElementById('summary').textContent =
     `${view.nodes.length} units · ${healthBits} · coverage ${Math.round((c.coverage||0)*100)}% · `
     + `${view.reconciled?'reconciled ✓':'drift ✗'}`

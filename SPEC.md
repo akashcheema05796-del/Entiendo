@@ -122,6 +122,12 @@ contract:
     - "len(output.chunks) <= input.k"
     - "all(c.score >= 0 for c in output.chunks)"
   sideEffects: none                 # none | writes | external | irreversible
+  # requires: [rosbag, tf]          # runtimes the unit needs. A missing one
+  #                                 # yields ENV-BLOCKED (exit 0, counted,
+  #                                 # grey) instead of ERROR: the judge is in
+  #                                 # the wrong environment, the unit is not
+  #                                 # broken. Checked with find_spec — never
+  #                                 # executed.
 
 # ---- edges. Extractor VERIFIES these against reality; it does not trust them. ----
 dependencies:
