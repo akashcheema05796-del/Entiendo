@@ -6,6 +6,15 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Fixed
+- **Three more defects from the famous-105 gauntlet** (react, cpython,
+  kubernetes, babel, next.js and 100 friends): the **accept-time reflex eval
+  now runs in the bounded sandbox child** instead of in-process — node.js
+  ships a python script that argparses and `sys.exit()`s at import, which
+  used to kill the accept command and, worse, executed unvetted repo code
+  with no rlimits or wall clock; a nameless specifier (`'/'`, webpack)
+  crashed the TS resolver's `with_suffix`; unreadable claimed files
+  (vanished/broken paths, spring-boot flavour) now yield no imports instead
+  of an OSError.
 - **Three defects found by running Entiendo against 100 real repositories:**
   (1) accepting one retrofit proposal whose inferred deps pointed at staged
   siblings left a dangling `unknown node` edge, breaking the partial project

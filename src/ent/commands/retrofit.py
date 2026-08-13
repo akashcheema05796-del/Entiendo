@@ -84,9 +84,9 @@ def _accept(root: Path, args: argparse.Namespace) -> int:
     # The first manifest must immediately RETURN value (research rec E — a
     # manifest that only imposes discipline dies): regenerate the map, show
     # what this unit connects to, and run its reflex eval right now.
-    from ..evals.runner import run_tier0
     from ..extractor import extract, write_artifacts
     from ..manifest import find_node
+    from ..sandbox import run_sandboxed
 
     ext = extract(root)
     write_artifacts(ext, root)
@@ -101,8 +101,14 @@ def _accept(root: Path, args: argparse.Namespace) -> int:
               f"`ent eval {args.accept}` guards it, blast radius is live")
     node = find_node(root, args.accept)
     if node is not None:
-        res = run_tier0(node, root)
-        print(f"  eval: {args.accept} → {res.verdict}"
-              + ("" if res.verdict != "UNTESTED"
+        # SANDBOXED, not in-process: this is a freshly-retrofitted repo — the
+        # proposed entrypoint is arbitrary code nobody vetted (node.js ships a
+        # python script that argparses and sys.exit()s at import; the gauntlet
+        # found it by dying). The child gets rlimits + a wall clock; a hostile
+        # or chatty module cannot take the accept flow down with it.
+        res = run_sandboxed(root, node, 0)
+        verdict = res.get("verdict", "ERROR")
+        print(f"  eval: {args.accept} → {verdict}"
+              + ("" if verdict != "UNTESTED"
                  else " — add contract.entrypoint + one fixture row to make it runnable"))
     return 0

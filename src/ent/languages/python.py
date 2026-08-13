@@ -33,7 +33,7 @@ class PythonExtractor:
     def resolved_imports(self, file: Path, root: Path) -> list[ImportEdge]:
         try:
             tree = ast.parse(file.read_text())
-        except (SyntaxError, UnicodeDecodeError, ValueError):
+        except (SyntaxError, UnicodeDecodeError, ValueError, OSError):
             return []
         out: list[ImportEdge] = []
         for node in ast.walk(tree):
