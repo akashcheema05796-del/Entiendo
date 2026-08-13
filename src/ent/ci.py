@@ -38,6 +38,10 @@ class Stage:
     # Explicit exit severity (verdicts.EXIT_CODE). None → derived: 0 if ok else 1,
     # so pre-v6 stages keep their pass/fail behaviour unchanged.
     severity: int | None = None
+    # Structured per-unit failures (eval stage): [{unit, verdict, detail}].
+    # The steering bridge turns these into builder tasks — report lines
+    # cannot be delegated, structures can.
+    failures: list[dict[str, str]] = field(default_factory=list)
 
     @property
     def exit_severity(self) -> int:
@@ -119,12 +123,17 @@ def _eval_stage(root: Path) -> Stage:
                               verdicts.UNTESTED: 0, verdicts.ERROR: 0,
                               verdicts.ENV_BLOCKED: 0}
     failing: list[str] = []
+    failures: list[dict[str, str]] = []
     for path in discover(root):
         node = Node.from_manifest(load(path), path)
-        verdict = run_tier0(node, root).verdict
+        result = run_tier0(node, root)
+        verdict = result.verdict
         counts[verdict] = counts.get(verdict, 0) + 1
         if verdict in (verdicts.RED, verdicts.ERROR):
             failing.append(f"{node.id}:{verdict}")
+            why = next((c.detail for c in result.checks
+                        if c.status in ("error", "fail")), "")
+            failures.append({"unit": node.id, "verdict": verdict, "detail": why})
 
     summary = (f"{counts[verdicts.GREEN]} green, {counts[verdicts.UNTESTED]} untested, "
                f"{counts[verdicts.RED]} red, {counts[verdicts.ERROR]} error")
@@ -133,7 +142,8 @@ def _eval_stage(root: Path) -> Stage:
                     "(requires a runtime absent here — not failures)")
     if failing:
         severity = 2 if counts[verdicts.ERROR] else 1     # ERROR outranks RED (v6 3.2)
-        return Stage("eval", False, f"{summary} — {', '.join(failing)}", severity=severity)
+        return Stage("eval", False, f"{summary} — {', '.join(failing)}",
+                     severity=severity, failures=failures)
     return Stage("eval", True, summary)
 
 
