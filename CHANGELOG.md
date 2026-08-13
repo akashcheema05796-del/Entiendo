@@ -6,6 +6,18 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Added
+- **`ent amend`** (astrobee gap 5): sideEffects contradictions become staged,
+  reviewable amendments instead of notes that scroll away. `ent amend` lists
+  every unit declaring `sideEffects: none` whose claimed files hit an
+  effect-implying construct (subprocess / requests / httpx / urllib and the
+  JS counterparts — dynamic-import and getattr stay visibility notes, not
+  effects), with per-file evidence; `ent amend --accept <id>` applies ONE
+  unit's `none → external` flip as a minimal text edit (comments survive).
+  One at a time on purpose: dogfooding flagged 5 of our own units — four
+  were true (sandbox children, git shells, pytest runs) and accepted, and
+  one (`ent.graph`) is a false positive (the extractor's own regex table
+  contains the words it scans for) — exactly the case that proves a contract
+  change needs a human eye, so it stays staged, unaccepted, documented.
 - **Coverage tells both truths** (astrobee gap 4): `coverage.json` now
   separates the universes — a `recognized` block (files a language adapter
   can parse for edges, with its own coverage figure) and
