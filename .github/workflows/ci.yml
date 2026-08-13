@@ -62,6 +62,23 @@ jobs:
           set +e; ent ci; code=$?
           test "$code" -eq 4 || { echo "expected exit 4 (seeded budget overage), got $code"; exit 1; }
 
+      # The showcase: a real slice of NASA's astrobee repo. Proves the honest
+      # states on real code — 5 GREEN on authored fixtures (incl. the pinned
+      # latent parser bug), 1 ENV-BLOCKED via contract.requires (rosbag is
+      # absent here BY DESIGN — wrong environment, not broken code), and the
+      # package-map edge. The gate must exit 0.
+      - name: Validate + reconcile astrobee showcase
+        working-directory: examples/astrobee
+        run: |
+          ent validate
+          ent extract --check
+      - name: Eval astrobee showcase (5 GREEN, 1 ENV-BLOCKED)
+        working-directory: examples/astrobee
+        run: ent eval --all
+      - name: ent ci on astrobee showcase (exit 0)
+        working-directory: examples/astrobee
+        run: ent ci
+
   # Supply-chain honesty for a trust-first tool: audit the dependency tree and
   # publish a CycloneDX SBOM as a build artifact on every run.
   supply-chain:

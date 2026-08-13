@@ -1,0 +1,31 @@
+apiVersion: entiendo/v1
+kind: Node
+id: astrobee.sweep
+name: parameter sweep config
+task: Rewrites lua config lines for swept localization parameters, leaving every
+  non-swept line untouched.
+nodeKind: compute
+group: astrobee
+owner: akashdatageek
+status: experimental
+claims:
+- sweep/config_creator.py
+contract:
+  entrypoint: sweep/config_creator.py::check_and_fill_line
+  harness: evals/astrobee.sweep/harness.py::fill_config_line
+  invariants: []
+  sideEffects: none
+dependencies:
+  calls: []
+  reads: []
+  writes: []
+  config: []
+evals:
+  tier0:
+  - type: invariant_check
+  - type: smoke
+    fixture: evals/astrobee.sweep/smoke.jsonl
+observability:
+  spanName: astrobee.sweep
+approval:
+  required: false

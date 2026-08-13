@@ -1,0 +1,175 @@
+{
+  "apiVersion": "entiendo/v1",
+  "nodes": [
+    {
+      "id": "astrobee.bmr",
+      "name": "bmr enum migration",
+      "nodeKind": "compute",
+      "group": "astrobee",
+      "owner": "akashdatageek",
+      "status": "experimental",
+      "claims": [
+        "bmr/bmr_renumber_enum.py"
+      ],
+      "claimedFileCount": 1,
+      "sideEffects": "none",
+      "spanName": "astrobee.bmr",
+      "approvalRequired": false
+    },
+    {
+      "id": "astrobee.common",
+      "name": "localization common",
+      "nodeKind": "compute",
+      "group": "astrobee",
+      "owner": "akashdatageek",
+      "status": "experimental",
+      "claims": [
+        "common/localization_common/__init__.py",
+        "common/localization_common/utilities.py"
+      ],
+      "claimedFileCount": 2,
+      "sideEffects": "external",
+      "spanName": "astrobee.common",
+      "approvalRequired": false
+    },
+    {
+      "id": "astrobee.mapping",
+      "name": "sparse map reduction",
+      "nodeKind": "compute",
+      "group": "astrobee",
+      "owner": "akashdatageek",
+      "status": "experimental",
+      "claims": [
+        "mapping/reduce_map.py"
+      ],
+      "claimedFileCount": 1,
+      "sideEffects": "external",
+      "spanName": "astrobee.mapping",
+      "approvalRequired": false
+    },
+    {
+      "id": "astrobee.merge",
+      "name": "rosbag merge",
+      "nodeKind": "compute",
+      "group": "astrobee",
+      "owner": "akashdatageek",
+      "status": "experimental",
+      "claims": [
+        "merge/rosbag_merge.py"
+      ],
+      "claimedFileCount": 1,
+      "sideEffects": "external",
+      "spanName": "astrobee.merge",
+      "approvalRequired": false
+    },
+    {
+      "id": "astrobee.stats",
+      "name": "bag message stats",
+      "nodeKind": "compute",
+      "group": "astrobee",
+      "owner": "akashdatageek",
+      "status": "experimental",
+      "claims": [
+        "stats/get_msg_stats.py"
+      ],
+      "claimedFileCount": 1,
+      "sideEffects": "none",
+      "spanName": "astrobee.stats",
+      "approvalRequired": false
+    },
+    {
+      "id": "astrobee.sweep",
+      "name": "parameter sweep config",
+      "nodeKind": "compute",
+      "group": "astrobee",
+      "owner": "akashdatageek",
+      "status": "experimental",
+      "claims": [
+        "sweep/config_creator.py"
+      ],
+      "claimedFileCount": 1,
+      "sideEffects": "none",
+      "spanName": "astrobee.sweep",
+      "approvalRequired": false
+    }
+  ],
+  "edges": [
+    {
+      "from": "astrobee.merge",
+      "to": "astrobee.common",
+      "kinds": [
+        "calls"
+      ],
+      "declared": true,
+      "verified": true,
+      "verificationSource": [
+        "import"
+      ],
+      "resolution": "complete",
+      "observationCount": 0,
+      "lastVerifiedAt": null,
+      "evidence": [
+        "merge/rosbag_merge.py imports localization_common.utilities"
+      ]
+    }
+  ],
+  "doubleClaimed": [],
+  "proposedEntrypoints": {},
+  "unverifiedDeclaredEdges": [],
+  "possibleUndeclaredDynamicDep": [
+    {
+      "node": "astrobee.common",
+      "file": "common/localization_common/utilities.py",
+      "pattern": "subprocess"
+    },
+    {
+      "node": "astrobee.mapping",
+      "file": "mapping/reduce_map.py",
+      "pattern": "subprocess"
+    },
+    {
+      "node": "astrobee.merge",
+      "file": "merge/rosbag_merge.py",
+      "pattern": "subprocess"
+    }
+  ],
+  "dependencyCycles": [],
+  "adapters": [
+    {
+      "language": "python",
+      "extensions": [
+        ".py"
+      ],
+      "grade": "ast",
+      "evidenceTag": "import",
+      "cannotResolve": [
+        "importlib.import_module / __import__ with runtime arguments (flagged as possibleUndeclaredDynamicDep, not resolved to edges)",
+        "getattr / string-keyed dispatch onto modules",
+        "subprocess-spawned interpreters and os.system calls",
+        "network calls (requests/httpx/urllib) \u2014 out-of-process by nature",
+        "same-named top-level packages in different directories (ambiguous \u2014 refused, never guessed)"
+      ]
+    },
+    {
+      "language": "typescript",
+      "extensions": [
+        ".cjs",
+        ".cts",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ],
+      "grade": "regex-poc",
+      "evidenceTag": "ts-poc",
+      "cannotResolve": [
+        "import-like text inside comments or strings (regex, no tokenizer)",
+        "tsconfig `extends` chains (only the local tsconfig is read)",
+        "non-relative specifiers with no tsconfig alias or baseUrl match",
+        "type-directed resolution of any kind \u2014 no compiler behind this"
+      ]
+    }
+  ]
+}

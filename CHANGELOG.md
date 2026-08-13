@@ -6,6 +6,24 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Added
+- **`examples/astrobee` — the showcase example**, replacing refundly as the
+  story readers meet first (refundly stays as the LLM-workload example:
+  prompts, model pins, budgets, blessing). A vendored six-unit slice of
+  NASA's astrobee flight software (Apache-2.0, headers retained), chosen so
+  every honest state shows up on real code: five units GREEN on authored
+  fixtures — including a **latent bug found by writing them** (the sparse-map
+  log parser crashes on unit-less values; pinned as an `expectError` row) —
+  one ENV-BLOCKED via `contract.requires: [rosbag]`, and the
+  `astrobee.merge → astrobee.common` edge drawn by the repo-wide package map
+  from a catkin-style layout. Wired into CI (validate/extract/eval/ci must
+  exit 0) and pinned by `tests/test_example_astrobee.py`.
+- **Judge/extractor parity in the eval loader**: `_import_file` now mirrors
+  the repo-wide package map, so a unit whose file imports a by-name monorepo
+  package at module import is judgeable in a fresh process. Before this, the
+  verdict was order-dependent — GREEN after a sibling's eval warmed
+  `sys.modules`, ERROR alone — an edge the map could draw but the judge
+  couldn't load. Found building the showcase; `ent.evalkit → ent.graph`
+  declared the moment the import landed.
 - **The semantic sweep protocol** in the `entiendo-retrofit` skill: the
   LLM-agent side of the division of labor, codified. Where `ent` measures
   deterministically, the agent reads every unit's code and authors its test

@@ -1,0 +1,36 @@
+{
+  "apiVersion": "entiendo/v1",
+  "total": 14,
+  "claimedCount": 7,
+  "acknowledgedUnclaimedCount": 0,
+  "unaccountedCount": 7,
+  "coverage": 0.5,
+  "recognized": {
+    "total": 9,
+    "accounted": 7,
+    "coverage": 0.7778,
+    "note": "files a language adapter can parse for edges (.cjs, .cts, .js, .jsx, .mjs, .mts, .py, .ts, .tsx)"
+  },
+  "unmappedByExtension": {
+    ".jsonl": 5
+  },
+  "claimed": [
+    "bmr/bmr_renumber_enum.py",
+    "common/localization_common/__init__.py",
+    "common/localization_common/utilities.py",
+    "mapping/reduce_map.py",
+    "merge/rosbag_merge.py",
+    "stats/get_msg_stats.py",
+    "sweep/config_creator.py"
+  ],
+  "acknowledgedUnclaimed": [],
+  "unaccounted": [
+    "evals/astrobee.bmr/smoke.jsonl",
+    "evals/astrobee.common/smoke.jsonl",
+    "evals/astrobee.mapping/harness.py",
+    "evals/astrobee.mapping/smoke.jsonl",
+    "evals/astrobee.merge/smoke.jsonl",
+    "evals/astrobee.sweep/harness.py",
+    "evals/astrobee.sweep/smoke.jsonl"
+  ]
+}

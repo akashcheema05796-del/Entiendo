@@ -1,0 +1,4 @@
+{"name": "image names and error values parse out of log lines", "input": "Errors for mydir/009151.jpg: 1e+06 m\nErrors for mydir/009152.jpg: 0.5 m\n", "expect": [["mydir/009151.jpg", "mydir/009152.jpg"], [1000000.0, 0.5]]}
+{"name": "unrelated log lines contribute nothing", "input": "Reading the map...\ndone\n", "expect": [[], []]}
+{"name": "only .jpg images match the pattern (a .png line is dropped)", "input": "Errors for cam/frame.png: 2.5 m\n", "expect": [[], []]}
+{"name": "a value with no trailing unit CRASHES the parser (latent bug found by authoring this fixture: the regex backtracks to an empty capture and float('') raises - fix upstream and this row flags the change)", "input": "Errors for a.jpg: 2.5", "expectError": "ValueError"}

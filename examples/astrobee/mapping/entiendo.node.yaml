@@ -1,0 +1,32 @@
+apiVersion: entiendo/v1
+kind: Node
+id: astrobee.mapping
+name: sparse map reduction
+task: Reduces a sparse visual map by parsing localization error logs and rebuilding
+  the map from the images that still localize well.
+nodeKind: compute
+group: astrobee
+owner: akashdatageek
+status: experimental
+claims:
+- mapping/reduce_map.py
+contract:
+  entrypoint: mapping/reduce_map.py::parse_localization_log_str
+  harness: evals/astrobee.mapping/harness.py::parse_log_as_lists
+  invariants: []
+  # the full pipeline shells out to map-building binaries (run_cmd)
+  sideEffects: external
+dependencies:
+  calls: []
+  reads: []
+  writes: []
+  config: []
+evals:
+  tier0:
+  - type: invariant_check
+  - type: smoke
+    fixture: evals/astrobee.mapping/smoke.jsonl
+observability:
+  spanName: astrobee.mapping
+approval:
+  required: false

@@ -1,0 +1,30 @@
+apiVersion: entiendo/v1
+kind: Node
+id: astrobee.bmr
+name: bmr enum migration
+task: Parses ROS msg enum definitions and derives the renumbering rule that migrates
+  legacy bag messages when enum values changed between releases.
+nodeKind: compute
+group: astrobee
+owner: akashdatageek
+status: experimental
+claims:
+- bmr/bmr_renumber_enum.py
+contract:
+  entrypoint: bmr/bmr_renumber_enum.py::field_enum_from_msg_text
+  invariants: []
+  sideEffects: none
+dependencies:
+  calls: []
+  reads: []
+  writes: []
+  config: []
+evals:
+  tier0:
+  - type: invariant_check
+  - type: smoke
+    fixture: evals/astrobee.bmr/smoke.jsonl
+observability:
+  spanName: astrobee.bmr
+approval:
+  required: false

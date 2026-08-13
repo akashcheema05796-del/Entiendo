@@ -1,0 +1,3 @@
+{"name": "a swept parameter line is rewritten with the map's value", "input": {"valueMap": {"num_iterations": 50}, "line": "num_iterations 100\n"}, "expect": "num_iterations = 50\n"}
+{"name": "a line whose first token is not swept passes through", "input": {"valueMap": {"num_iterations": 50}, "line": "-- a lua comment\n"}, "expect": "-- a lua comment\n"}
+{"name": "an empty line passes through", "input": {"valueMap": {"num_iterations": 50}, "line": ""}, "expect": ""}

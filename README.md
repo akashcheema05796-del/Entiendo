@@ -55,12 +55,12 @@ Measured on a clean virtualenv (2-core Linux container): install 8.7s, first
 graph 0.2s, full eval pass 0.6s.
 
 ```bash
-# not on PyPI yet — install from the repo
-pip install "entiendo[mcp] @ git+https://github.com/akashdatageek/Entiendo"
+pip install "entiendo[mcp]"     # on PyPI
 # or, from a checkout: pip install -e ".[dev,mcp]"
 
-# try it on the bundled example
-cp -r examples/refundly /tmp/refundly && cd /tmp/refundly
+# try it on the showcase example — a real slice of NASA's astrobee repo,
+# retrofitted (43 units on the full repo; this slice carries six of them)
+cp -r examples/astrobee /tmp/astrobee && cd /tmp/astrobee
 ent extract                     # → entiendo/graph.json + coverage, reconciled
 ent eval --all                  # → every unit executes its reflex evals
 ent dev                         # → the Universe on http://127.0.0.1:7373,
@@ -240,10 +240,21 @@ What **is** real today:
   the same two tools). The map stays read-only (Invariant 2); only steer / approve / revert
   write. See `src/ent/server.py`, `src/ent/steering.py`, `src/ent/agent.py`,
   `docs/edit-surface.md`, `docs/bridge.md`.
+- **[`examples/astrobee/`](./examples/astrobee/)** — **the showcase**: a real
+  slice of [NASA's astrobee](https://github.com/nasa/astrobee) flight-software
+  repo, retrofitted with Entiendo (the full repo carries 43 units; this slice
+  vendors six). It demonstrates the honest states on real code: five units
+  GREEN on authored fixtures (including a **latent bug found by writing
+  them** — a log parser that crashes on unit-less values, pinned as an
+  `expectError` row), one unit **ENV-BLOCKED** via `contract.requires:
+  [rosbag]` (wrong environment ≠ broken code), and a dependency edge drawn by
+  the repo-wide package map (`import localization_common` resolved from a
+  catkin-style layout). `cd examples/astrobee && ent ci` → exit 0.
 - **[`examples/greenfield/`](./examples/greenfield/)** — a five-node example
   project laid out the Entiendo way. Full loop:
   `cd examples/greenfield && ent validate && ent extract && ent snapshot && ent render && ent edit retrieval.chunk_ranker`.
-- **[`examples/refundly/`](./examples/refundly/)** — the reference project and the
+- **[`examples/refundly/`](./examples/refundly/)** — the **LLM-workload
+  example** (prompts, model pins, budgets, goldens/blessing) and the
   v4 demo: a support-refund **pipeline of six units** — `parse_email` (compute) →
   `orders` (state) → `policy` (config) → `decide` (the **agentic unit**) →
   `gateway` (external) → `ledger` (state). `refundly.decide` has an `interior` (a
