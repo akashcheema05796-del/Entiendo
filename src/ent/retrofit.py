@@ -89,7 +89,7 @@ def _propose_entrypoint(node_id: str, files: list[Path], root: Path) -> tuple[st
                 return f"{rel}::{func}", None
         try:
             tree = ast.parse(f.read_text())
-        except (SyntaxError, UnicodeDecodeError, ValueError):
+        except (SyntaxError, UnicodeDecodeError, ValueError, OSError):
             continue
         funcs = [n.name for n in tree.body
                  if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith("_")]

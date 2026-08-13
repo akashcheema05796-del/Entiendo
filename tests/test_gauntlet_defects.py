@@ -157,3 +157,52 @@ def test_garbage_ts_specifier_resolves_to_nothing_never_crashes(tmp_path: Path) 
     (root / "a.ts").write_text(
         f"const snippet = `import x from '{huge}'`;\nexport const a = 1;\n")
     assert TypeScriptExtractor().resolved_imports(root / "a.ts", root) == []
+
+
+def test_nameless_specifier_resolves_to_nothing(tmp_path: Path) -> None:
+    """webpack's actual failure: a '/' specifier produced a base path with no
+    name, and with_suffix() raised ValueError mid-retrofit."""
+    from ent.languages.typescript import TypeScriptExtractor
+    root = tmp_path / "ts"
+    root.mkdir()
+    (root / "a.ts").write_text("const x = require('/');\nimport y from '.';\n"
+                               "export const a = 1;\n")
+    assert TypeScriptExtractor().resolved_imports(root / "a.ts", root) == []
+
+
+def test_unreadable_python_file_never_crashes_the_extractor(tmp_path: Path) -> None:
+    """spring-boot flavour: a claimed .py path that cannot be opened (broken
+    link, vanished file) yields no imports instead of an OSError."""
+    from ent.languages.python import PythonExtractor
+    root = tmp_path / "py"
+    root.mkdir()
+    gone = root / "gone.py"
+    gone.symlink_to(root / "never-existed.py")
+    assert PythonExtractor().resolved_imports(gone, root) == []
+
+
+def test_accept_time_eval_is_sandboxed_against_hostile_imports(tmp_path: Path) -> None:
+    """node.js's actual failure: the accepted unit's proposed entrypoint was a
+    script that argparses and sys.exit()s AT IMPORT — run in-process it killed
+    the accept command. The eval must run in the bounded sandbox child: accept
+    exits 0, the verdict line prints, and the hostile module's exit code never
+    becomes ours."""
+    import subprocess
+    import sys as _sys
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "configure.py").write_text(
+        "import sys\nprint('Usage: ./configure <args>')\nsys.exit(2)\n")
+    (root / "lib").mkdir()
+    (root / "lib" / "ok.py").write_text("def f(x):\n    return x\n")
+
+    def run(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([_sys.executable, "-m", "ent.cli", *args],
+                              cwd=str(root), capture_output=True, text=True,
+                              timeout=180)
+
+    assert run("retrofit", ".").returncode == 0
+    unit = "proj.configure"
+    proc = run("retrofit", ".", "--accept", unit)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert f"eval: {unit} →" in proc.stdout             # the flow completed

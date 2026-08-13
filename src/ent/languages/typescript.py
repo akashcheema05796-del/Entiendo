@@ -96,6 +96,11 @@ def _resolve_module_path(base: Path, root: Path) -> Path | None:
     Tries the base with each source extension, a directory `index.*`, and the
     `.js`→`.ts` remap — the shared step for relative and alias resolution.
     """
+    # A specifier like "/" or "." (webpack ships strings the regex mistakes
+    # for imports) produces a base with no name — with_suffix() would raise.
+    # Nothing nameless is a module: resolve to None, never crash.
+    if not base.name:
+        return None
     candidates: list[Path] = []
     if base.suffix in _REMAP:
         stem = base.with_suffix("")
