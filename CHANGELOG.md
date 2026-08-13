@@ -6,6 +6,17 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Added
+- **Repo-wide Python package map** (astrobee gap 3): `import X` now also
+  resolves through the importing file's own directory (script-style
+  sys.path) and a cached map of top-level packages living anywhere in the
+  tree (catkin/src layouts — `localization/…/scripts/localization_common`
+  answers `import localization_common`). astrobee mapped with ZERO edges
+  before this; by-name monorepo imports were invisible, and a missing edge
+  that looks like decoupling is the worst kind. Ambiguous names (two dirs,
+  one package name) are refused, never guessed — declared in
+  `capabilities().cannotResolve`. Dogfood catch: the resolver immediately
+  surfaced `ent.plugin → ent.packaging` (`enforce_claims.py` does
+  `from ent import claims`), undeclared until now.
 - **`contract.requires` + ENV-BLOCKED verdict** (astrobee gap 2): a unit can
   declare the runtimes its entrypoint needs (`requires: [rosbag, tf]`).
   When one is missing here — checked with `find_spec`, never executed — the
