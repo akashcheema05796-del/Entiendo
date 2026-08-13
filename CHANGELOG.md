@@ -5,6 +5,20 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 
 ## Unreleased
 
+### Fixed
+- **Three defects found by running Entiendo against 100 real repositories:**
+  (1) accepting one retrofit proposal whose inferred deps pointed at staged
+  siblings left a dangling `unknown node` edge, breaking the partial project
+  on 15/94 repos — edges to not-yet-accepted units are now **held back** and
+  reported, and the reconciler re-raises the real edge as drift once the
+  sibling is accepted (nothing forgotten, nothing broken); (2) a symlink
+  escaping the repo root (jekyll ships one pointing at `/etc/passwd`)
+  crashed every walk — escaping symlinks are now skipped, never followed,
+  never fatal (in-root symlinks still count); (3) unstat-able entries
+  (trpc's ENAMETOOLONG fixtures, symlink loops) aborted retrofit — per-entry
+  OS errors now skip-and-continue, and the TS adapter treats garbage
+  specifiers matched inside template strings as resolving to nothing.
+
 ### Added
 - **Evaluability grades** — three states instead of one smear of UNTESTED
   red. Every unit now carries `evaluability`: **ready** (takes values, no

@@ -69,11 +69,17 @@ def _propose(root: Path) -> int:
 
 
 def _accept(root: Path, args: argparse.Namespace) -> int:
-    dest = retrofit.accept(root, args.accept)
-    if dest is None:
+    accepted = retrofit.accept(root, args.accept)
+    if accepted is None:
         print(f"ent retrofit: no proposal for '{args.accept}'")
         return 2
+    dest, held = accepted
     print(f"✓ accepted {args.accept} → {dest.relative_to(root)}")
+    if held:
+        edges = ", ".join(f"{kind}→{t}" for kind, t in held)
+        print(f"  held back: {edges} — those units aren't accepted yet; when "
+              f"you accept them, the reconciler will name any real edge as "
+              f"drift so nothing is forgotten")
 
     # The first manifest must immediately RETURN value (research rec E — a
     # manifest that only imposes discipline dies): regenerate the map, show

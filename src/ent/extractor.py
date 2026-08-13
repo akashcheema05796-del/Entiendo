@@ -87,7 +87,13 @@ def _norm(rel: str) -> str:
 
 
 def _rel(path: Path, root: Path) -> str:
-    return path.resolve().relative_to(root.resolve()).as_posix()
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        # a symlink escaping the root resolves OUTSIDE it — identify the
+        # entry by its in-tree name instead of crashing the reconciliation
+        # (the walk already refuses to treat such entries as project files)
+        return path.relative_to(root).as_posix()
 
 
 # --------------------------------------------------------------------------- #
