@@ -154,6 +154,22 @@ def _coverage(root: Path, owner: dict[str, str]) -> dict[str, Any]:
 
     total = len(candidates)
     accounted = len(claimed) + len(acknowledged)
+
+    # Honesty split (astrobee gap 4): "7% of everything" and "100% of what an
+    # adapter can parse" are both true and together sound like a contradiction.
+    # Separate the universes: adapter-recognized files (an extractor can derive
+    # edges from them) vs files beyond every adapter (astrobee: 936 C++ files),
+    # so the headline can say both numbers instead of the scarier one.
+    from . import languages
+    adapter_exts = languages.extensions()
+    recognized = [f for f in candidates if Path(f).suffix in adapter_exts]
+    rec_accounted = sum(1 for f in recognized if f in claimed or f in acknowledged)
+    unmapped: dict[str, int] = {}
+    for f in candidates:
+        suffix = Path(f).suffix or "(no extension)"
+        if suffix not in adapter_exts:
+            unmapped[suffix] = unmapped.get(suffix, 0) + 1
+
     return {
         "apiVersion": "entiendo/v1",
         "total": total,
@@ -161,10 +177,36 @@ def _coverage(root: Path, owner: dict[str, str]) -> dict[str, Any]:
         "acknowledgedUnclaimedCount": len(acknowledged),
         "unaccountedCount": len(unaccounted),
         "coverage": round(accounted / total, 4) if total else 1.0,
+        "recognized": {
+            "total": len(recognized),
+            "accounted": rec_accounted,
+            "coverage": round(rec_accounted / len(recognized), 4) if recognized else 1.0,
+            "note": "files a language adapter can parse for edges "
+                    f"({', '.join(sorted(adapter_exts))})",
+        },
+        "unmappedByExtension": dict(sorted(unmapped.items(),
+                                           key=lambda kv: (-kv[1], kv[0]))),
         "claimed": sorted(claimed),
         "acknowledgedUnclaimed": sorted(acknowledged),
         "unaccounted": unaccounted,
     }
+
+
+def coverage_headline(cov: dict[str, Any]) -> str:
+    """One line that tells both truths — used by `ent extract` and tests."""
+    line = (f"coverage {cov['coverage'] * 100:.0f}% of {cov['total']} file(s)")
+    rec = cov.get("recognized")
+    if rec and rec["total"]:
+        line += (f" · {rec['coverage'] * 100:.0f}% of {rec['total']} "
+                 "adapter-recognized source file(s)")
+    unmapped = cov.get("unmappedByExtension") or {}
+    beyond = sum(unmapped.values())
+    if beyond:
+        top = ", ".join(f"{ext} {n}" for ext, n in list(unmapped.items())[:5])
+        more = len(unmapped) - min(len(unmapped), 5)
+        line += (f" · {beyond} file(s) beyond every adapter ({top}"
+                 + (f", +{more} more type(s)" if more > 0 else "") + ")")
+    return line
 
 
 # --------------------------------------------------------------------------- #

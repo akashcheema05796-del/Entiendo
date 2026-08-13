@@ -6,6 +6,15 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Added
+- **Coverage tells both truths** (astrobee gap 4): `coverage.json` now
+  separates the universes — a `recognized` block (files a language adapter
+  can parse for edges, with its own coverage figure) and
+  `unmappedByExtension` (counts of files beyond every adapter, biggest hole
+  first). `ent extract` prints one headline stating both numbers ("7% of
+  2,695 · 100% of 195 adapter-recognized · 2,500 beyond every adapter (.cc
+  474, …)") instead of the scarier one alone, caps the unaccounted listing
+  at 20 with the remainder counted (never a silent cap), and the Universe
+  summary shows "coverage 7% (100% of 195 recognized)".
 - **Repo-wide Python package map** (astrobee gap 3): `import X` now also
   resolves through the importing file's own directory (script-style
   sys.path) and a cached map of top-level packages living anywhere in the
