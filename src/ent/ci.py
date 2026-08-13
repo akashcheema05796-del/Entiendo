@@ -116,7 +116,8 @@ def _eval_stage(root: Path) -> Stage:
     from .manifest import Node, discover, load
 
     counts: dict[str, int] = {verdicts.GREEN: 0, verdicts.RED: 0,
-                              verdicts.UNTESTED: 0, verdicts.ERROR: 0}
+                              verdicts.UNTESTED: 0, verdicts.ERROR: 0,
+                              verdicts.ENV_BLOCKED: 0}
     failing: list[str] = []
     for path in discover(root):
         node = Node.from_manifest(load(path), path)
@@ -127,6 +128,9 @@ def _eval_stage(root: Path) -> Stage:
 
     summary = (f"{counts[verdicts.GREEN]} green, {counts[verdicts.UNTESTED]} untested, "
                f"{counts[verdicts.RED]} red, {counts[verdicts.ERROR]} error")
+    if counts[verdicts.ENV_BLOCKED]:
+        summary += (f", {counts[verdicts.ENV_BLOCKED]} env-blocked "
+                    "(requires a runtime absent here — not failures)")
     if failing:
         severity = 2 if counts[verdicts.ERROR] else 1     # ERROR outranks RED (v6 3.2)
         return Stage("eval", False, f"{summary} — {', '.join(failing)}", severity=severity)

@@ -6,6 +6,15 @@ All notable changes to Entiendo. Versioning follows [SemVer](https://semver.org)
 ## Unreleased
 
 ### Added
+- **`contract.requires` + ENV-BLOCKED verdict** (astrobee gap 2): a unit can
+  declare the runtimes its entrypoint needs (`requires: [rosbag, tf]`).
+  When one is missing here — checked with `find_spec`, never executed — the
+  eval yields **ENV-BLOCKED** instead of ERROR: exit 0, counted separately
+  in `ent ci` ("N env-blocked (requires a runtime absent here — not
+  failures)"), grey on the map, sorted with the informational states in the
+  Universe summary. "The judge is in the wrong environment" and "the unit is
+  broken" are different facts; an *undeclared* missing import still reads
+  ERROR — the conflation is only ever resolved by declaring it.
 - **Retrofit probes candidate entrypoints before proposing them** (astrobee
   gap 1): every candidate is import-checked in a bounded child (rlimits +
   wall clock, same loader as the eval judge), and a proposal only carries an

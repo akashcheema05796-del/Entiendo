@@ -138,6 +138,14 @@
             "type": "string"
           }
         },
+        "requires": {
+          "description": "Top-level module names the unit's runtime needs (e.g. rosbag, tf). Checked with find_spec before eval — never executed. A missing one yields ENV-BLOCKED (exit 0, counted, rendered grey): the judge is in the wrong environment, the unit is not broken. Prefer top-level names; dotted names import their parent packages during the check.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "sideEffects": {
           "description": "Blast-radius classification of what this node does to the world.",
           "type": "string",

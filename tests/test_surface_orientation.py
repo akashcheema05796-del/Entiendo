@@ -28,9 +28,12 @@ def test_summary_states_the_health_tally() -> None:
     assert "n.health||'UNTESTED'" in html, "the summary must count units by verdict"
     assert "ready, awaiting goldens" in html
     assert "needs refactor" in html and "interior" in html
-    # worst-first ordering: an operator should read RED before GREEN
+    # worst-first ordering: an operator should read RED before GREEN — and
+    # ENV-BLOCKED sits with the informational states, never with failures
     assert ("['RED','ERROR','DEGRADED','UNSTABLE','needs refactor',\n"
-            "                 'ready, awaiting goldens','interior','UNTESTED','GREEN']" in html)
+            "                 'ready, awaiting goldens','interior','ENV-BLOCKED',"
+            "'UNTESTED','GREEN']" in html)
+    assert "env-blocked (needs absent runtime)" in html
 
 
 def test_landing_does_not_collapse_a_mid_size_repo() -> None:
