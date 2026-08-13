@@ -146,6 +146,28 @@ def _purge(dotted: str) -> None:
 
 
 def _import_file(path: Path, node_id: str, root: Path):
+    # Judge/extractor parity: the reconciler resolves by-name monorepo
+    # imports through the repo-wide package map (catkin/src layouts), so the
+    # judge must be able to LOAD those same modules — an edge the map can
+    # draw but the eval cannot import would make ERROR order-dependent
+    # (green after a sibling's eval cached the package, red in a fresh
+    # process). Package parents join sys.path for the duration of the import.
+    from ..languages.python import _package_map
+
+    extra = {str(d.parent.resolve())
+             for d in _package_map(Path(root)).values() if d is not None}
+    added_extra = [p for p in extra if p not in sys.path]
+    for p in added_extra:
+        sys.path.insert(0, p)
+    try:
+        return _import_file_inner(path, node_id, root)
+    finally:
+        for p in added_extra:
+            if p in sys.path:
+                sys.path.remove(p)
+
+
+def _import_file_inner(path: Path, node_id: str, root: Path):
     pkg = _package_context(path)
     if pkg is not None:
         pkg_root, dotted = pkg

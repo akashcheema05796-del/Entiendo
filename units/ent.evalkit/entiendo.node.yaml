@@ -47,6 +47,8 @@ observability:
 dependencies:
   calls:
   - ent.contracts
+  # the eval loader mirrors the extractor's package map (judge/extractor parity)
+  - ent.graph
   - ent.packaging
   - ent.trust
   - ent.versioning

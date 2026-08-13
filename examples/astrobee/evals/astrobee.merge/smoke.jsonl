@@ -1,0 +1,3 @@
+{"name": "numeric segments sort naturally, not lexically", "input": ["bag10.bag", "bag2.bag", "bag1.bag"], "expect": ["bag1.bag", "bag2.bag", "bag10.bag"]}
+{"name": "mixed case sorts case-insensitively", "input": ["Beta", "alpha"], "expect": ["alpha", "Beta"]}
+{"name": "an empty list stays empty", "input": [], "expect": []}

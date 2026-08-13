@@ -1,0 +1,4 @@
+{"name": "directory and extension are stripped", "input": "/data/bags/run_01.bag", "expect": "run_01"}
+{"name": "a bare filename keeps only its stem", "input": "results.csv", "expect": "results"}
+{"name": "only the last extension is stripped", "input": "/x/y/archive.tar.gz", "expect": "archive.tar"}
+{"name": "no extension is a no-op on the stem", "input": "/etc/README", "expect": "README"}

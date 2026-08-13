@@ -1,0 +1,32 @@
+apiVersion: entiendo/v1
+kind: Node
+id: astrobee.common
+name: localization common
+task: Shared utilities (file discovery, dataframe loading, command running, path
+  helpers) used across the localization analysis tools.
+nodeKind: compute
+group: astrobee
+owner: akashdatageek
+status: experimental
+claims:
+- common/localization_common/__init__.py
+- common/localization_common/utilities.py
+contract:
+  entrypoint: common/localization_common/utilities.py::basename
+  invariants: []
+  # run_command_and_save_output spawns shells
+  sideEffects: external
+dependencies:
+  calls: []
+  reads: []
+  writes: []
+  config: []
+evals:
+  tier0:
+  - type: invariant_check
+  - type: smoke
+    fixture: evals/astrobee.common/smoke.jsonl
+observability:
+  spanName: astrobee.common
+approval:
+  required: false

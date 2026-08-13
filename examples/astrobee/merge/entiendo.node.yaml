@@ -1,0 +1,34 @@
+apiVersion: entiendo/v1
+kind: Node
+id: astrobee.merge
+name: rosbag merge
+task: Merges recorded rosbag files in natural order into one bag per prefix, shelling
+  out to the rosbag CLI.
+nodeKind: compute
+group: astrobee
+owner: akashdatageek
+status: experimental
+claims:
+- merge/rosbag_merge.py
+contract:
+  entrypoint: merge/rosbag_merge.py::natural_sort
+  invariants: []
+  # merge_bag shells out to the rosbag CLI
+  sideEffects: external
+dependencies:
+  # `import localization_common.utilities` — resolved by the repo-wide
+  # package map (the package lives under common/, not at the root)
+  calls:
+  - astrobee.common
+  reads: []
+  writes: []
+  config: []
+evals:
+  tier0:
+  - type: invariant_check
+  - type: smoke
+    fixture: evals/astrobee.merge/smoke.jsonl
+observability:
+  spanName: astrobee.merge
+approval:
+  required: false
