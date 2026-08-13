@@ -16,6 +16,7 @@ claims:
 - src/ent/cli.py
 - src/ent/commands/__init__.py
 - src/ent/commands/_stub.py
+- src/ent/commands/amend.py
 - src/ent/commands/baseline.py
 - src/ent/commands/bless.py
 - src/ent/commands/ci.py
@@ -43,7 +44,7 @@ contract:
   entrypoint: src/ent/cli.py::main
   invariants:
   - output == 0
-  sideEffects: none
+  sideEffects: external
 evals:
   tier0:
   - type: invariant_check

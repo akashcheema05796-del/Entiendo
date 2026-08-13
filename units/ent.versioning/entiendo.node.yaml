@@ -20,7 +20,7 @@ contract:
   - output['code'] != None
   entrypoint: src/ent/version.py::compute_version
   harness: evals/harness/selfhost.py::compute_version
-  sideEffects: none
+  sideEffects: external
 evals:
   tier0:
   - type: invariant_check

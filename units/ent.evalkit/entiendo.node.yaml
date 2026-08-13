@@ -36,7 +36,7 @@ contract:
   - output['tier'] == 0
   entrypoint: src/ent/evals/runner.py::run_tier0
   harness: evals/harness/selfhost.py::run_tier0
-  sideEffects: none
+  sideEffects: external
 evals:
   tier0:
   - type: invariant_check

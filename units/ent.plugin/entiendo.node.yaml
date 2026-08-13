@@ -39,7 +39,7 @@ contract:
   - output['root'] == 'miniproj'
   entrypoint: .claude/hooks/enforce_claims.py::_managed_root
   harness: evals/harness/selfhost.py::managed_root
-  sideEffects: none
+  sideEffects: external
 evals:
   tier0:
   - type: invariant_check
